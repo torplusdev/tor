@@ -2120,8 +2120,13 @@ rend_service_receive_introduction(origin_circuit_t *circuit,
    */
   int max_rend_failures=hs_get_service_max_rend_failures();
   for (i=0;i<max_rend_failures;i++) {
+
+#ifdef PP_WORKAROUND
+    int flags = CIRCLAUNCH_IS_INTERNAL;
+#else
     int flags = CIRCLAUNCH_NEED_CAPACITY | CIRCLAUNCH_IS_INTERNAL;
     if (circ_needs_uptime) flags |= CIRCLAUNCH_NEED_UPTIME;
+#endif
     /* A Single Onion Service only uses a direct connection if its
      * firewall rules permit direct connections to the address.
      *
@@ -3020,7 +3025,11 @@ rend_service_relaunch_rendezvous(origin_circuit_t *oldcirc)
   const char *rend_pk_digest;
   rend_service_t *service = NULL;
 
+#ifdef PP_WORKAROUND
+  int flags = CIRCLAUNCH_IS_INTERNAL;
+#else
   int flags = CIRCLAUNCH_NEED_CAPACITY | CIRCLAUNCH_IS_INTERNAL;
+#endif
 
   tor_assert(oldcirc->base_.purpose == CIRCUIT_PURPOSE_S_CONNECT_REND);
   oldstate = oldcirc->build_state;
@@ -3050,9 +3059,11 @@ rend_service_relaunch_rendezvous(origin_circuit_t *oldcirc)
     return;
   }
 
+#ifndef PP_WORKAROUND
   if (hs_service_requires_uptime_circ(service->ports)) {
     flags |= CIRCLAUNCH_NEED_UPTIME;
   }
+#endif
 
   /* You'd think Single Onion Services would want to retry the rendezvous
    * using a direct connection. But if it's blocked by a firewall, or the
@@ -3085,7 +3096,13 @@ rend_service_launch_establish_intro(rend_service_t *service,
                                     rend_intro_point_t *intro)
 {
   origin_circuit_t *launched;
+
+#ifdef PP_WORKAROUND
+  int flags = CIRCLAUNCH_IS_INTERNAL;
+#else
   int flags = CIRCLAUNCH_NEED_UPTIME|CIRCLAUNCH_IS_INTERNAL;
+#endif
+
   const or_options_t *options = get_options();
   extend_info_t *launch_ei = intro->extend_info;
   extend_info_t *direct_ei = NULL;
@@ -4202,8 +4219,13 @@ rend_consider_services_intro_points(time_t now)
     for (i = 0; i < (int) n_intro_points_to_open; i++) {
       const node_t *node;
       rend_intro_point_t *intro;
+#ifdef PP_WORKAROUND
+      router_crn_flags_t flags = CRN_NEED_DESC;
+#else
       router_crn_flags_t flags = CRN_NEED_UPTIME|CRN_NEED_DESC;
-      router_crn_flags_t direct_flags = flags;
+#endif
+
+        router_crn_flags_t direct_flags = flags;
       direct_flags |= CRN_PREF_ADDR;
       direct_flags |= CRN_DIRECT_CONN;
 

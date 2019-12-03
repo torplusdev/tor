@@ -19,6 +19,9 @@
 #define KERNEL_MAY_SUPPORT_IPFW
 #endif
 
+
+#define PP_WORKAROUND 1
+
 /** Lowest allowable value for HeartbeatPeriod; if this is too low, we might
  * expose more information than we're comfortable with. */
 #define MIN_HEARTBEAT_PERIOD (30*60)

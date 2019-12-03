@@ -1644,6 +1644,10 @@ route_len_for_purpose(uint8_t purpose, extend_info_t *exit_ei)
     log_warn(LD_BUG, "Unhandled purpose %d with a chosen exit; "
              "assuming routelen %d.", purpose, routelen);
   }
+
+#ifdef PP_WORKAROUND
+  routelen = DEFAULT_ROUTE_LEN;
+#endif
   return routelen;
 }
 

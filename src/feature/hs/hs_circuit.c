@@ -402,10 +402,16 @@ launch_rendezvous_point_circuit(const hs_service_t *service,
   }
 
   for (int i = 0; i < MAX_REND_FAILURES; i++) {
+
+#ifdef PP_WORKAROUND
+    int circ_flags =  CIRCLAUNCH_IS_INTERNAL;
+
+#else
     int circ_flags = CIRCLAUNCH_NEED_CAPACITY | CIRCLAUNCH_IS_INTERNAL;
     if (circ_needs_uptime) {
       circ_flags |= CIRCLAUNCH_NEED_UPTIME;
     }
+#endif
     /* Firewall and policies are checked when getting the extend info.
      *
      * We only use a one-hop path on the first attempt. If the first attempt
@@ -695,7 +701,15 @@ hs_circ_launch_intro_point(hs_service_t *service,
                            bool direct_conn)
 {
   /* Standard flags for introduction circuit. */
-  int ret = -1, circ_flags = CIRCLAUNCH_NEED_UPTIME | CIRCLAUNCH_IS_INTERNAL;
+
+  int ret = -1;
+
+#ifdef PP_WORKAROUND
+  int circ_flags = CIRCLAUNCH_IS_INTERNAL;
+#else
+  int circ_flags = CIRCLAUNCH_NEED_UPTIME | CIRCLAUNCH_IS_INTERNAL;
+#endif
+
   origin_circuit_t *circ;
 
   tor_assert(service);

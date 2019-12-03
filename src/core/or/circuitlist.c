@@ -1941,10 +1941,12 @@ circuit_find_to_cannibalize(uint8_t purpose_to_produce, extend_info_t *info,
       /* Ignore any circuits for which we can't use the Guard. It is possible
        * that the Guard was removed from the samepled set after the circuit
        * was created so avoid using it. */
+#ifndef  PP_WORKAROUND
+      // MK: This seems to filter out all node candidates
       if (!entry_guard_could_succeed(circ->guard_state)) {
         goto next;
       }
-
+#endif
       if ((!need_uptime || circ->build_state->need_uptime) &&
           (!need_capacity || circ->build_state->need_capacity) &&
           (internal == circ->build_state->is_internal) &&

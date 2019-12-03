@@ -1000,7 +1000,7 @@ typedef struct or_state_t or_state_t;
 /********************************* circuitbuild.c **********************/
 
 /** How many hops does a general-purpose circuit have by default? */
-#define DEFAULT_ROUTE_LEN 3
+#define DEFAULT_ROUTE_LEN 2
 
 /* Circuit Build Timeout "public" structures. */
 
@@ -1084,7 +1084,7 @@ typedef struct rend_encoded_v2_service_descriptor_t
 /** The maximum number of circuit creation retry we do to an intro point
  * before giving up. We try to reuse intro point that fails during their
  * lifetime so this is a hard limit on the amount of time we do that. */
-#define MAX_INTRO_POINT_CIRCUIT_RETRIES 3
+#define MAX_INTRO_POINT_CIRCUIT_RETRIES 10
 
 typedef struct rend_intro_point_t rend_intro_point_t;
 typedef struct rend_service_descriptor_t rend_service_descriptor_t;

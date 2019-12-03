@@ -1085,7 +1085,7 @@ circuit_stream_is_being_handled(entry_connection_t *conn,
 }
 
 /** Don't keep more than this many unused open circuits around. */
-#define MAX_UNUSED_OPEN_CIRCUITS 14
+#define MAX_UNUSED_OPEN_CIRCUITS 50
 
 /* Return true if a circuit is available for use, meaning that it is open,
  * clean, usable for new multi-hop connections, and a general purpose origin
@@ -1282,8 +1282,13 @@ circuit_predict_and_launch_new(void)
   }
 
   if (needs_hs_server_circuits(now, num_uptime_internal)) {
+
+#ifdef PP_WORKAROUND
+    flags = (CIRCLAUNCH_IS_INTERNAL);
+#else
     flags = (CIRCLAUNCH_NEED_CAPACITY | CIRCLAUNCH_NEED_UPTIME |
              CIRCLAUNCH_IS_INTERNAL);
+#endif
 
     log_info(LD_CIRC,
              "Have %d clean circs (%d internal), need another internal "
