@@ -63,7 +63,7 @@ int tor_cond_wait(tor_cond_t *cond, tor_mutex_t *mutex,
 void tor_cond_signal_one(tor_cond_t *cond);
 void tor_cond_signal_all(tor_cond_t *cond);
 
-typedef struct tor_threadlocal_t {
+typedef struct tor_threadlocal_s {
 #ifdef _WIN32
   DWORD index;
 #else
@@ -106,9 +106,7 @@ void tor_threadlocal_set(tor_threadlocal_t *threadlocal, void *value);
 typedef struct atomic_counter_t {
   atomic_size_t val;
 } atomic_counter_t;
-#ifndef COCCI
 #define ATOMIC_LINKAGE static
-#endif
 #else /* !defined(HAVE_WORKING_STDATOMIC) */
 typedef struct atomic_counter_t {
   tor_mutex_t mutex;

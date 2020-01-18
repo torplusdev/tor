@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file port_cfg_st.h
- * @brief Listener port configuration structure.
- **/
-
 #ifndef PORT_CFG_ST_H
 #define PORT_CFG_ST_H
 
@@ -37,3 +32,4 @@ struct port_cfg_t {
 };
 
 #endif /* !defined(PORT_CFG_ST_H) */
+

@@ -2,7 +2,7 @@
 /* See LICENSE for licensing information */
 
 /**
- * \file consdiffmgr.c
+ * \file consdiffmsr.c
  *
  * \brief consensus diff manager functions
  *
@@ -844,7 +844,7 @@ consdiffmgr_configure(const consdiff_cfg_t *cfg)
  * operations that the consensus diff manager will need.
  */
 int
-consdiffmgr_register_with_sandbox(struct sandbox_cfg_elem_t **cfg)
+consdiffmgr_register_with_sandbox(struct sandbox_cfg_elem **cfg)
 {
   return consensus_cache_register_with_sandbox(cdm_cache_get(), cfg);
 }
@@ -1293,7 +1293,7 @@ typedef struct compressed_result_t {
 
 /**
  * Compress the bytestring <b>input</b> of length <b>len</b> using the
- * <b>n_methods</b> compression methods listed in the array <b>methods</b>.
+ * <n>n_methods</b> compression methods listed in the array <b>methods</b>.
  *
  * For each successful compression, set the fields in the <b>results_out</b>
  * array in the position corresponding to the compression method. Use

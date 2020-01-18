@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file routerinfo.c
- * @brief Manipulate full router descriptors.
- **/
-
 #include "core/or/or.h"
 
 #include "feature/nodelist/nodelist.h"

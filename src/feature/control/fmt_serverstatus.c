@@ -3,11 +3,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file fmt_serverstatus.c
- * @brief Format relay info for a controller.
- **/
-
 #include "core/or/or.h"
 #include "feature/control/fmt_serverstatus.h"
 

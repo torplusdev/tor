@@ -14,10 +14,8 @@
 
 #include "feature/hs/hs_service.h"
 
-/* Cleanup function when the circuit is closed or freed. */
-void hs_circ_cleanup_on_close(circuit_t *circ);
-void hs_circ_cleanup_on_free(circuit_t *circ);
-void hs_circ_cleanup_on_repurpose(circuit_t *circ);
+/* Cleanup function when the circuit is closed or/and freed. */
+void hs_circ_cleanup(circuit_t *circ);
 
 /* Circuit API. */
 int hs_circ_service_intro_has_opened(hs_service_t *service,
@@ -36,8 +34,6 @@ int hs_circ_launch_rendezvous_point(const hs_service_t *service,
 void hs_circ_retry_service_rendezvous_point(origin_circuit_t *circ);
 
 origin_circuit_t *hs_circ_service_get_intro_circ(
-                                      const hs_service_intro_point_t *ip);
-origin_circuit_t *hs_circ_service_get_established_intro_circ(
                                       const hs_service_intro_point_t *ip);
 
 /* Cell API. */

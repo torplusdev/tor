@@ -48,7 +48,7 @@
 #include <winsock2.h>
 #endif
 
-struct timeout_cb_t {
+struct timeout_cb {
   timer_cb_fn_t cb;
   void *arg;
 };
@@ -56,21 +56,19 @@ struct timeout_cb_t {
 /*
  * These definitions are for timeouts.c  and timeouts.h.
  */
-#ifdef COCCI
-#define TIMEOUT_PUBLIC
-#elif defined(__GNUC__)
+#ifdef __GNUC__
 /* We're not exposing any of the functions outside this file. */
 #define TIMEOUT_PUBLIC __attribute__((__unused__)) static
 #else
 /* We're not exposing any of the functions outside this file. */
 #define TIMEOUT_PUBLIC static
-#endif /* defined(COCCI) || ... */
+#endif /* defined(__GNUC__) */
 /* We're not using periodic events. */
 #define TIMEOUT_DISABLE_INTERVALS
 /* We always know the global_timeouts object, so we don't need each timeout
  * to keep a pointer to it. */
 #define TIMEOUT_DISABLE_RELATIVE_ACCESS
-/* We're providing our own struct timeout_cb_t. */
+/* We're providing our own struct timeout_cb. */
 #define TIMEOUT_CB_OVERRIDE
 /* We're going to support timers that are pretty far out in advance. Making
  * this big can be inefficient, but having a significant number of timers

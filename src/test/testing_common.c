@@ -266,14 +266,11 @@ main(int c, const char **v)
 
   options = options_new();
 
-  struct tor_libevent_cfg_t cfg;
+  struct tor_libevent_cfg cfg;
   memset(&cfg, 0, sizeof(cfg));
   tor_libevent_initialize(&cfg);
 
   control_initialize_event_queue();
-
-  /* Don't add default logs; the tests manage their own. */
-  quiet_level = QUIET_SILENT;
 
   for (i_out = i = 1; i < c; ++i) {
     if (!strcmp(v[i], "--warn")) {
@@ -326,7 +323,6 @@ main(int c, const char **v)
   initialize_mainloop_events();
   options_init(options);
   options->DataDirectory = tor_strdup(temp_dir);
-  options->DataDirectory_option = tor_strdup(temp_dir);
   tor_asprintf(&options->KeyDirectory, "%s"PATH_SEPARATOR"keys",
                options->DataDirectory);
   options->CacheDirectory = tor_strdup(temp_dir);

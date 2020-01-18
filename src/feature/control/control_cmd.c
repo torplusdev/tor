@@ -13,7 +13,7 @@
 
 #include "core/or/or.h"
 #include "app/config/config.h"
-#include "lib/confmgt/confmgt.h"
+#include "lib/confmgt/confparse.h"
 #include "app/main/main.h"
 #include "core/mainloop/connection.h"
 #include "core/or/circuitbuild.h"
@@ -26,7 +26,6 @@
 #include "feature/control/control.h"
 #include "feature/control/control_auth.h"
 #include "feature/control/control_cmd.h"
-#include "feature/control/control_hs.h"
 #include "feature/control/control_events.h"
 #include "feature/control/control_getinfo.h"
 #include "feature/control/control_proto.h"
@@ -591,7 +590,7 @@ control_setconf_helper(control_connection_t *conn,
   const unsigned flags =
     CAL_CLEAR_FIRST | (use_defaults ? CAL_USE_DEFAULTS : 0);
 
-  // We need a copy here, since confmgt.c wants to canonicalize cases.
+  // We need a copy here, since confparse.c wants to canonicalize cases.
   config_line_t *lines = config_lines_dup(args->kwargs);
 
   opt_err = options_trial_assign(lines, flags, &errstring);
@@ -1971,7 +1970,6 @@ add_onion_helper_keyarg(const char *arg, int discard_pk,
     decoded_key->v2 = pk;
     *hs_version = HS_VERSION_TWO;
   } else if (!strcasecmp(key_type_ed25519_v3, key_type)) {
-    /* parsing of private ed25519 key */
     /* "ED25519-V3:<Base64 Blob>" - Loading a pre-existing ed25519 key. */
     ed25519_secret_key_t *sk = tor_malloc_zero(sizeof(*sk));
     if (base64_decode((char *) sk->seckey, sizeof(sk->seckey), key_blob,
@@ -2250,7 +2248,6 @@ typedef struct control_cmd_def_t {
  */
 #define CMD_FL_WIPE (1u<<0)
 
-#ifndef COCCI
 /** Macro: declare a command with a one-line argument, a given set of flags,
  * and a syntax definition.
  **/
@@ -2283,7 +2280,6 @@ typedef struct control_cmd_def_t {
       0,                                        \
       &obsolete_syntax,                         \
   }
-#endif /* !defined(COCCI) */
 
 /**
  * An array defining all the recognized controller commands.
@@ -2319,9 +2315,6 @@ static const control_cmd_def_t CONTROL_COMMANDS[] =
   MULTLINE(hspost, 0),
   ONE_LINE(add_onion, CMD_FL_WIPE),
   ONE_LINE(del_onion, CMD_FL_WIPE),
-  ONE_LINE(onion_client_auth_add, CMD_FL_WIPE),
-  ONE_LINE(onion_client_auth_remove, 0),
-  ONE_LINE(onion_client_auth_view, 0),
 };
 
 /**

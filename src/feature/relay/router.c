@@ -35,7 +35,6 @@
 #include "feature/nodelist/routerlist.h"
 #include "feature/nodelist/torcert.h"
 #include "feature/relay/dns.h"
-#include "feature/relay/relay_config.h"
 #include "feature/relay/router.h"
 #include "feature/relay/routerkeys.h"
 #include "feature/relay/routermode.h"
@@ -373,8 +372,6 @@ assert_identity_keys_ok(void)
   }
 }
 
-#ifdef HAVE_MODULE_RELAY
-
 /** Returns the current server identity key; requires that the key has
  * been set, and that we are running as a Tor server.
  */
@@ -386,8 +383,6 @@ get_server_identity_key,(void))
   assert_identity_keys_ok();
   return server_identitykey;
 }
-
-#endif /* defined(HAVE_MODULE_RELAY) */
 
 /** Return true iff we are a server and the server identity key
  * has been set. */
@@ -887,6 +882,15 @@ init_keys_common(void)
   if (!key_lock)
     key_lock = tor_mutex_new();
 
+  /* There are a couple of paths that put us here before we've asked
+   * openssl to initialize itself. */
+  if (crypto_global_init(get_options()->HardwareAccel,
+                         get_options()->AccelName,
+                         get_options()->AccelDir)) {
+    log_err(LD_BUG, "Unable to initialize OpenSSL. Exiting.");
+    return -1;
+  }
+
   return 0;
 }
 
@@ -1214,7 +1218,7 @@ router_should_be_dirserver(const or_options_t *options, int dir_port)
      * much larger effect on output than input so there is no reason to turn it
      * off if using AccountingRule in. */
     int interval_length = accounting_get_interval_length();
-    uint32_t effective_bw = relay_get_effective_bwrate(options);
+    uint32_t effective_bw = get_effective_bwrate(options);
     uint64_t acc_bytes;
     if (!interval_length) {
       log_warn(LD_BUG, "An accounting interval is not allowed to be zero "
@@ -2033,10 +2037,10 @@ router_build_fresh_unsigned_routerinfo,(routerinfo_t **ri_out))
   ri->protocol_list = tor_strdup(protover_get_supported_protocols());
 
   /* compute ri->bandwidthrate as the min of various options */
-  ri->bandwidthrate = relay_get_effective_bwrate(options);
+  ri->bandwidthrate = get_effective_bwrate(options);
 
   /* and compute ri->bandwidthburst similarly */
-  ri->bandwidthburst = relay_get_effective_bwburst(options);
+  ri->bandwidthburst = get_effective_bwburst(options);
 
   /* Report bandwidth, unless we're hibernating or shutting down */
   ri->bandwidthcapacity = hibernating ? 0 : rep_hist_bandwidth_assess();

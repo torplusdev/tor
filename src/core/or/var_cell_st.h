@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file var_cell_st.h
- * @brief Variable-length cell structure.
- **/
-
 #ifndef VAR_CELL_ST_H
 #define VAR_CELL_ST_H
 
@@ -25,3 +20,4 @@ struct var_cell_t {
 };
 
 #endif /* !defined(VAR_CELL_ST_H) */
+

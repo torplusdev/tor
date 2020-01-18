@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file extend_info_st.h
- * @brief Extend-info structure.
- **/
-
 #ifndef EXTEND_INFO_ST_H
 #define EXTEND_INFO_ST_H
 

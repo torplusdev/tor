@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2018, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file mainloop_pubsub.h
- * @brief Header for mainloop_pubsub.c
- **/
-
 #ifndef TOR_MAINLOOP_PUBSUB_H
 #define TOR_MAINLOOP_PUBSUB_H
 

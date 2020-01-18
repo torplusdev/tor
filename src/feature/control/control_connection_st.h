@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file control_connection_st.h
- * @brief Controller connection structure.
- **/
-
 #ifndef CONTROL_CONNECTION_ST_H
 #define CONTROL_CONNECTION_ST_H
 

@@ -3,11 +3,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file tortls_internal.h
- * @brief Declare internal functions for lib/tls
- **/
-
 #ifndef TORTLS_INTERNAL_H
 #define TORTLS_INTERNAL_H
 

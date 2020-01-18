@@ -1,11 +1,6 @@
 /* Copyright (c) 2017-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file conscache.h
- * @brief Header for conscache.c
- **/
-
 #ifndef TOR_CONSCACHE_H
 #define TOR_CONSCACHE_H
 
@@ -23,10 +18,10 @@ consensus_cache_t *consensus_cache_open(const char *subdir, int max_entries);
 void consensus_cache_free_(consensus_cache_t *cache);
 #define consensus_cache_free(cache) \
   FREE_AND_NULL(consensus_cache_t, consensus_cache_free_, (cache))
-struct sandbox_cfg_elem_t;
+struct sandbox_cfg_elem;
 int consensus_cache_may_overallocate(consensus_cache_t *cache);
 int consensus_cache_register_with_sandbox(consensus_cache_t *cache,
-                                          struct sandbox_cfg_elem_t **cfg);
+                                          struct sandbox_cfg_elem **cfg);
 void consensus_cache_unmap_lazy(consensus_cache_t *cache, time_t cutoff);
 void consensus_cache_delete_pending(consensus_cache_t *cache,
                                     int force);

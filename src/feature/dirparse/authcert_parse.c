@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file authcert_parse.c
- * @brief Authority certificate parsing.
- **/
-
 #include "core/or/or.h"
 #include "feature/dirparse/authcert_parse.h"
 #include "feature/dirparse/parsecommon.h"
@@ -18,11 +13,10 @@
 #include "lib/memarea/memarea.h"
 
 #include "feature/nodelist/authority_cert_st.h"
-#include "feature/dirparse/authcert_members.h"
 
 /** List of tokens recognized in V3 authority certificates. */
 static token_rule_t dir_key_certificate_table[] = {
-  AUTHCERT_MEMBERS,
+#include "feature/dirparse/authcert_members.i"
   T1("fingerprint",      K_FINGERPRINT,              CONCAT_ARGS, NO_OBJ ),
   END_OF_TABLE
 };

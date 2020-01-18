@@ -37,7 +37,6 @@
 
 #define test_memeq_hex(expr1, hex) test_mem_op_hex(expr1, OP_EQ, hex)
 
-#ifndef COCCI
 #define tt_double_op(a,op,b)                                            \
   tt_assert_test_type(a,b,#a" "#op" "#b,double,(val1_ op val2_),"%g",   \
                       TT_EXIT_TEST_FUNCTION)
@@ -65,7 +64,6 @@
   tt_assert_test_fmt_type(a,b,#a" "#op" "#b,int64_t,(val1_ op val2_),  \
     int64_t, "%"PRId64,                                                \
     {print_ = (int64_t) value_;}, {}, TT_EXIT_TEST_FUNCTION)
-#endif /* !defined(COCCI) */
 
 /**
  * Declare that the test is done, even though no tt___op() calls were made.
@@ -147,7 +145,6 @@ void free_pregenerated_keys(void);
 #define NAME_TEST_(name) #name
 #define NAME_TEST(name) NAME_TEST_(name)
 #define ASPECT(test_module, test_name) US2_CONCAT_2__(test_module, test_name)
-#ifndef COCCI
 #define TEST_CASE(function)  \
   {  \
       NAME_TEST(function),  \
@@ -164,18 +161,15 @@ void free_pregenerated_keys(void);
       NULL,  \
       NULL,  \
   }
-#endif /* !defined(COCCI) */
 
 #define NS(name) US_CONCAT_3_(NS_MODULE, NS_SUBMODULE, name)
 #define NS_FULL(module, submodule, name) US_CONCAT_3_(module, submodule, name)
 
 #define CALLED(mock_name) US_CONCAT_2_(NS(mock_name), called)
-#ifndef COCCI
 #define NS_DECL(retval, mock_fn, args) \
     extern int CALLED(mock_fn);        \
     static retval NS(mock_fn) args; int CALLED(mock_fn) = 0
 #define NS_MOCK(name) MOCK(name, NS(name))
-#endif /* !defined(COCCI) */
 #define NS_UNMOCK(name) UNMOCK(name)
 
 extern const struct testcase_setup_t passthrough_setup;
@@ -199,7 +193,6 @@ extern struct testcase_t checkdir_tests[];
 extern struct testcase_t circuitbuild_tests[];
 extern struct testcase_t circuitlist_tests[];
 extern struct testcase_t circuitmux_tests[];
-extern struct testcase_t circuitmux_ewma_tests[];
 extern struct testcase_t circuitstats_tests[];
 extern struct testcase_t circuituse_tests[];
 extern struct testcase_t compat_libevent_tests[];
@@ -252,7 +245,6 @@ extern struct testcase_t nodelist_tests[];
 extern struct testcase_t oom_tests[];
 extern struct testcase_t oos_tests[];
 extern struct testcase_t options_tests[];
-extern struct testcase_t options_act_tests[];
 extern struct testcase_t parsecommon_tests[];
 extern struct testcase_t pem_tests[];
 extern struct testcase_t periodic_event_tests[];
@@ -281,7 +273,6 @@ extern struct testcase_t scheduler_tests[];
 extern struct testcase_t sendme_tests[];
 extern struct testcase_t socks_tests[];
 extern struct testcase_t sr_tests[];
-extern struct testcase_t stats_tests[];
 extern struct testcase_t status_tests[];
 extern struct testcase_t storagedir_tests[];
 extern struct testcase_t thread_tests[];

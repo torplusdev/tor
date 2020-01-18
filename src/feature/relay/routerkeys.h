@@ -1,11 +1,6 @@
 /* Copyright (c) 2014-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file routerkeys.h
- * @brief Header for routerkeys.c
- **/
-
 #ifndef TOR_ROUTERKEYS_H
 #define TOR_ROUTERKEYS_H
 

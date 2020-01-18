@@ -1392,7 +1392,7 @@ get_interface_addresses_win32(int severity, sa_family_t family)
 
 /* This is defined on Mac OS X */
 #ifndef _SIZEOF_ADDR_IFREQ
-#define _SIZEOF_ADDR_IFREQ(x) sizeof(x)
+#define _SIZEOF_ADDR_IFREQ sizeof
 #endif
 
 /* Free ifc->ifc_buf safely. */
@@ -2001,7 +2001,7 @@ tor_addr_port_new(const tor_addr_t *addr, uint16_t port)
   return ap;
 }
 
-/** Return true iff <b>a</b> and <b>b</b> are the same address and port */
+/** Return true iff <a>a</b> and <b>b</b> are the same address and port */
 int
 tor_addr_port_eq(const tor_addr_port_t *a,
                  const tor_addr_port_t *b)

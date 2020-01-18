@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file listener_connection_st.h
- * @brief Listener connection structure.
- **/
-
 #ifndef LISTENER_CONNECTION_ST_H
 #define LISTENER_CONNECTION_ST_H
 
@@ -27,3 +22,4 @@ struct listener_connection_t {
 };
 
 #endif /* !defined(LISTENER_CONNECTION_ST_H) */
+

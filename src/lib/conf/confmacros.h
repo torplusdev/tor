@@ -15,13 +15,11 @@
 #include "orconfig.h"
 #include "lib/conf/conftesting.h"
 
-#ifndef COCCI
 /**
  * Used to indicate the end of an array of configuration variables.
  **/
 #define END_OF_CONFIG_VARS                                      \
   { .member = { .name = NULL } DUMMY_CONF_TEST_MEMBERS }
-#endif /* !defined(COCCI) */
 
 /**
  * Declare a config_var_t as a member named <b>membername</b> of the structure
@@ -45,7 +43,7 @@
   }
 
 /**
- * As CONFIG_VAR_ETYPE, but declares a value using an extension type whose
+ * As CONFIG_VAR_XTYPE, but declares a value using an extension type whose
  * type definition is <b>vartype</b>_type_defn.
  **/
 #define CONFIG_VAR_DEFN(structtype, varname, vartype, membername,       \
@@ -61,9 +59,6 @@
     CONF_TEST_MEMBERS(structtype, vartype, membername)                  \
   }
 
-/**
- * Declare an obsolete configuration variable with a given name.
- **/
 #define CONFIG_VAR_OBSOLETE(varname)            \
   { .member = { .name = varname, .type = CONFIG_TYPE_OBSOLETE },        \
     .flags = CFLG_GROUP_OBSOLETE                                        \

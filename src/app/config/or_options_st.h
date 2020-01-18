@@ -15,7 +15,6 @@
 
 #include "lib/cc/torint.h"
 #include "lib/net/address.h"
-#include "app/config/tor_cmdline_mode.h"
 
 struct smartlist_t;
 struct config_line_t;
@@ -32,7 +31,12 @@ struct or_options_t {
   uint32_t magic_;
 
   /** What should the tor process actually do? */
-  tor_cmdline_mode_t command;
+  enum {
+    CMD_RUN_TOR=0, CMD_LIST_FINGERPRINT, CMD_HASH_PASSWORD,
+    CMD_VERIFY_CONFIG, CMD_RUN_UNITTESTS, CMD_DUMP_CONFIG,
+    CMD_KEYGEN,
+    CMD_KEY_EXPIRATION,
+  } command;
   char *command_arg; /**< Argument for command-line option. */
 
   struct config_line_t *Logs; /**< New-style list of configuration lines
@@ -536,8 +540,12 @@ struct or_options_t {
                          * protocol, is it a warn or an info in our logs? */
   int TestSocks; /**< Boolean: when we get a socks connection, do we loudly
                   * log whether it was DNS-leaking or not? */
+  int HardwareAccel; /**< Boolean: Should we enable OpenSSL hardware
+                      * acceleration where available? */
   /** Token Bucket Refill resolution in milliseconds. */
   int TokenBucketRefillInterval;
+  char *AccelName; /**< Optional hardware acceleration engine name. */
+  char *AccelDir; /**< Optional hardware acceleration engine search dir. */
 
   /** Boolean: Do we try to enter from a smallish number
    * of fixed nodes? */
@@ -569,9 +577,7 @@ struct or_options_t {
 
   int DirCache; /**< Cache all directory documents and accept requests via
                  * tunnelled dir conns from clients. If 1, enabled (default);
-                 * If 0, disabled. Use dir_server_mode() rather than
-                 * referencing this option directly. (Except for routermode
-                 * and relay_config, which do direct checks.) */
+                 * If 0, disabled. */
 
   char *VirtualAddrNetworkIPv4; /**< Address and mask to hand out for virtual
                                  * MAPADDRESS requests for IPv4 addresses */
@@ -848,7 +854,7 @@ struct or_options_t {
    * to make this false. */
   int ReloadTorrcOnSIGHUP;
 
-  /** The main parameter for picking circuits within a connection.
+  /* The main parameter for picking circuits within a connection.
    *
    * If this value is positive, when picking a cell to relay on a connection,
    * we always relay from the circuit whose weighted cell count is lowest.
@@ -1044,7 +1050,7 @@ struct or_options_t {
   /** The list of scheduler type string ordered by priority that is first one
    * has to be tried first. Default: KIST,KISTLite,Vanilla */
   struct smartlist_t *Schedulers;
-  /** An ordered list of scheduler_types mapped from Schedulers. */
+  /* An ordered list of scheduler_types mapped from Schedulers. */
   struct smartlist_t *SchedulerTypes_;
 
   /** List of files that were opened by %include in torrc and torrc-defaults */

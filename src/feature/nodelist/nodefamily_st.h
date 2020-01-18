@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file nodefamily_st.h
- * @brief Compact node-family structure
- **/
-
 #ifndef TOR_NODEFAMILY_ST_H
 #define TOR_NODEFAMILY_ST_H
 

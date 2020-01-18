@@ -276,8 +276,8 @@ static int log_time_granularity = 1;
 
 /** Define log time granularity for all logs to be <b>granularity_msec</b>
  * milliseconds. */
-MOCK_IMPL(void,
-set_log_time_granularity,(int granularity_msec))
+void
+set_log_time_granularity(int granularity_msec)
 {
   log_time_granularity = granularity_msec;
   tor_log_sigsafe_err_set_granularity(granularity_msec);
@@ -523,7 +523,7 @@ logfile_deliver(logfile_t *lf, const char *buf, size_t msg_len,
      * pass them, and some very old ones do not detect overflow so well.
      * Regrettably, they call their maximum line length MAXLINE. */
 #if MAXLINE < 64
-#warning "MAXLINE is a very low number; it might not be from syslog.h."
+#warn "MAXLINE is a very low number; it might not be from syslog.h after all"
 #endif
     char *m = msg_after_prefix;
     if (msg_len >= MAXLINE)
@@ -937,9 +937,9 @@ set_log_severity_config(int loglevelMin, int loglevelMax,
 
 /** Add a log handler named <b>name</b> to send all messages in <b>severity</b>
  * to <b>fd</b>. Copies <b>severity</b>. Helper: does no locking. */
-MOCK_IMPL(STATIC void,
-add_stream_log_impl,(const log_severity_list_t *severity,
-                     const char *name, int fd))
+static void
+add_stream_log_impl(const log_severity_list_t *severity,
+                    const char *name, int fd)
 {
   logfile_t *lf;
   lf = tor_malloc_zero(sizeof(logfile_t));
@@ -995,16 +995,18 @@ logs_set_domain_logging(int enabled)
   UNLOCK_LOGS();
 }
 
-/** Add a log handler to accept messages when no other log is configured.
+/** Add a log handler to receive messages during startup (before the real
+ * logs are initialized).
  */
 void
-add_default_log(int min_severity)
+add_temp_log(int min_severity)
 {
   log_severity_list_t *s = tor_malloc_zero(sizeof(log_severity_list_t));
   set_log_severity_config(min_severity, LOG_ERR, s);
   LOCK_LOGS();
-  add_stream_log_impl(s, "<default>", fileno(stdout));
+  add_stream_log_impl(s, "<temp>", fileno(stdout));
   tor_free(s);
+  logfiles->is_temporary = 1;
   UNLOCK_LOGS();
 }
 
@@ -1147,7 +1149,8 @@ flush_log_messages_from_startup(void)
   UNLOCK_LOGS();
 }
 
-/** Close any log handlers marked by mark_logs_temp(). */
+/** Close any log handlers added by add_temp_log() or marked by
+ * mark_logs_temp(). */
 void
 close_temp_logs(void)
 {
@@ -1199,10 +1202,10 @@ mark_logs_temp(void)
  * opening the logfile failed, -1 is returned and errno is set appropriately
  * (by open(2)).  Takes ownership of fd.
  */
-MOCK_IMPL(int,
-add_file_log,(const log_severity_list_t *severity,
-              const char *filename,
-              int fd))
+int
+add_file_log(const log_severity_list_t *severity,
+             const char *filename,
+             int fd)
 {
   logfile_t *lf;
 

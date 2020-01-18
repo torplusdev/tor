@@ -3,11 +3,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file subsystem_list.c
- * @brief List of Tor's subsystems.
- **/
-
 #include "orconfig.h"
 #include "app/main/subsysmgr.h"
 #include "lib/cc/compat_compiler.h"
@@ -18,6 +13,7 @@
 #include "core/or/or_sys.h"
 #include "core/or/orconn_event_sys.h"
 #include "feature/control/btrack_sys.h"
+#include "feature/relay/relay_sys.h"
 #include "lib/compress/compress_sys.h"
 #include "lib/crypt_ops/crypto_sys.h"
 #include "lib/err/torerr_sys.h"
@@ -32,7 +28,6 @@
 #include "lib/evloop/evloop_sys.h"
 
 #include "feature/dirauth/dirauth_sys.h"
-#include "feature/relay/relay_sys.h"
 
 #include <stddef.h>
 
@@ -66,9 +61,7 @@ const subsys_fns_t *tor_subsystems[] = {
   &sys_mainloop,
   &sys_or,
 
-#ifdef HAVE_MODULE_RELAY
   &sys_relay,
-#endif
 
 #ifdef HAVE_MODULE_DIRAUTH
   &sys_dirauth,

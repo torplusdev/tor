@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file ns_detached_signatures_st.h
- * @brief Detached consensus signatures structure.
- **/
-
 #ifndef NS_DETACHED_SIGNATURES_ST_H
 #define NS_DETACHED_SIGNATURES_ST_H
 
@@ -24,3 +19,4 @@ struct ns_detached_signatures_t {
 };
 
 #endif /* !defined(NS_DETACHED_SIGNATURES_ST_H) */
+

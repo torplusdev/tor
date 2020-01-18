@@ -26,7 +26,7 @@
 
 #include "core/or/or.h"
 #include "app/config/config.h"
-#include "lib/confmgt/confmgt.h"
+#include "lib/confmgt/confparse.h"
 #include "core/mainloop/connection.h"
 #include "core/or/relay.h"
 #include "core/or/versions.h"
@@ -635,6 +635,7 @@ setup_dir_formats_options(const char *arg, or_options_t *options)
 STMT_BEGIN \
   tt_assert(r1); \
   tt_assert(rp1); \
+\
   tt_int_op(rp1->addr,OP_EQ, r1->addr); \
   tt_int_op(rp1->or_port,OP_EQ, r1->or_port); \
   tt_int_op(rp1->dir_port,OP_EQ, r1->dir_port); \
@@ -7209,7 +7210,6 @@ test_dir_format_versions_list(void *arg)
   teardown_capture_of_logs();
 }
 
-#ifndef COCCI
 #define DIR_LEGACY(name)                             \
   { #name, test_dir_ ## name , TT_FORK, NULL, NULL }
 
@@ -7219,7 +7219,6 @@ test_dir_format_versions_list(void *arg)
 /* where arg is a string constant */
 #define DIR_ARG(name,flags,arg)                      \
   { #name "_" arg, test_dir_##name, (flags), &passthrough_setup, (void*) arg }
-#endif /* !defined(COCCI) */
 
 struct testcase_t dir_tests[] = {
   DIR_LEGACY(nicknames),

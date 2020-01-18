@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file relay_crypto.h
- * @brief Header for relay_crypto.c
- **/
-
 #include "core/or/or.h"
 #include "core/or/circuitlist.h"
 #include "core/or/crypt_path.h"

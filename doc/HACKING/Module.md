@@ -8,18 +8,13 @@ module in Tor.
 In the context of the tor code base, a module is a subsystem that we can
 selectively enable or disable, at `configure` time.
 
-Currently, tor has these modules:
+Currently, there is only one module:
 
-  - Relay subsystem (relay)
   - Directory Authority subsystem (dirauth)
 
-dirauth is located in its own directory in `src/feature/dirauth/`.
-
-Relay is located in directories named `src/*/*relay` and `src/*/*dircache`,
-which are being progressively refactored and disabled.
-
-To disable a module, pass `--disable-module-{dirauth,relay}` at configure
-time. All modules are currently enabled by default.
+It is located in its own directory in `src/feature/dirauth/`. To disable it,
+one need to pass `--disable-module-dirauth` at configure time. All modules
+are currently enabled by default.
 
 ## Build System ##
 
@@ -29,7 +24,7 @@ The changes to the build system are pretty straightforward.
    contains a list (white-space separated) of the module in tor. Add yours to
    the list.
 
-2. Use the `AC_ARG_ENABLE([module-relay]` template for your new module. We
+2. Use the `AC_ARG_ENABLE([module-dirauth]` template for your new module. We
    use the "disable module" approach instead of enabling them one by one. So,
    by default, tor will build all the modules.
 
@@ -37,7 +32,7 @@ The changes to the build system are pretty straightforward.
    the C code to conditionally compile things for your module. And the
    `BUILD_MODULE_<name>` is also defined for automake files (e.g: include.am).
 
-3. In the `src/core/include.am` file, locate the `MODULE_RELAY_SOURCES`
+3. In the `src/core/include.am` file, locate the `MODULE_DIRAUTH_SOURCES`
    value.  You need to create your own `_SOURCES` variable for your module
    and then conditionally add the it to `LIBTOR_A_SOURCES` if you should
    build the module.
@@ -45,14 +40,18 @@ The changes to the build system are pretty straightforward.
    It is then **very** important to add your SOURCES variable to
    `src_or_libtor_testing_a_SOURCES` so the tests can build it.
 
+4. Do the same for header files, locate `ORHEADERS +=` which always add all
+   headers of all modules so the symbol can be found for the module entry
+   points.
+
 Finally, your module will automatically be included in the
-`TOR_MODULES_ALL_ENABLED` variable which is used to build the unit tests.
-They always build everything in order to test everything.
+`TOR_MODULES_ALL_ENABLED` variable which is used to build the unit tests. They
+always build everything in order to tests everything.
 
 ## Coding ##
 
-As mentioned above, a module should be isolated in its own directories,
-suffixed with the name of the module, in `src/*/`.
+As mentioned above, a module must be isolated in its own directory (name of
+the module) in `src/feature/`.
 
 There are couples of "rules" you want to follow:
 

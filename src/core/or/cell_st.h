@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file cell_st.h
- * @brief Fixed-size cell structure.
- **/
-
 #ifndef CELL_ST_H
 #define CELL_ST_H
 
@@ -22,3 +17,4 @@ struct cell_t {
 };
 
 #endif /* !defined(CELL_ST_H) */
+

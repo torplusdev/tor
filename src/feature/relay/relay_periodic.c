@@ -31,13 +31,11 @@
 #include "feature/nodelist/routerinfo_st.h"
 #include "feature/control/control_events.h"
 
-#ifndef COCCI
 #define DECLARE_EVENT(name, roles, flags)         \
   static periodic_event_item_t name ## _event =   \
     PERIODIC_EVENT(name,                          \
                    PERIODIC_EVENT_ROLE_##roles,   \
                    flags)
-#endif /* !defined(COCCI) */
 
 #define FL(name) (PERIODIC_EVENT_FLAG_##name)
 

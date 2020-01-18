@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file download_status_st.h
- * @brief Directory download status/schedule structure.
- **/
-
 #ifndef DOWNLOAD_STATUS_ST_H
 #define DOWNLOAD_STATUS_ST_H
 
@@ -67,3 +62,4 @@ struct download_status_t {
 };
 
 #endif /* !defined(DOWNLOAD_STATUS_ST_H) */
+

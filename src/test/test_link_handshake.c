@@ -325,7 +325,7 @@ test_link_handshake_certs_ok(void *arg)
   crypto_pk_free(key2);
 }
 
-typedef struct certs_data_t {
+typedef struct certs_data_s {
   int is_ed;
   int is_link_cert;
   or_connection_t *c;
@@ -972,7 +972,7 @@ test_link_handshake_send_authchallenge(void *arg)
   crypto_pk_free(rsa1);
 }
 
-typedef struct authchallenge_data_t {
+typedef struct authchallenge_data_s {
   or_connection_t *c;
   channel_tls_t *chan;
   var_cell_t *cell;
@@ -1171,7 +1171,7 @@ mock_set_circid_type(channel_t *chan,
   (void) consider_identity;
 }
 
-typedef struct authenticate_data_t {
+typedef struct authenticate_data_s {
   int is_ed;
   or_connection_t *c1, *c2;
   channel_tls_t *chan2;
@@ -1492,7 +1492,6 @@ AUTHENTICATE_FAIL(missing_ed_auth,
                     "authentication certificate";
                 })
 
-#ifndef COCCI
 #define TEST_RSA(name, flags)                                           \
   { #name , test_link_handshake_ ## name, (flags),                      \
       &passthrough_setup, (void*)"RSA" }
@@ -1528,7 +1527,6 @@ AUTHENTICATE_FAIL(missing_ed_auth,
 #define TEST_AUTHENTICATE_ED(name)                                      \
   { "authenticate/" #name "_ed25519" , test_link_handshake_auth_ ## name, \
       TT_FORK, &setup_authenticate, (void*)3 }
-#endif /* !defined(COCCI) */
 
 struct testcase_t link_handshake_tests[] = {
   TEST_RSA(certs_ok, TT_FORK),

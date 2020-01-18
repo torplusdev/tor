@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file rend_encoded_v2_service_descriptor_st.h
- * @brief Encoded v2 HS descriptor structure.
- **/
-
 #ifndef REND_ENCODED_V2_SERVICE_DESCRIPTOR_ST_H
 #define REND_ENCODED_V2_SERVICE_DESCRIPTOR_ST_H
 
@@ -19,3 +14,4 @@ struct rend_encoded_v2_service_descriptor_t {
 };
 
 #endif /* !defined(REND_ENCODED_V2_SERVICE_DESCRIPTOR_ST_H) */
+

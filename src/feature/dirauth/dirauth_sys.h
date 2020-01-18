@@ -4,18 +4,9 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file dirauth_sys.h
- * @brief Header for dirauth_sys.c
- **/
-
 #ifndef DIRAUTH_SYS_H
 #define DIRAUTH_SYS_H
 
-#ifdef HAVE_MODULE_DIRAUTH
-
 extern const struct subsys_fns_t sys_dirauth;
-
-#endif
 
 #endif /* !defined(DIRAUTH_SYS_H) */

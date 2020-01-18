@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2018, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file dispatch_naming.h
- * @brief Header for dispatch_naming.c
- **/
-
 #ifndef TOR_DISPATCH_NAMING_H
 #define TOR_DISPATCH_NAMING_H
 

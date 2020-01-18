@@ -3,11 +3,6 @@
  * Copyright (c) 2007-2018, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file namemap.c
- * @brief Mappings between identifiers and 16-bit ints.
- **/
-
 #include "orconfig.h"
 #include "lib/container/smartlist.h"
 #include "lib/container/namemap.h"

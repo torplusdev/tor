@@ -4,7 +4,7 @@
 /* See LICENSE for licensing information */
 
 /**
- * \file routerset.h
+ * \file routerlist.h
  * \brief Header file for routerset.c
  **/
 
@@ -46,7 +46,6 @@ int routerset_len(const routerset_t *set);
 
 struct var_type_def_t;
 extern const struct var_type_def_t ROUTERSET_type_defn;
-typedef routerset_t config_decl_ROUTERSET;
 
 #ifdef ROUTERSET_PRIVATE
 #include "lib/container/bitarray.h"

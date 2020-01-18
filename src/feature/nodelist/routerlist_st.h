@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file routerlist_st.h
- * @brief Router descriptor list structure.
- **/
-
 #ifndef ROUTERLIST_ST_H
 #define ROUTERLIST_ST_H
 
@@ -42,3 +37,4 @@ struct routerlist_t {
 };
 
 #endif /* !defined(ROUTERLIST_ST_H) */
+

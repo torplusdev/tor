@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file dirauth_periodic.c
- * @brief Peridoic events for directory authorities.
- **/
-
 #include "core/or/or.h"
 
 #include "app/config/or_options_st.h"
@@ -23,13 +18,11 @@
 
 #include "core/mainloop/periodic.h"
 
-#ifndef COCCI
 #define DECLARE_EVENT(name, roles, flags)         \
   static periodic_event_item_t name ## _event =   \
     PERIODIC_EVENT(name,                          \
                    PERIODIC_EVENT_ROLE_##roles,   \
                    flags)
-#endif /* !defined(COCCI) */
 
 #define FL(name) (PERIODIC_EVENT_FLAG_##name)
 

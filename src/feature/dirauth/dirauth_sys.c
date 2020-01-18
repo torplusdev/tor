@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file dirauth_sys.c
- * @brief Directory authority subsystem declarations
- **/
-
 #include "core/or/or.h"
 
 #include "feature/dirauth/bwauth.h"

@@ -23,11 +23,9 @@
 #include <syslog.h>
 #define LOG_WARN LOG_WARNING
 #if LOG_DEBUG < LOG_ERR
-#ifndef COCCI
 #error "Your syslog.h thinks high numbers are more important.  " \
        "We aren't prepared to deal with that."
 #endif
-#endif /* LOG_DEBUG < LOG_ERR */
 #else /* !defined(HAVE_SYSLOG_H) */
 /* Note: Syslog's logging code refers to priorities, with 0 being the most
  * important.  Thus, all our comparisons needed to be reversed when we added
@@ -165,11 +163,11 @@ int parse_log_severity_config(const char **cfg,
                               log_severity_list_t *severity_out);
 void set_log_severity_config(int minSeverity, int maxSeverity,
                              log_severity_list_t *severity_out);
-void add_stream_log(const log_severity_list_t *severity,
-                    const char *name, int fd);
-MOCK_DECL(int, add_file_log,(const log_severity_list_t *severity,
-                             const char *filename,
-                             int fd));
+void add_stream_log(const log_severity_list_t *severity, const char *name,
+                    int fd);
+int add_file_log(const log_severity_list_t *severity,
+                 const char *filename,
+                 int fd);
 
 #ifdef HAVE_SYSLOG_H
 int add_syslog_log(const log_severity_list_t *severity,
@@ -187,7 +185,7 @@ int get_min_log_level(void);
 void switch_logs_debug(void);
 void logs_free_all(void);
 void logs_close_sigsafe(void);
-void add_default_log(int min_severity);
+void add_temp_log(int min_severity);
 void close_temp_logs(void);
 void rollback_log_changes(void);
 void mark_logs_temp(void);
@@ -196,7 +194,7 @@ void change_callback_log_severity(int loglevelMin, int loglevelMax,
 void flush_pending_log_callbacks(void);
 void flush_log_messages_from_startup(void);
 void log_set_application_name(const char *name);
-MOCK_DECL(void, set_log_time_granularity,(int granularity_msec));
+void set_log_time_granularity(int granularity_msec);
 void truncate_logs(void);
 
 void tor_log(int severity, log_domain_mask_t domain, const char *format, ...)
@@ -308,9 +306,7 @@ extern const log_domain_mask_t LD_GENERAL_;
 MOCK_DECL(STATIC void, logv, (int severity, log_domain_mask_t domain,
     const char *funcname, const char *suffix, const char *format,
     va_list ap) CHECK_PRINTF(5,0));
-MOCK_DECL(STATIC void, add_stream_log_impl,(
-         const log_severity_list_t *severity, const char *name, int fd));
-#endif /* defined(LOG_PRIVATE) */
+#endif
 
 #if defined(LOG_PRIVATE) || defined(TOR_UNIT_TESTS)
 /** Given a severity, yields an index into log_severity_list_t.masks to use

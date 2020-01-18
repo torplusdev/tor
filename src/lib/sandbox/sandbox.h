@@ -29,10 +29,10 @@
 #define USE_LIBSECCOMP
 #endif
 
-struct sandbox_cfg_elem_t;
+struct sandbox_cfg_elem;
 
 /** Typedef to structure used to manage a sandbox configuration. */
-typedef struct sandbox_cfg_elem_t sandbox_cfg_t;
+typedef struct sandbox_cfg_elem sandbox_cfg_t;
 
 /**
  * Linux definitions
@@ -58,7 +58,7 @@ typedef enum {
  *  Configuration parameter structure associated with the LIBSECCOMP2
  *  implementation.
  */
-typedef struct smp_param_t {
+typedef struct smp_param {
   /** syscall associated with parameter. */
   int syscall;
 
@@ -77,7 +77,7 @@ typedef struct smp_param_t {
  * It is implemented as a linked list of parameters. Currently only controls
  * parameters for open, openat, execve, stat64.
  */
-struct sandbox_cfg_elem_t {
+struct sandbox_cfg_elem {
   /** Sandbox implementation which dictates the parameter type. */
   SB_IMPL implem;
 
@@ -85,7 +85,7 @@ struct sandbox_cfg_elem_t {
   smp_param_t *param;
 
   /** Next element of the configuration*/
-  struct sandbox_cfg_elem_t *next;
+  struct sandbox_cfg_elem *next;
 };
 
 /** Function pointer defining the prototype of a filter function.*/

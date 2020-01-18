@@ -4,15 +4,10 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file relay_crypto_st.h
- * @brief Relay-cell encryption state structure.
- **/
-
 #ifndef RELAY_CRYPTO_ST_H
 #define RELAY_CRYPTO_ST_H
 
-#define crypto_cipher_t aes_cnt_cipher_t
+#define crypto_cipher_t aes_cnt_cipher
 struct crypto_cipher_t;
 struct crypto_digest_t;
 

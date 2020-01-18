@@ -15,7 +15,7 @@
 #include "lib/container/handles.h"
 
 /* Forward declare for guard_selection_t; entrynodes.c has the real struct */
-typedef struct guard_selection_t guard_selection_t;
+typedef struct guard_selection_s guard_selection_t;
 
 /* Forward declare for entry_guard_t; the real declaration is private. */
 typedef struct entry_guard_t entry_guard_t;
@@ -28,7 +28,7 @@ typedef struct circuit_guard_state_t circuit_guard_state_t;
    private. */
 typedef struct entry_guard_restriction_t entry_guard_restriction_t;
 
-/** Information about a guard's pathbias status.
+/* Information about a guard's pathbias status.
  * These fields are used in circpathbias.c to try to detect entry
  * nodes that are failing circuits at a suspicious frequency.
  */
@@ -210,7 +210,7 @@ typedef enum guard_selection_type_t {
  * See the module documentation for entrynodes.c for more information
  * about guard selection algorithms.
  */
-struct guard_selection_t {
+struct guard_selection_s {
   /**
    * The name for this guard-selection object. (Must not contain spaces).
    */

@@ -35,12 +35,6 @@ def get_tor_c_files(tor_topdir, include_dirs=None):
                     continue
                 if filename in EXCLUDE_FILES:
                     continue
-                # Avoid editor temporary files
-                bname = os.path.basename(filename)
-                if bname.startswith("."):
-                    continue
-                if bname.startswith("#"):
-                    continue
 
                 full_path = os.path.join(root,filename)
 

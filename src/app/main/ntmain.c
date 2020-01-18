@@ -66,7 +66,7 @@ static int nt_service_cmd_stop(void);
 
 /** Struct to hold dynamically loaded NT-service related function pointers.
  */
-struct {
+struct service_fns {
   int loaded;
 
   /** @{ */
@@ -340,7 +340,6 @@ nt_service_main(void)
                "or --key-expiration) in NT service.");
         break;
       case CMD_RUN_UNITTESTS:
-      case CMD_IMMEDIATE:
       default:
         log_err(LD_CONFIG, "Illegal command number %d: internal error.",
                 get_options()->command);

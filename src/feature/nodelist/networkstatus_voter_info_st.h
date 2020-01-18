@@ -4,11 +4,6 @@
  * Copyright (c) 2007-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file networkstatus_voter_info_st.h
- * @brief Single consensus voter structure.
- **/
-
 #ifndef NETWORKSTATUS_VOTER_INFO_ST_H
 #define NETWORKSTATUS_VOTER_INFO_ST_H
 

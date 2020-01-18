@@ -1,11 +1,6 @@
 /* Copyright (c) 2017-2019, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file consdiffmgr.h
- * @brief Header for consdiffmgr.c
- **/
-
 #ifndef TOR_CONSDIFFMGR_H
 #define TOR_CONSDIFFMGR_H
 
@@ -60,8 +55,8 @@ void consdiffmgr_rescan(void);
 int consdiffmgr_cleanup(void);
 void consdiffmgr_enable_background_compression(void);
 void consdiffmgr_configure(const consdiff_cfg_t *cfg);
-struct sandbox_cfg_elem_t;
-int consdiffmgr_register_with_sandbox(struct sandbox_cfg_elem_t **cfg);
+struct sandbox_cfg_elem;
+int consdiffmgr_register_with_sandbox(struct sandbox_cfg_elem **cfg);
 void consdiffmgr_free_all(void);
 int consdiffmgr_validate(void);
 

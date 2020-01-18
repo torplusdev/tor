@@ -33,7 +33,6 @@
 #include "lib/process/env.h"
 #include "lib/process/pidfile.h"
 #include "lib/intmath/weakrng.h"
-#include "lib/intmath/muldiv.h"
 #include "lib/thread/numcpus.h"
 #include "lib/math/fp.h"
 #include "lib/math/laplace.h"
@@ -305,7 +304,6 @@ test_util_write_chunks_to_file(void *arg)
   tor_free(temp_str);
 }
 
-#ifndef COCCI
 #define _TFE(a, b, f)  tt_int_op((a).f, OP_EQ, (b).f)
 /** test the minimum set of struct tm fields needed for a unique epoch value
  * this is also the set we use to test tor_timegm */
@@ -318,7 +316,6 @@ test_util_write_chunks_to_file(void *arg)
             _TFE(a, b, tm_min ); \
             _TFE(a, b, tm_sec ); \
           TT_STMT_END
-#endif /* !defined(COCCI) */
 
 static void
 test_util_time(void *arg)
@@ -5976,14 +5973,6 @@ test_util_nowrap_math(void *arg)
   tt_u64_op(UINT32_MAX, OP_EQ, tor_add_u32_nowrap(2, UINT32_MAX-1));
   tt_u64_op(UINT32_MAX, OP_EQ, tor_add_u32_nowrap(UINT32_MAX, UINT32_MAX));
 
-  tt_u64_op(0, OP_EQ, tor_mul_u64_nowrap(0, 0));
-  tt_u64_op(1, OP_EQ, tor_mul_u64_nowrap(1, 1));
-  tt_u64_op(2, OP_EQ, tor_mul_u64_nowrap(2, 1));
-  tt_u64_op(4, OP_EQ, tor_mul_u64_nowrap(2, 2));
-  tt_u64_op(UINT64_MAX, OP_EQ, tor_mul_u64_nowrap(UINT64_MAX, 1));
-  tt_u64_op(UINT64_MAX, OP_EQ, tor_mul_u64_nowrap(2, UINT64_MAX));
-  tt_u64_op(UINT64_MAX, OP_EQ, tor_mul_u64_nowrap(UINT64_MAX, UINT64_MAX));
-
  done:
   ;
 }
@@ -6268,7 +6257,6 @@ test_util_map_anon_nofork(void *arg)
 #endif /* defined(_WIN32) */
 }
 
-#ifndef COCCI
 #define UTIL_LEGACY(name)                                               \
   { #name, test_util_ ## name , 0, NULL, NULL }
 
@@ -6293,7 +6281,6 @@ test_util_map_anon_nofork(void *arg)
   { "compress_dos/" #name, test_util_decompress_dos, 0,                 \
     &compress_setup,                                                    \
     (char*)(identifier) }
-#endif /* !defined(COCCI) */
 
 #ifdef _WIN32
 #define UTIL_TEST_NO_WIN(n, f) { #n, NULL, TT_SKIP, NULL, NULL }

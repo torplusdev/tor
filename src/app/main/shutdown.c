@@ -45,7 +45,6 @@
 #include "feature/nodelist/routerlist.h"
 #include "feature/nodelist/routerlist.h"
 #include "feature/relay/ext_orport.h"
-#include "feature/relay/relay_config.h"
 #include "feature/rend/rendcache.h"
 #include "feature/rend/rendclient.h"
 #include "feature/stats/geoip_stats.h"
@@ -144,7 +143,6 @@ tor_free_all(int postfork)
 
   if (!postfork) {
     config_free_all();
-    relay_config_free_all();
     or_state_free_all();
   }
   if (!postfork) {

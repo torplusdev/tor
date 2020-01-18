@@ -15,7 +15,6 @@
 #include "lib/log/util_bug.h"
 #include "lib/string/parse_int.h"
 #include "lib/string/util_string.h"
-#include "lib/intmath/muldiv.h"
 
 #include <string.h>
 
@@ -110,7 +109,6 @@ const struct unit_table_t time_msec_units[] = {
  * table <b>u</b>, then multiply the number by the unit multiplier.
  * On success, set *<b>ok</b> to 1 and return this product.
  * Otherwise, set *<b>ok</b> to 0.
- * Warns user when overflow or a negative value is detected.
  */
 uint64_t
 config_parse_units(const char *val, const unit_table_t *u, int *ok)
@@ -144,37 +142,10 @@ config_parse_units(const char *val, const unit_table_t *u, int *ok)
 
   for ( ;u->unit;++u) {
     if (!strcasecmp(u->unit, cp)) {
-      if (use_float) {
-        d = u->multiplier * d;
-
-        if (d < 0) {
-          log_warn(LD_CONFIG, "Got a negative value while parsing %s %s",
-                   val, u->unit);
-          *ok = 0;
-          goto done;
-        }
-
-        // Some compilers may warn about casting a double to an unsigned type
-        // because they don't know if d is >= 0
-        if (d >= 0 && (d > (double)INT64_MAX || (uint64_t)d > INT64_MAX)) {
-          log_warn(LD_CONFIG, "Overflow detected while parsing %s %s",
-                   val, u->unit);
-          *ok = 0;
-          goto done;
-        }
-
-        v = (uint64_t) d;
-      } else {
-        v = tor_mul_u64_nowrap(v, u->multiplier);
-
-        if (v > INT64_MAX) {
-          log_warn(LD_CONFIG, "Overflow detected while parsing %s %s",
-                   val, u->unit);
-          *ok = 0;
-          goto done;
-        }
-      }
-
+      if (use_float)
+        v = (uint64_t)(u->multiplier * d);
+      else
+        v *= u->multiplier;
       *ok = 1;
       goto done;
     }

@@ -4,21 +4,13 @@
  * Copyright (c) 2007-2018, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
-/**
- * @file dispatch_cfg_st.h
- * @brief Declarations for dispatch-configuration types.
- **/
-
 #ifndef TOR_DISPATCH_CFG_ST_H
 #define TOR_DISPATCH_CFG_ST_H
 
 struct smartlist_t;
 
-/** Information needed to create a dispatcher, but in a less efficient, more
- * mutable format.
- *
- * Nearly everybody should use the \refdir{lib/pubsub} module to configure
- * dispatchers, instead of using this. */
+/* Information needed to create a dispatcher, but in a less efficient, more
+ * mutable format. */
 struct dispatch_cfg_t {
   /** A list of msg_type_id_t (cast to void*), indexed by msg_t. */
   struct smartlist_t *type_by_msg;

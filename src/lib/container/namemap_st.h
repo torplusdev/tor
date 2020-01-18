@@ -6,11 +6,6 @@
 #ifndef NAMEMAP_ST_H
 #define NAMEMAP_ST_H
 
-/**
- * @file namemap_st.h
- * @brief Internal declarations for namemap structure.
- **/
-
 #include "lib/cc/compat_compiler.h"
 #include "ext/ht.h"
 
@@ -33,9 +28,7 @@ struct namemap_t {
   struct smartlist_t *names;
 };
 
-#ifndef COCCI
 /** Macro to initialize a namemap. */
 #define NAMEMAP_INIT() { HT_INITIALIZER(), NULL }
-#endif
 
 #endif /* !defined(NAMEMAP_ST_H) */
