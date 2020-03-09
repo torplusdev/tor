@@ -82,6 +82,7 @@
 #include "feature/nodelist/routerlist.h"
 #include "core/or/scheduler.h"
 
+#include "core/or/circuitpayment.h"
 #include "core/or/cell_st.h"
 #include "core/or/cell_queue_st.h"
 #include "core/or/cpath_build_state_st.h"
@@ -94,6 +95,7 @@
 #include "feature/nodelist/routerinfo_st.h"
 #include "core/or/socks_request_st.h"
 #include "core/or/sendme.h"
+#include "command.h"
 
 static edge_connection_t *relay_lookup_conn(circuit_t *circ, cell_t *cell,
                                             cell_direction_t cell_direction,
@@ -323,8 +325,12 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
       or_circuit_t *splice_ = TO_OR_CIRCUIT(circ)->rend_splice;
       tor_assert(circ->purpose == CIRCUIT_PURPOSE_REND_ESTABLISHED);
       tor_assert(splice_->base_.purpose == CIRCUIT_PURPOSE_REND_ESTABLISHED);
+
       cell->circ_id = splice_->p_circ_id;
       cell->command = CELL_RELAY; /* can't be relay_early anyway */
+
+      write_log_eduard_out(cell, circ);
+
       if ((reason = circuit_receive_relay_cell(cell, TO_CIRCUIT(splice_),
                                                CELL_DIRECTION_IN)) < 0) {
         log_warn(LD_REND, "Error relaying cell across rendezvous; closing "
@@ -502,6 +508,8 @@ relay_command_to_string(uint8_t command)
   switch (command) {
     case RELAY_COMMAND_BEGIN: return "BEGIN";
     case RELAY_COMMAND_DATA: return "DATA";
+    case RELAY_COMMAND_PAYMENT_REQUEST: return "PAYMENT_REQUEST";
+    case RELAY_COMMAND_PAYMENT: return "PAYMENT";
     case RELAY_COMMAND_END: return "END";
     case RELAY_COMMAND_CONNECTED: return "CONNECTED";
     case RELAY_COMMAND_SENDME: return "SENDME";
@@ -617,6 +625,7 @@ relay_send_command_from_edge_,(streamid_t stream_id, circuit_t *circ,
 
   memset(&cell, 0, sizeof(cell_t));
   cell.command = CELL_RELAY;
+
   if (CIRCUIT_IS_ORIGIN(circ)) {
     tor_assert(cpath_layer);
     cell.circ_id = circ->n_circ_id;
@@ -629,6 +638,8 @@ relay_send_command_from_edge_,(streamid_t stream_id, circuit_t *circ,
 
   memset(&rh, 0, sizeof(rh));
   rh.command = relay_command;
+
+
   rh.stream_id = stream_id;
   rh.length = payload_len;
   relay_header_pack(cell.payload, &rh);
@@ -698,6 +709,8 @@ relay_send_command_from_edge_,(streamid_t stream_id, circuit_t *circ,
      * valid, delivered data. */
     circuit_sent_valid_data(origin_circ, rh.length);
   }
+
+   write_log_eduard_out(&cell, circ);
 
   if (circuit_package_relay_cell(&cell, circ, cell_direction, cpath_layer,
                                  stream_id, filename, lineno) < 0) {
@@ -1577,6 +1590,32 @@ process_sendme_cell(const relay_header_t *rh, const cell_t *cell,
   return 0;
 }
 
+int
+process_payment_request_cell(const relay_header_t *rh, const cell_t *cell,
+                    circuit_t *circ, edge_connection_t *conn,
+                    crypt_path_t *layer_hint, int domain)
+{
+
+    payment_request_payload_t* paymet_request_payload = circuit_payment_request_handle_payment_request_negotiate(cell, circ);
+
+
+
+    circuit_payment_send(circ, 2, RELAY_COMMAND_PAYMENT);
+
+  return 0;
+}
+
+static int
+process_payment_cell(const relay_header_t *rh, const cell_t *cell,
+                             circuit_t *circ, edge_connection_t *conn,
+                             crypt_path_t *layer_hint, int domain)
+{
+
+    payment_payload_t* paymet_request_payload = circuit_payment_handle_payment_negotiate(cell, circ);
+
+    return 0;
+}
+
 /** A helper for connection_edge_process_relay_cell(): Actually handles the
  *  cell that we received on the connection.
  *
@@ -1899,6 +1938,10 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
       return 0;
     case RELAY_COMMAND_SENDME:
       return process_sendme_cell(rh, cell, circ, conn, layer_hint, domain);
+    case RELAY_COMMAND_PAYMENT_REQUEST:
+      return process_payment_request_cell(rh, cell, circ, conn, layer_hint, domain);
+    case RELAY_COMMAND_PAYMENT:
+      return process_payment_cell(rh, cell, circ, conn, layer_hint, domain);
     case RELAY_COMMAND_RESOLVE:
       if (layer_hint) {
         log_fn(LOG_PROTOCOL_WARN, LD_APP,
@@ -2917,6 +2960,9 @@ channel_flush_from_first_active_circuit, (channel_t *chan, int max))
       tor_assert(dcell);
       /* frees dcell */
       cell = destroy_cell_to_packed_cell(dcell, chan->wide_circ_ids);
+
+        write_log_eduard_out(&cell, circ);
+
       /* Send the DESTROY cell. It is very unlikely that this fails but just
        * in case, get rid of the channel. */
       if (channel_write_packed_cell(chan, cell) < 0) {
@@ -2982,6 +3028,8 @@ channel_flush_from_first_active_circuit, (channel_t *chan, int max))
         testing_cell_stats_entry_t *ent =
           tor_malloc_zero(sizeof(testing_cell_stats_entry_t));
         ent->command = command;
+          write_log_eduard_out(&cell, circ);
+
         ent->waiting_time = msec_waiting / 10;
         ent->removed = 1;
         if (circ->n_chan == chan)

@@ -210,6 +210,9 @@ struct curve25519_public_key_t;
 #define RELAY_COMMAND_PADDING_NEGOTIATE 41
 #define RELAY_COMMAND_PADDING_NEGOTIATED 42
 
+#define RELAY_COMMAND_PAYMENT_REQUEST 51
+#define RELAY_COMMAND_PAYMENT 52
+
 /* Reasons why an OR connection is closed. */
 #define END_OR_CONN_REASON_DONE           1
 #define END_OR_CONN_REASON_REFUSED        2 /* connection refused */
@@ -537,6 +540,9 @@ typedef enum {
 #define CELL_CREATE2 10
 #define CELL_CREATED2 11
 #define CELL_PADDING_NEGOTIATE 12
+#define CELL_PAYMENT_REQUEST 68
+#define CELL_PAYMENT 69
+
 
 #define CELL_VPADDING 128
 #define CELL_CERTS 129

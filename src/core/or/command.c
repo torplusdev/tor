@@ -50,6 +50,8 @@
 #include "core/or/onion.h"
 #include "core/or/relay.h"
 #include "feature/control/control_events.h"
+
+#include "core/or/extend_info_st.h"
 #include "feature/hibernate/hibernate.h"
 #include "feature/nodelist/describe.h"
 #include "feature/nodelist/nodelist.h"
@@ -57,6 +59,7 @@
 #include "feature/relay/routermode.h"
 #include "feature/stats/rephist.h"
 #include "lib/crypt_ops/crypto_util.h"
+#include "lib/log/log.h"
 
 #include "core/or/cell_st.h"
 #include "core/or/or_circuit_st.h"
@@ -107,6 +110,13 @@ cell_command_to_string(uint8_t command)
     case CELL_AUTHORIZE: return "authorize";
     default: return "unrecognized";
   }
+}
+const void write_log_eduard_out(cell_t *cell, circuit_t *circ) {
+    char ggg[200] = "";
+    strcat(ggg, cell_command_to_string(cell->command));
+    strcat(ggg, " CELL was sent to the following machine: ");
+    strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
+    log_notice(1, ggg);
 }
 
 #ifdef KEEP_TIMING_STATS
@@ -185,6 +195,8 @@ command_process_cell(channel_t *chan, cell_t *cell)
 #else /* !defined(KEEP_TIMING_STATS) */
 #define PROCESS_CELL(tp, cl, cn) command_process_ ## tp ## _cell(cl, cn)
 #endif /* defined(KEEP_TIMING_STATS) */
+
+
 
   switch (cell->command) {
     case CELL_CREATE:

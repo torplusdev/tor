@@ -20,6 +20,7 @@ void command_setup_channel(channel_t *chan);
 void command_setup_listener(channel_listener_t *chan_l);
 
 const char *cell_command_to_string(uint8_t command);
+const void write_log_eduard_out(cell_t *cell, circuit_t *circ);
 
 extern uint64_t stats_n_padding_cells_processed;
 extern uint64_t stats_n_create_cells_processed;

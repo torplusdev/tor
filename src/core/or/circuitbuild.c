@@ -714,7 +714,6 @@ circuit_deliver_create_cell(circuit_t *circ, const create_cell_t *create_cell,
   cell_t cell;
   circid_t id;
   int r;
-
   tor_assert(circ);
   tor_assert(circ->n_chan);
   tor_assert(create_cell);
@@ -740,6 +739,12 @@ circuit_deliver_create_cell(circuit_t *circ, const create_cell_t *create_cell,
   log_debug(LD_CIRC,"Chosen circID %u.", (unsigned)id);
   circuit_set_n_circid_chan(circ, id, circ->n_chan);
   cell.circ_id = circ->n_circ_id;
+
+  char ggg[200] = "";
+  strcat(ggg, cell_command_to_string(cell.command));
+  strcat(ggg, " CELL was sent to the following machine: ");
+  strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
+  log_notice(1, ggg);
 
   append_cell_to_circuit_queue(circ, circ->n_chan, &cell,
                                CELL_DIRECTION_OUT, 0);

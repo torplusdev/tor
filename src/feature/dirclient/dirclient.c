@@ -1614,6 +1614,11 @@ directory_send_command(dir_connection_t *conn,
       smartlist_add_asprintf(headers, "%s%s\r\n", h->key, h->value);
     }
   }
+    char ggg[200] = "";
+    strcat(ggg, dir_conn_purpose_to_string(purpose));
+    strcat(ggg, " HTTP request was sent to the following machine: ");
+    strcat(ggg, conn->base_.address);
+    log_notice(1, ggg);
 
   switch (purpose) {
     case DIR_PURPOSE_FETCH_CONSENSUS:

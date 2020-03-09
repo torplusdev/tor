@@ -2295,9 +2295,30 @@ connection_or_set_state_open(or_connection_t *conn)
  * For cells that use or affect a circuit, this should only be called by
  * connection_or_flush_from_first_active_circuit().
  */
+
+void
+write_eduards_out_log(const cell_t *cell, or_connection_t *conn){
+    char ggg[200] = "";
+    strcat(ggg, cell_command_to_string(cell->command));
+    strcat(ggg, " CELL was sent to the following machine: ");
+    strcat(ggg, conn->nickname);
+    log_notice(1, ggg);
+}
+
+void
+write_eduards_in_log(const cell_t *cell, or_connection_t *conn){
+    char ggg[200] = "";
+    strcat(ggg, cell_command_to_string(cell->command));
+    strcat(ggg, " CELL was received from the following machine: ");
+    strcat(ggg, conn->nickname);
+    log_notice(1, ggg);
+}
+
+
 void
 connection_or_write_cell_to_buf(const cell_t *cell, or_connection_t *conn)
 {
+  write_eduards_out_log(cell, conn);
   packed_cell_t networkcell;
   size_t cell_network_size = get_cell_network_size(conn->wide_circ_ids);
 
@@ -2337,6 +2358,7 @@ MOCK_IMPL(void,
 connection_or_write_var_cell_to_buf,(const var_cell_t *cell,
                                      or_connection_t *conn))
 {
+  write_eduards_out_log(cell,conn);
   int n;
   char hdr[VAR_CELL_MAX_HEADER_SIZE];
   tor_assert(cell);
@@ -2423,9 +2445,12 @@ connection_or_process_cells_from_inbuf(or_connection_t *conn)
 
       /* retrieve cell info from buf (create the host-order struct from the
        * network-order string) */
-      cell_unpack(&cell, buf, wide_circ_ids);
 
-      channel_tls_handle_cell(&cell, conn);
+        cell_unpack(&cell, buf, wide_circ_ids);
+
+        write_eduards_in_log(&cell, conn);
+
+        channel_tls_handle_cell(&cell, conn);
     }
   }
 }
@@ -2460,6 +2485,8 @@ is_or_protocol_version_known(uint16_t v)
 int
 connection_or_send_versions(or_connection_t *conn, int v3_plus)
 {
+
+
   var_cell_t *cell;
   int i;
   int n_versions = 0;
@@ -2477,6 +2504,7 @@ connection_or_send_versions(or_connection_t *conn, int v3_plus)
     ++n_versions;
   }
   cell->payload_len = n_versions * 2;
+  write_eduards_out_log(cell, conn);
 
   connection_or_write_var_cell_to_buf(cell, conn);
   conn->handshake_state->sent_versions_at = time(NULL);
@@ -2589,6 +2617,85 @@ connection_or_send_netinfo,(or_connection_t *conn))
   netinfo_cell_free(netinfo_cell);
 
   return r;
+}
+
+MOCK_IMPL(int,
+connection_or_send_payment_request,(or_connection_t *conn))
+{
+    cell_t cell;
+    time_t now = time(NULL);
+    const routerinfo_t *me;
+    int r = -1;
+
+    tor_assert(conn->handshake_state);
+
+    if (conn->handshake_state->sent_netinfo) {
+        log_warn(LD_BUG, "Attempted to send an extra netinfo cell on a connection "
+                         "where we already sent one.");
+        return 0;
+    }
+
+    memset(&cell, 0, sizeof(cell_t));
+    cell.command = CELL_NETINFO;
+
+    netinfo_cell_t *netinfo_cell = netinfo_cell_new();
+
+    /* Timestamp, if we're a relay. */
+    if (public_server_mode(get_options()) || ! conn->is_outgoing)
+        netinfo_cell_set_timestamp(netinfo_cell, (uint32_t)now);
+
+    /* Their address. */
+    const tor_addr_t *remote_tor_addr =
+            !tor_addr_is_null(&conn->real_addr) ? &conn->real_addr : &conn->base_.addr;
+    /* We use &conn->real_addr below, unless it hasn't yet been set. If it
+     * hasn't yet been set, we know that base_.addr hasn't been tampered with
+     * yet either. */
+    netinfo_addr_t *their_addr = netinfo_addr_from_tor_addr(remote_tor_addr);
+
+    netinfo_cell_set_other_addr(netinfo_cell, their_addr);
+
+    /* My address -- only include it if I'm a public relay, or if I'm a
+     * bridge and this is an incoming connection. If I'm a bridge and this
+     * is an outgoing connection, act like a normal client and omit it. */
+    if ((public_server_mode(get_options()) || !conn->is_outgoing) &&
+        (me = router_get_my_routerinfo())) {
+        tor_addr_t my_addr;
+        tor_addr_from_ipv4h(&my_addr, me->addr);
+
+        uint8_t n_my_addrs = 1 + !tor_addr_is_null(&me->ipv6_addr);
+        netinfo_cell_set_n_my_addrs(netinfo_cell, n_my_addrs);
+
+        netinfo_cell_add_my_addrs(netinfo_cell,
+                                  netinfo_addr_from_tor_addr(&my_addr));
+
+        if (!tor_addr_is_null(&me->ipv6_addr)) {
+            netinfo_cell_add_my_addrs(netinfo_cell,
+                                      netinfo_addr_from_tor_addr(&me->ipv6_addr));
+        }
+    }
+
+    const char *errmsg = NULL;
+    if ((errmsg = netinfo_cell_check(netinfo_cell))) {
+        log_warn(LD_OR, "Failed to validate NETINFO cell with error: %s",
+                 errmsg);
+        goto cleanup;
+    }
+
+    if (netinfo_cell_encode(cell.payload, CELL_PAYLOAD_SIZE,
+                            netinfo_cell) < 0) {
+        log_warn(LD_OR, "Failed generating NETINFO cell");
+        goto cleanup;
+    }
+
+    conn->handshake_state->digest_sent_data = 0;
+    conn->handshake_state->sent_netinfo = 1;
+    connection_or_write_cell_to_buf(&cell, conn);
+
+    r = 0;
+    cleanup:
+    netinfo_cell_free(netinfo_cell);
+
+    return r;
 }
 
 /** Helper used to add an encoded certs to a cert cell */
@@ -2731,12 +2838,10 @@ connection_or_send_certs_cell(or_connection_t *conn)
   ssize_t enc_len = certs_cell_encode(cell->payload, alloc_len, certs_cell);
   tor_assert(enc_len > 0 && enc_len <= alloc_len);
   cell->payload_len = enc_len;
-
+  write_eduards_out_log(cell, conn);
   connection_or_write_var_cell_to_buf(cell, conn);
   var_cell_free(cell);
   certs_cell_free(certs_cell);
-  tor_x509_cert_free(own_link_cert);
-
   return 0;
 }
 
@@ -2826,8 +2931,8 @@ connection_or_send_auth_challenge_cell(or_connection_t *conn)
 
  done:
   var_cell_free(cell);
-  auth_challenge_cell_free(ac);
 
+  write_eduards_out_log(cell, conn);
   return r;
 }
 
@@ -3084,6 +3189,8 @@ connection_or_compute_authenticate_cell_body(or_connection_t *conn,
  done:
   auth1_free(auth);
   auth_ctx_free(ctx);
+
+
   return result;
 }
 
@@ -3117,6 +3224,10 @@ connection_or_send_authenticate_cell,(or_connection_t *conn, int authtype))
   }
   connection_or_write_var_cell_to_buf(cell, conn);
   var_cell_free(cell);
-
+    char ggg[200] = "";
+    strcat(ggg, cell_command_to_string(cell->command));
+    strcat(ggg, " CELL was sent from the following machine: ");
+    strcat(ggg, conn->nickname);
+    log_notice(1, ggg);
   return 0;
 }
