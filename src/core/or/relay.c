@@ -1687,6 +1687,14 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
         return -END_CIRC_REASON_TORPROTOCOL;
       }
 
+
+       if (!CIRCUIT_IS_ORIGIN(circ)) {
+           if(circ->total_package_received > 50){
+               circuit_payment_request_send(circ, RELAY_COMMAND_PAYMENT_REQUEST);
+               circ->total_package_received = 0;
+           }
+       }
+
       /* Consider sending a circuit-level SENDME cell. */
       sendme_circuit_consider_sending(circ, layer_hint);
 

@@ -4,7 +4,7 @@
     <target id="34224d34-c6f1-4125-bc18-b599a542d324" name="Tor" projectName="tor">
       <configuration id="70f5ff5a-eb06-4183-b80a-2fb5f606fc62" name="Tor" toolchainName="Default">
         <build type="TOOL">
-          <tool actionId="Tool_External Tools_build_with_make" />
+          <tool actionId="Tool_External Tools_buld_with_make" />
         </build>
         <clean type="TOOL">
           <tool actionId="Tool_External Tools_clean_with_make" />

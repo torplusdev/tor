@@ -61,7 +61,7 @@ int sendmecell_deadcode_dummy__ = 0;
 
 
 
-signed_error_t circuit_payment_send(origin_circuit_t *circ, uint8_t target_hopnum, uint8_t command)
+signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, uint8_t command)
 {
     payment_payload_t type;
     cell_t cell;
@@ -84,22 +84,18 @@ signed_error_t circuit_payment_send(origin_circuit_t *circ, uint8_t target_hopnu
                                         &type)) < 0)
         return 0;
 
-    log_fn(LOG_INFO,LD_CIRC,
-           "Negotiating padding on circuit %u (%d), command %d",
-           circ->global_identifier, TO_CIRCUIT(circ)->purpose, command);
-
     return circuit_payment_send_command_to_hop(circ, target_hopnum,
                                        RELAY_COMMAND_PAYMENT,
                                        cell.payload, len);
 }
 
-signed_error_t circuit_payment_request_send(origin_circuit_t *circ, uint8_t target_hopnum, uint8_t command)
+signed_error_t circuit_payment_request_send(circuit_t *circ, uint8_t command)
 {
     payment_request_payload_t type;
     cell_t cell;
     ssize_t len;
 
-    if (!circuit_payment_get_nth_node(circ, target_hopnum)) {
+    if (CIRCUIT_IS_ORIGIN(circ)) {
         return 0;
     }
 
@@ -116,11 +112,7 @@ signed_error_t circuit_payment_request_send(origin_circuit_t *circ, uint8_t targ
                                         &type)) < 0)
         return 0;
 
-    log_fn(LOG_INFO,LD_CIRC,
-           "Negotiating padding on circuit %u (%d), command %d",
-           circ->global_identifier, TO_CIRCUIT(circ)->purpose, command);
-
-    return circuit_payment_send_command_to_hop(circ, target_hopnum,
+    return circuit_payment_send_command_to_origin(circ,
                                        RELAY_COMMAND_PAYMENT_REQUEST,
                                        cell.payload, len);
 }
@@ -158,6 +150,16 @@ signed_error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8
     ret = relay_send_command_from_edge(0, TO_CIRCUIT(circ), relay_command,
                                        (const char *) payload, payload_len,
                                        target_hop);
+    return ret;
+}
+
+signed_error_t circuit_payment_send_command_to_origin(origin_circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len) {
+   signed_error_t ret;
+
+/* Send the drop command to the second hop */
+    ret = relay_send_command_from_edge(0, TO_CIRCUIT(circ), relay_command,
+                                       (const char *) payload, payload_len,
+                                       NULL);
     return ret;
 }
 
@@ -427,20 +429,13 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
     trunnel_set_uint8(ptr, (obj->command));
     written += 1; ptr += 1;
 
-    /* Encode u8 machine_type */
+    /* Encode u4 data[TRUNNEL_PAYMENT_LEN] */
     trunnel_assert(written <= avail);
-    if (avail - written < 1)
+    if (avail - written < TRUNNEL_PAYMENT_LEN)
         goto truncated;
-    trunnel_set_uint8(ptr, (obj->machine_type));
-    written += 1; ptr += 1;
-
-    /* Encode u8 echo_request IN [0, 1] */
-    trunnel_assert(written <= avail);
-    if (avail - written < 1)
-        goto truncated;
-    trunnel_set_uint8(ptr, (obj->echo_request));
-    written += 1; ptr += 1;
-
+    memcpy(ptr, obj->data, TRUNNEL_PAYMENT_LEN);
+    written += TRUNNEL_PAYMENT_LEN; ptr += TRUNNEL_PAYMENT_LEN;
+    trunnel_assert(ptr == output + written);
 
     trunnel_assert(ptr == output + written);
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
