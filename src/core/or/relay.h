@@ -76,6 +76,8 @@ void destroy_cell_queue_append(destroy_cell_queue_t *queue,
                                circid_t circid,
                                uint8_t reason);
 
+void send_payment_request_to_client(circuit_t *circ);
+
 void channel_unlink_all_circuits(channel_t *chan, smartlist_t *detached_out);
 MOCK_DECL(int, channel_flush_from_first_active_circuit,
           (channel_t *chan, int max));

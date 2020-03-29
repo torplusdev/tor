@@ -56,6 +56,7 @@
 #include "core/or/circuitlist.h"
 #include "core/or/circuituse.h"
 #include "core/or/circuitpadding.h"
+#include "core/proto/payment_http_client.h"
 #include "lib/compress/compress.h"
 #include "app/config/config.h"
 #include "core/mainloop/connection.h"
@@ -1624,7 +1625,9 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
  *  unpacked by the parent function, and <b>optimistic_data</b> as set by the
  *  parent function.
  */
-STATIC int
+
+
+int
 handle_relay_cell_command(cell_t *cell, circuit_t *circ,
                      edge_connection_t *conn, crypt_path_t *layer_hint,
                      relay_header_t *rh, int optimistic_data)
@@ -1689,10 +1692,7 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
 
 
        if (!CIRCUIT_IS_ORIGIN(circ)) {
-           if(circ->total_package_received > 50){
-               circuit_payment_request_send(circ, RELAY_COMMAND_PAYMENT_REQUEST);
-               circ->total_package_received = 0;
-           }
+           send_payment_request_to_client(circ);
        }
 
       /* Consider sending a circuit-level SENDME cell. */
@@ -2008,6 +2008,23 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
          "a newer version of Tor? Dropping.",
          rh->command);
   return 0; /* for forward compatibility, don't kill the circuit */
+}
+
+void send_payment_request_to_client(circuit_t *circ) {
+    if(circ->total_package_received > 50){
+
+        payment_creation_request_t* request;
+        request = malloc(sizeof(payment_creation_request_t));
+        request->prm_1 = "1";
+        request->prm_2 = "NULL";
+        request_response_t* response = send_http_request("", request);
+
+        char nickname = &circ->n_hop->nickname;
+
+
+        circuit_payment_request_send(circ, RELAY_COMMAND_PAYMENT_REQUEST, NULL);
+        circ->total_package_received = 0;
+    }
 }
 
 /** An incoming relay cell has arrived on circuit <b>circ</b>. If

@@ -89,7 +89,7 @@ signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, uint
                                        cell.payload, len);
 }
 
-signed_error_t circuit_payment_request_send(circuit_t *circ, uint8_t command)
+signed_error_t circuit_payment_request_send(circuit_t *circ, uint8_t command, payment_request_input_t* input)
 {
     payment_request_payload_t type;
     cell_t cell;
@@ -102,11 +102,14 @@ signed_error_t circuit_payment_request_send(circuit_t *circ, uint8_t command)
     memset(&cell, 0, sizeof(cell_t));
     memset(&type, 0, sizeof(payment_request_payload_t));
 
-
     cell.command = CELL_RELAY;
-
+    type.nickname = input->nickname;
     type.command = command;
     type.version = 0;
+
+    char data_array[TRUNNEL_PAYMENT_LEN] = "";
+
+    strncpy(type.data, data_array, sizeof(data_array) - 1);
 
     if ((len = circuit_payment_request_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE,
                                         &type)) < 0)
@@ -273,12 +276,11 @@ payment_request_parse_into(payment_request_payload_t *obj, const uint8_t *input,
     if (! (obj->command == CELL_PAYMENT_REQUEST))
         goto fail;
 
-    /* Parse u32 node_id */
-    CHECK_REMAINING(4, truncated);
-    obj->node_id = (trunnel_get_uint32(ptr));
-    remaining -= 1; ptr += 1;
+    CHECK_REMAINING(TRUNNEL_PAYMENT_LEN, fail);
+    memcpy(obj->nickname, ptr, strlen(obj->nickname));
+    remaining -= strlen(obj->nickname); ptr += strlen(obj->nickname);
 
-    /* Parse u8 data[TRUNNEL_PAYMENT_LEN] */
+    /* Parse char data[TRUNNEL_PAYMENT_LEN] */
     CHECK_REMAINING(TRUNNEL_PAYMENT_LEN, fail);
     memcpy(obj->data, ptr, TRUNNEL_PAYMENT_LEN);
     remaining -= TRUNNEL_PAYMENT_LEN; ptr += TRUNNEL_PAYMENT_LEN;
@@ -362,12 +364,12 @@ ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t a
     trunnel_set_uint8(ptr, (obj->command));
     written += 1; ptr += 1;
 
-    /* Encode u32 machine_type */
     trunnel_assert(written <= avail);
-    if (avail - written < 1)
+    if (avail - written < strlen(obj->nickname))
         goto truncated;
-    trunnel_set_uint32(ptr, (obj->node_id));
-    written += 1; ptr += 1;
+    memcpy(ptr, obj->nickname, strlen(obj->nickname));
+    written += strlen(obj->nickname); ptr += strlen(obj->nickname);
+    trunnel_assert(ptr == output + written);
 
     /* Encode u4 data[TRUNNEL_PAYMENT_LEN] */
     trunnel_assert(written <= avail);

@@ -39,7 +39,13 @@ struct payment_payload_st {
     uint8_t version;
     uint8_t command;
 
-    __u_char data[TRUNNEL_PAYMENT_LEN];
+    char data[TRUNNEL_PAYMENT_LEN];
+
+};
+
+struct payment_request_input_st {
+    char* nickname;
+    uint8_t command;
 
 };
 
@@ -47,13 +53,14 @@ struct payment_request_payload_st {
     uint8_t version;
     uint8_t command;
 
-    __uint32_t node_id;
-    __u_char data[TRUNNEL_PAYMENT_LEN];
+    char* nickname;
+    char data[TRUNNEL_PAYMENT_LEN];
 
 };
 
 typedef struct payment_payload_st payment_payload_t;
 typedef struct payment_request_payload_st payment_request_payload_t;
+typedef struct payment_request_input_st payment_request_input_t;
 
 
 //public API
@@ -91,5 +98,7 @@ signed_error_t circuit_payment_send_command_to_origin(origin_circuit_t *circ, ui
 ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t avail, const payment_request_payload_t *obj);
 ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const payment_payload_t *obj);
 
+// public API
+
 signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, uint8_t command);
-signed_error_t circuit_payment_request_send(circuit_t *circ, uint8_t command);
+signed_error_t circuit_payment_request_send(circuit_t *circ, uint8_t command, payment_request_input_t* input);

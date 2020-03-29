@@ -62,6 +62,8 @@ LIBTOR_APP_A_SOURCES = 				\
 	src/core/or/status.c			\
 	src/core/or/versions.c			\
 	src/core/proto/proto_cell.c		\
+	src/core/proto/payment_http_client.c		\
+	src/core/proto/payment_http_server.c		\
 	src/core/proto/proto_control0.c		\
 	src/core/proto/proto_ext_or.c		\
 	src/core/proto/proto_http.c		\
@@ -299,6 +301,8 @@ noinst_HEADERS +=					\
 	src/core/proto/proto_ext_or.h			\
 	src/core/proto/proto_http.h			\
 	src/core/proto/proto_socks.h			\
+	src/core/proto/payment_http_client.h		\
+    src/core/proto/payment_http_server.h		\
 	src/feature/api/tor_api_internal.h		\
 	src/feature/client/addressmap.h			\
 	src/feature/client/bridges.h			\
@@ -323,7 +327,7 @@ noinst_HEADERS +=					\
 	src/feature/control/fmt_serverstatus.h		\
 	src/feature/control/getinfo_geoip.h		\
 	src/feature/dirauth/authmode.h			\
-        src/feature/dirauth/bridgeauth.h		\
+    src/feature/dirauth/bridgeauth.h		\
 	src/feature/dirauth/bwauth.h			\
 	src/feature/dirauth/dirauth_periodic.h		\
 	src/feature/dirauth/dirauth_sys.h		\
@@ -436,6 +440,7 @@ noinst_HEADERS +=					\
 	src/feature/stats/geoip_stats.h			\
 	src/feature/stats/rephist.h			\
 	src/feature/stats/predict_ports.h
+
 
 noinst_HEADERS +=				\
 	src/app/config/auth_dirs.inc		\
