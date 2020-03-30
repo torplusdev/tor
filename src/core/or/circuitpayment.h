@@ -47,6 +47,8 @@ struct payment_request_input_st {
     char* nickname;
     uint8_t command;
 
+    char* message;
+
 };
 
 struct payment_request_payload_st {
@@ -84,21 +86,26 @@ ssize_t
 payment_parse_into(payment_payload_t *obj, const uint8_t *input, const size_t len_in);
 
 ssize_t
-circuit_payment_negotiate_parse(circpad_negotiate_t **output, const uint8_t *input, const size_t len_in);
+circuit_payment_negotiate_parse(payment_payload_t **output, const uint8_t *input, const size_t len_in);
 ssize_t
 circuit_payment_request_negotiate_parse(payment_request_payload_t **output, const uint8_t *input, const size_t len_in);
 
 payment_request_payload_t*
 circuit_payment_request_handle_payment_request_negotiate(circuit_t *circ, cell_t *cell);
 payment_payload_t*
-circuit_payment_handle_payment_negotiate(circuit_t *circ, cell_t *cell);
-signed_error_t circuit_payment_send_command_to_origin(origin_circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
-
-
+circuit_payment_handle_payment_negotiate(cell_t *cell);
+signed_error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
+static void
+circuit_payment_negotiate_clear_1(payment_request_payload_t *obj);
+void
+circuit_payment__free(payment_payload_t *obj);
+void
+circuit_payment__free_1(payment_request_payload_t *obj);
+static void circuit_payment_negotiate_clear(payment_payload_t *obj);
 ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t avail, const payment_request_payload_t *obj);
 ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const payment_payload_t *obj);
 
 // public API
 
-signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, uint8_t command);
-signed_error_t circuit_payment_request_send(circuit_t *circ, uint8_t command, payment_request_input_t* input);
+signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, payment_request_input_t* input);
+signed_error_t circuit_payment_request_send(circuit_t *circ, payment_request_input_t* input);

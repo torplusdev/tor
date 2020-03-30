@@ -61,13 +61,15 @@ int sendmecell_deadcode_dummy__ = 0;
 
 
 
-signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, uint8_t command)
+signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, payment_request_input_t* input)
 {
     payment_payload_t type;
     cell_t cell;
     ssize_t len;
 
-    if (!circuit_payment_get_nth_node(circ, target_hopnum)) {
+    origin_circuit_t* orig_circ = TO_ORIGIN_CIRCUIT(circ);
+
+    if (!circuit_payment_get_nth_node(orig_circ, target_hopnum)) {
         return 0;
     }
 
@@ -77,19 +79,19 @@ signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, uint
 
     cell.command = CELL_RELAY;
 
-    type.command = command;
+    type.command = input->command;
     type.version = 0;
 
     if ((len = circuit_payment_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE,
                                         &type)) < 0)
         return 0;
 
-    return circuit_payment_send_command_to_hop(circ, target_hopnum,
+    return circuit_payment_send_command_to_hop(orig_circ, target_hopnum,
                                        RELAY_COMMAND_PAYMENT,
                                        cell.payload, len);
 }
 
-signed_error_t circuit_payment_request_send(circuit_t *circ, uint8_t command, payment_request_input_t* input)
+signed_error_t circuit_payment_request_send(circuit_t *circ, payment_request_input_t* input)
 {
     payment_request_payload_t type;
     cell_t cell;
@@ -104,7 +106,7 @@ signed_error_t circuit_payment_request_send(circuit_t *circ, uint8_t command, pa
 
     cell.command = CELL_RELAY;
     type.nickname = input->nickname;
-    type.command = command;
+    type.command = input->command;
     type.version = 0;
 
     char data_array[TRUNNEL_PAYMENT_LEN] = "";
@@ -156,11 +158,11 @@ signed_error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8
     return ret;
 }
 
-signed_error_t circuit_payment_send_command_to_origin(origin_circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len) {
+signed_error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len) {
    signed_error_t ret;
 
 /* Send the drop command to the second hop */
-    ret = relay_send_command_from_edge(0, TO_CIRCUIT(circ), relay_command,
+    ret = relay_send_command_from_edge(0, circ, relay_command,
                                        (const char *) payload, payload_len,
                                        NULL);
     return ret;
@@ -168,28 +170,29 @@ signed_error_t circuit_payment_send_command_to_origin(origin_circuit_t *circ, ui
 
 payment_request_payload_t*
 circuit_payment_request_handle_payment_request_negotiate(circuit_t *circ, cell_t *cell) {
-    circpad_negotiate_t *negotiate;
+    payment_request_payload_t *negotiate = NULL;
 
     if (CIRCUIT_IS_ORIGIN(circ)) {
         log_fn(LOG_PROTOCOL_WARN, LD_CIRC,
                "Padding negotiate cell unsupported at origin (circuit %u)",
                TO_ORIGIN_CIRCUIT(circ)->global_identifier);
-        return -1;
+        return negotiate;
     }
 
     if (circuit_payment_request_negotiate_parse(&negotiate, cell->payload+RELAY_HEADER_SIZE,
                                         CELL_PAYLOAD_SIZE-RELAY_HEADER_SIZE) < 0) {
         log_fn(LOG_PROTOCOL_WARN, LD_CIRC,
                "Received malformed PADDING_NEGOTIATE cell; dropping.");
-        return -1;
+        return negotiate;
     }
 
-    return 0;
+
+    return negotiate;
 }
 payment_payload_t*
-circuit_payment_handle_payment_negotiate(circuit_t *circ, cell_t *cell){
+circuit_payment_handle_payment_negotiate(cell_t *cell){
     int retval = 0;
-    circpad_negotiate_t *negotiate;
+    payment_payload_t *negotiate;
 
     if (circuit_payment_negotiate_parse(&negotiate, cell->payload+RELAY_HEADER_SIZE,
                                 CELL_PAYLOAD_SIZE-RELAY_HEADER_SIZE) < 0) {
@@ -201,10 +204,8 @@ circuit_payment_handle_payment_negotiate(circuit_t *circ, cell_t *cell){
     return 0;
 }
 
-
-
 ssize_t
-circuit_payment_negotiate_parse(circpad_negotiate_t **output, const uint8_t *input, const size_t len_in)
+circuit_payment_negotiate_parse(payment_payload_t **output, const uint8_t *input, const size_t len_in)
 {
     ssize_t result;
     *output = payment_payload_new();
@@ -212,10 +213,44 @@ circuit_payment_negotiate_parse(circpad_negotiate_t **output, const uint8_t *inp
         return -1;
     result = payment_parse_into(*output, input, len_in);
     if (result < 0) {
-        circpad_negotiate_free(*output);
+        circuit_payment__free(*output);
         *output = NULL;
     }
     return result;
+}
+
+void
+circuit_payment__free(payment_payload_t *obj)
+{
+    if (obj == NULL)
+        return;
+    circuit_payment_negotiate_clear(obj);
+    trunnel_memwipe(obj, sizeof(circpad_negotiate_t));
+    trunnel_free_(obj);
+}
+
+static void
+circuit_payment_negotiate_clear(payment_payload_t *obj)
+{
+    (void) obj;
+}
+
+
+
+void
+circuit_payment__free_1(payment_request_payload_t *obj)
+{
+    if (obj == NULL)
+        return;
+    circuit_payment_negotiate_clear_1(obj);
+    trunnel_memwipe(obj, sizeof(circpad_negotiate_t));
+    trunnel_free_(obj);
+}
+
+static void
+circuit_payment_negotiate_clear_1(payment_request_payload_t *obj)
+{
+    (void) obj;
 }
 
 
@@ -228,7 +263,7 @@ circuit_payment_request_negotiate_parse(payment_request_payload_t **output, cons
         return -1;
     result = payment_request_parse_into(*output, input, len_in);
     if (result < 0) {
-        circpad_negotiate_free(*output);
+        circuit_payment__free_1(*output);
         *output = NULL;
     }
     return result;
@@ -343,8 +378,8 @@ ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t a
     const ssize_t encoded_len = circpad_negotiate_encoded_len(obj);
 #endif
 
-    if (NULL != (msg = circpad_negotiate_check(obj)))
-        goto check_failed;
+
+
 
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
         trunnel_assert(encoded_len >= 0);
@@ -409,9 +444,6 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
     const ssize_t encoded_len = circpad_negotiate_encoded_len(obj);
 #endif
-
-    if (NULL != (msg = circpad_negotiate_check(obj)))
-        goto check_failed;
 
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
         trunnel_assert(encoded_len >= 0);

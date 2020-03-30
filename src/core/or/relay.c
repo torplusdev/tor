@@ -1600,11 +1600,47 @@ process_payment_request_cell(const relay_header_t *rh, const cell_t *cell,
     payment_request_payload_t* paymet_request_payload = circuit_payment_request_handle_payment_request_negotiate(cell, circ);
 
 
+    if(paymet_request_payload == NULL) return -1;
 
-    circuit_payment_send(circ, 2, RELAY_COMMAND_PAYMENT);
+    payment_request_t* request;
+    request = malloc(sizeof(payment_request_t));
+    request->prm_1 = "1";
+    request->prm_2 = "NULL";
+    request_response_t* response = send_payment_request("", request);
+
+    char nickname = &circ->n_hop->nickname;
+
+
+    payment_request_input_t* input;
+    input = malloc(sizeof(payment_request_input_t));
+    input->command = RELAY_COMMAND_PAYMENT;
+    input->nickname = nickname;
+
+    int hop_num = circuit_get_num_by_nickname(hop_num, nickname);
+    circuit_payment_send(circ, hop_num, input);
 
   return 0;
 }
+
+int
+circuit_get_num_by_nickname(origin_circuit_t *circ, char* nickname)
+{
+    int n = 0;
+    if (circ && circ->cpath) {
+        crypt_path_t *cpath, *cpath_next = NULL;
+        for (cpath = circ->cpath;
+             cpath->state == CPATH_STATE_OPEN
+             && cpath_next != circ->cpath;
+             cpath = cpath_next) {
+            cpath_next = cpath->next;
+            ++n;
+            if(strcmp(cpath_next->extend_info->nickname, nickname) == 0)
+                return n;
+        }
+    }
+    return 0;
+}
+
 
 static int
 process_payment_cell(const relay_header_t *rh, const cell_t *cell,
@@ -1612,7 +1648,7 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
                              crypt_path_t *layer_hint, int domain)
 {
 
-    payment_payload_t* paymet_request_payload = circuit_payment_handle_payment_negotiate(cell, circ);
+    payment_payload_t* paymet_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
     return 0;
 }
@@ -2017,12 +2053,17 @@ void send_payment_request_to_client(circuit_t *circ) {
         request = malloc(sizeof(payment_creation_request_t));
         request->prm_1 = "1";
         request->prm_2 = "NULL";
-        request_response_t* response = send_http_request("", request);
+        request_response_t* response = send_payment_request_creation("", request);
 
         char nickname = &circ->n_hop->nickname;
 
 
-        circuit_payment_request_send(circ, RELAY_COMMAND_PAYMENT_REQUEST, NULL);
+        payment_request_input_t* input;
+        input = malloc(sizeof(payment_request_input_t));
+        input->command = RELAY_COMMAND_PAYMENT_REQUEST;
+        input->nickname = nickname;
+
+        circuit_payment_request_send(circ, input);
         circ->total_package_received = 0;
     }
 }

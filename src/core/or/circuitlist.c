@@ -2058,6 +2058,7 @@ circuit_get_cpath_opened_len(const origin_circuit_t *circ)
            && cpath_next != circ->cpath;
          cpath = cpath_next) {
       cpath_next = cpath->next;
+      if(cpath_next->extend_info->nickname)
       ++n;
     }
   }

@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <json-c/json.h>
-#include <x86_64-linux-gnu/curl/curl.h>
+#include <curl/curl.h>
 
 
 
@@ -15,65 +15,65 @@ struct curl_fetch_st {
 };
 
 
-//payment_creation_response_t* send_payment_request_creation(char *url, payment_creation_request_t* body) {
-//    json_object*  json = json_object_new_object();
-//
-//    /* build post data */
-//    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
-//    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
-//    json_object_object_add(json, "userId", json_object_new_int(133));
-//
-//    void* res = send_http_request(url, json);
-//
-//    struct payment_creation_response_t *p = (struct payment_creation_response_t *) res;   /* cast pointer to fetch struct */
-//
-//    return p;
-//}
-//
-//utility_replay_command_response_t* send_utility_replay_command(char *url, utility_replay_command_request_t* body) {
-//    json_object*  json = json_object_new_object();
-//
-//    /* build post data */
-//    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
-//    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
-//    json_object_object_add(json, "userId", json_object_new_int(133));
-//
-//    void* res = send_http_request(url, json);
-//
-//    struct utility_replay_command_response_t *p = (struct utility_replay_command_response_t *) res;   /* cast pointer to fetch struct */
-//
-//    return p;
-//}
-//
-//utility_process_command_response_t* send_process_command(char *url, utility_process_command_request_t* body){
-//    json_object* json = json_object_new_object();
-//
-//    /* build post data */
-//    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
-//    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
-//    json_object_object_add(json, "userId", json_object_new_int(133));
-//
-//    void* res = send_http_request(url, json);
-//
-//    struct utility_process_command_response_t *p = (struct utility_process_command_response_t *) res;   /* cast pointer to fetch struct */
-//
-//    return p;
-//}
-//
-//payment_response_t* send_payment_request(char *url, payment_request_t* body) {
-//    json_object* json = json_object_new_object();
-//
-//    /* build post data */
-//    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
-//    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
-//    json_object_object_add(json, "userId", json_object_new_int(133));
-//
-//    void* res = send_http_request(url, json);
-//
-//    struct payment_response_t *p = (struct payment_response_t *) res;   /* cast pointer to fetch struct */
-//
-//    return p;
-//}
+payment_creation_response_t* send_payment_request_creation(char *url, payment_creation_request_t* body) {
+    json_object*  json = json_object_new_object();
+
+    /* build post data */
+    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
+    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
+    json_object_object_add(json, "userId", json_object_new_int(133));
+
+    void* res = send_http_request(url, json);
+
+    struct payment_creation_response_t *p = (struct payment_creation_response_t *) res;   /* cast pointer to fetch struct */
+
+    return p;
+}
+
+utility_replay_command_response_t* send_utility_replay_command(char *url, utility_replay_command_request_t* body) {
+    json_object*  json = json_object_new_object();
+
+    /* build post data */
+    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
+    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
+    json_object_object_add(json, "userId", json_object_new_int(133));
+
+    void* res = send_http_request(url, json);
+
+    struct utility_replay_command_response_t *p = (struct utility_replay_command_response_t *) res;   /* cast pointer to fetch struct */
+
+    return p;
+}
+
+utility_process_command_response_t* send_process_command(char *url, utility_process_command_request_t* body){
+    json_object* json = json_object_new_object();
+
+    /* build post data */
+    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
+    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
+    json_object_object_add(json, "userId", json_object_new_int(133));
+
+    void* res = send_http_request(url, json);
+
+    struct utility_process_command_response_t *p = (struct utility_process_command_response_t *) res;   /* cast pointer to fetch struct */
+
+    return p;
+}
+
+payment_response_t* send_payment_request(char *url, payment_request_t* body) {
+    json_object* json = json_object_new_object();
+
+    /* build post data */
+    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
+    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
+    json_object_object_add(json, "userId", json_object_new_int(133));
+
+    void* res = send_http_request(url, json);
+
+    struct payment_response_t *p = (struct payment_response_t *) res;   /* cast pointer to fetch struct */
+
+    return p;
+}
 
 /* callback for curl fetch */
 size_t curl_callback (void *contents, size_t size, size_t nmemb, void *userp) {
