@@ -137,9 +137,9 @@ STATIC size_t connection_edge_get_inbuf_bytes_to_package(size_t n_available,
                                                       circuit_t *on_circuit);
 
 int
-process_payment_request_cell(const relay_header_t *rh, const cell_t *cell,
-                             circuit_t *circ, edge_connection_t *conn,
-                             crypt_path_t *layer_hint, int domain);
+process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cell,
+                                     circuit_t *circ, edge_connection_t *conn,
+                                     crypt_path_t *layer_hint, int domain);
 
 #endif /* defined(RELAY_PRIVATE) */
 

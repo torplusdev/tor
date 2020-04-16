@@ -14,12 +14,14 @@
 #include "trunnel/circpad_negotiation.h"
 #include "lib/evloop/timers.h"
 
+
 struct circuit_t;
 struct origin_circuit_t;
 struct cell_t;
 
 #define CIRCUIT_PAYMENT_COMMAND 1
 #define TRUNNEL_PAYMENT_LEN 256
+typedef int error_t;
 
 typedef struct circuit_payment_state_t {
 
@@ -34,42 +36,29 @@ typedef struct circuit_payment_state_t {
 
 } circuit_payment_data_t;
 
-
-struct payment_payload_st {
+struct OR_request_st {
     uint8_t version;
-    uint8_t command;
-
-    char data[TRUNNEL_PAYMENT_LEN];
-
-};
-
-struct payment_request_input_st {
     char* nickname;
     uint8_t command;
-
+    uint8_t message_type;
     char* message;
 
 };
 
-struct payment_request_payload_st {
+struct OP_request_st {
     uint8_t version;
     uint8_t command;
-
     char* nickname;
-    char data[TRUNNEL_PAYMENT_LEN];
+    uint8_t message_type;
+    char* message;
 
 };
 
-typedef struct payment_payload_st payment_payload_t;
-typedef struct payment_request_payload_st payment_request_payload_t;
-typedef struct payment_request_input_st payment_request_input_t;
+typedef struct OP_request_st OP_request_t;
+typedef struct OR_request_st OR_request_t;
 
 
-//public API
-void circuit_send_send_payment_cell(circuit_payment_data_t *machine);
-
-
-signed_error_t circuit_payment_send_command_to_hop(
+error_t circuit_payment_send_command_to_hop(
                             origin_circuit_t *circ,
                             uint8_t hopnum,
                             uint8_t relay_command,
@@ -78,34 +67,35 @@ signed_error_t circuit_payment_send_command_to_hop(
 
 node_t* circuit_payment_get_nth_node(origin_circuit_t *circ, int hop);
 
-payment_payload_t * payment_payload_new(void);
-payment_request_payload_t * payment_request_payload_new(void);
+OR_request_t * payment_payload_new(void);
+OP_request_t * payment_request_payload_new(void);
 ssize_t
-payment_request_parse_into(payment_request_payload_t *obj, const uint8_t *input, const size_t len_in);
+payment_request_parse_into(OP_request_t *obj, const uint8_t *input, const size_t len_in);
 ssize_t
-payment_parse_into(payment_payload_t *obj, const uint8_t *input, const size_t len_in);
+payment_parse_into(OR_request_t *obj, const uint8_t *input, const size_t len_in);
 
 ssize_t
-circuit_payment_negotiate_parse(payment_payload_t **output, const uint8_t *input, const size_t len_in);
+circuit_payment_negotiate_parse(OR_request_t **output, const uint8_t *input, const size_t len_in);
 ssize_t
-circuit_payment_request_negotiate_parse(payment_request_payload_t **output, const uint8_t *input, const size_t len_in);
+circuit_payment_request_negotiate_parse(OP_request_t **output, const uint8_t *input, const size_t len_in);
 
-payment_request_payload_t*
-circuit_payment_request_handle_payment_request_negotiate(circuit_t *circ, cell_t *cell);
-payment_payload_t*
-circuit_payment_handle_payment_negotiate(cell_t *cell);
-signed_error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
+error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
 static void
-circuit_payment_negotiate_clear_1(payment_request_payload_t *obj);
+circuit_payment_negotiate_clear_1(OP_request_t *obj);
 void
-circuit_payment__free(payment_payload_t *obj);
+circuit_payment__free(OR_request_t *obj);
 void
-circuit_payment__free_1(payment_request_payload_t *obj);
-static void circuit_payment_negotiate_clear(payment_payload_t *obj);
-ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t avail, const payment_request_payload_t *obj);
-ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const payment_payload_t *obj);
+circuit_payment__free_1(OP_request_t *obj);
+static void circuit_payment_negotiate_clear(OR_request_t *obj);
+ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t avail, const OR_request_t *obj);
+ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const OP_request_t *obj);
 
 // public API
 
-signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, payment_request_input_t* input);
-signed_error_t circuit_payment_request_send(circuit_t *circ, payment_request_input_t* input);
+OP_request_t*
+circuit_payment_request_handle_payment_request_negotiate(circuit_t *circ, cell_t *cell);
+OR_request_t*
+circuit_payment_handle_payment_negotiate(cell_t *cell);
+
+error_t circuit_payment_send_OP(circuit_t *circ, uint8_t target_hopnum, OP_request_t* input);
+error_t circuit_payment_send_OR(circuit_t *circ, OR_request_t* input);

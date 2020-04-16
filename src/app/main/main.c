@@ -11,6 +11,7 @@
 
 #include "core/or/or.h"
 
+#include "core/proto/payment_http_server.h"
 #include "app/config/config.h"
 #include "app/config/statefile.h"
 #include "app/main/main.h"
@@ -1134,6 +1135,9 @@ run_tor_main_loop(void)
   handle_signals();
   timers_initialize();
   initialize_mainloop_events();
+
+
+   start();
 
   /* load the private keys, if we're supposed to have them, and set up the
    * TLS context. */

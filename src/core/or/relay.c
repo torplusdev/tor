@@ -80,7 +80,6 @@
 #include "feature/rend/rendcache.h"
 #include "feature/rend/rendcommon.h"
 #include "feature/nodelist/describe.h"
-#include "feature/nodelist/routerlist.h"
 #include "core/or/scheduler.h"
 
 #include "core/or/circuitpayment.h"
@@ -509,8 +508,8 @@ relay_command_to_string(uint8_t command)
   switch (command) {
     case RELAY_COMMAND_BEGIN: return "BEGIN";
     case RELAY_COMMAND_DATA: return "DATA";
-    case RELAY_COMMAND_PAYMENT_REQUEST: return "PAYMENT_REQUEST";
-    case RELAY_COMMAND_PAYMENT: return "PAYMENT";
+    case RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN: return "PAYMENT_REQUEST";
+    case RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE: return "PAYMENT";
     case RELAY_COMMAND_END: return "END";
     case RELAY_COMMAND_CONNECTED: return "CONNECTED";
     case RELAY_COMMAND_SENDME: return "SENDME";
@@ -1592,12 +1591,12 @@ process_sendme_cell(const relay_header_t *rh, const cell_t *cell,
 }
 
 int
-process_payment_request_cell(const relay_header_t *rh, const cell_t *cell,
-                    circuit_t *circ, edge_connection_t *conn,
-                    crypt_path_t *layer_hint, int domain)
+process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cell,
+                                     circuit_t *circ, edge_connection_t *conn,
+                                     crypt_path_t *layer_hint, int domain)
 {
 
-    payment_request_payload_t* paymet_request_payload = circuit_payment_request_handle_payment_request_negotiate(cell, circ);
+    OP_request_t* paymet_request_payload = circuit_payment_request_handle_payment_request_negotiate(cell, circ);
 
 
     if(paymet_request_payload == NULL) return -1;
@@ -1611,13 +1610,13 @@ process_payment_request_cell(const relay_header_t *rh, const cell_t *cell,
     char nickname = &circ->n_hop->nickname;
 
 
-    payment_request_input_t* input;
-    input = malloc(sizeof(payment_request_input_t));
-    input->command = RELAY_COMMAND_PAYMENT;
+    OR_request_t* input;
+    input = malloc(sizeof(OR_request_t));
+    input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
     input->nickname = nickname;
 
     int hop_num = circuit_get_num_by_nickname(hop_num, nickname);
-    circuit_payment_send(circ, hop_num, input);
+    circuit_payment_send_OP(circ, hop_num, input);
 
   return 0;
 }
@@ -1648,7 +1647,7 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
                              crypt_path_t *layer_hint, int domain)
 {
 
-    payment_payload_t* paymet_request_payload = circuit_payment_handle_payment_negotiate(cell);
+    OR_request_t* paymet_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
     return 0;
 }
@@ -1982,9 +1981,9 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
       return 0;
     case RELAY_COMMAND_SENDME:
       return process_sendme_cell(rh, cell, circ, conn, layer_hint, domain);
-    case RELAY_COMMAND_PAYMENT_REQUEST:
-      return process_payment_request_cell(rh, cell, circ, conn, layer_hint, domain);
-    case RELAY_COMMAND_PAYMENT:
+    case RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN:
+      return process_payment_command_cell_to_node(rh, cell, circ, conn, layer_hint, domain);
+    case RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE:
       return process_payment_cell(rh, cell, circ, conn, layer_hint, domain);
     case RELAY_COMMAND_RESOLVE:
       if (layer_hint) {
@@ -2057,13 +2056,12 @@ void send_payment_request_to_client(circuit_t *circ) {
 
         char nickname = &circ->n_hop->nickname;
 
-
-        payment_request_input_t* input;
-        input = malloc(sizeof(payment_request_input_t));
-        input->command = RELAY_COMMAND_PAYMENT_REQUEST;
+        OR_request_t* input;
+        input = malloc(sizeof(OR_request_t));
+        input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
         input->nickname = nickname;
 
-        circuit_payment_request_send(circ, input);
+        circuit_payment_send_OR(circ, input);
         circ->total_package_received = 0;
     }
 }

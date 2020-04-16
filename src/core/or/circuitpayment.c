@@ -6,32 +6,20 @@
 //brief Circuit-level payment implementation
 
 
-#include <math.h>
-#include "lib/math/fp.h"
-#include "lib/math/prob_distr.h"
 #include "core/or/or.h"
 #include "core/or/circuitpadding.h"
 #include "core/or/circuitpayment.h"
-#include "core/or/circuitpadding_machines.h"
 #include "core/or/circuitlist.h"
-#include "core/or/circuituse.h"
-#include "core/mainloop/netstatus.h"
 #include "core/or/relay.h"
-#include "feature/stats/rephist.h"
-#include "feature/nodelist/networkstatus.h"
 #include "core/or/channel.h"
-#include "lib/time/compat_time.h"
-#include "lib/defs/time.h"
 #include "lib/crypt_ops/crypto_rand.h"
 #include "core/or/crypt_path_st.h"
 #include "core/or/circuit_st.h"
 #include "core/or/origin_circuit_st.h"
-#include "core/or/or_circuit_st.h"
 #include "feature/nodelist/routerstatus_st.h"
 #include "feature/nodelist/node_st.h"
 #include "core/or/cell_st.h"
 #include "core/or/extend_info_st.h"
-#include "core/crypto/relay_crypto.h"
 #include "feature/nodelist/nodelist.h"
 #include "app/config/config.h"
 
@@ -61,9 +49,8 @@ int sendmecell_deadcode_dummy__ = 0;
 
 
 
-signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, payment_request_input_t* input)
+error_t circuit_payment_send_OP(circuit_t *circ, uint8_t target_hopnum, OP_request_t* input)
 {
-    payment_payload_t type;
     cell_t cell;
     ssize_t len;
 
@@ -74,52 +61,35 @@ signed_error_t circuit_payment_send(circuit_t *circ, uint8_t target_hopnum, paym
     }
 
     memset(&cell, 0, sizeof(cell_t));
-    memset(&type, 0, sizeof(payment_payload_t));
-
 
     cell.command = CELL_RELAY;
 
-    type.command = input->command;
-    type.version = 0;
-
-    if ((len = circuit_payment_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE,
-                                        &type)) < 0)
+    if ((len = circuit_payment_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE, input)) < 0)
         return 0;
 
     return circuit_payment_send_command_to_hop(orig_circ, target_hopnum,
-                                       RELAY_COMMAND_PAYMENT,
-                                       cell.payload, len);
+                                               RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE,
+                                               cell.payload, len);
 }
 
-signed_error_t circuit_payment_request_send(circuit_t *circ, payment_request_input_t* input)
+error_t circuit_payment_send_OR(circuit_t *circ, OR_request_t* input)
 {
-    payment_request_payload_t type;
     cell_t cell;
     ssize_t len;
 
-    if (CIRCUIT_IS_ORIGIN(circ)) {
+    if (!CIRCUIT_IS_ORIGIN(circ)) {
         return 0;
     }
 
-    memset(&cell, 0, sizeof(cell_t));
-    memset(&type, 0, sizeof(payment_request_payload_t));
-
     cell.command = CELL_RELAY;
-    type.nickname = input->nickname;
-    type.command = input->command;
-    type.version = 0;
 
-    char data_array[TRUNNEL_PAYMENT_LEN] = "";
 
-    strncpy(type.data, data_array, sizeof(data_array) - 1);
-
-    if ((len = circuit_payment_request_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE,
-                                        &type)) < 0)
+    if ((len = circuit_payment_request_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE,  input)) < 0)
         return 0;
 
     return circuit_payment_send_command_to_origin(circ,
-                                       RELAY_COMMAND_PAYMENT_REQUEST,
-                                       cell.payload, len);
+                                                  RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN,
+                                                  cell.payload, len);
 }
 
 node_t* circuit_payment_get_nth_node(origin_circuit_t *circ, int hop) {
@@ -131,9 +101,9 @@ node_t* circuit_payment_get_nth_node(origin_circuit_t *circ, int hop) {
     return node_get_by_id(iter->extend_info->identity_digest);
 }
 
-signed_error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum,uint8_t relay_command, const uint8_t *payload, ssize_t payload_len) {
+error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum,uint8_t relay_command, const uint8_t *payload, ssize_t payload_len) {
     crypt_path_t *target_hop = circuit_get_cpath_hop(circ, hopnum);
-    signed_error_t ret;
+    error_t ret;
 
 /* Check that the cpath has the target hop */
     if (!target_hop) {
@@ -158,8 +128,8 @@ signed_error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8
     return ret;
 }
 
-signed_error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len) {
-   signed_error_t ret;
+error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len) {
+    error_t ret;
 
 /* Send the drop command to the second hop */
     ret = relay_send_command_from_edge(0, circ, relay_command,
@@ -168,9 +138,9 @@ signed_error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t r
     return ret;
 }
 
-payment_request_payload_t*
+OP_request_t*
 circuit_payment_request_handle_payment_request_negotiate(circuit_t *circ, cell_t *cell) {
-    payment_request_payload_t *negotiate = NULL;
+    OP_request_t *negotiate = NULL;
 
     if (CIRCUIT_IS_ORIGIN(circ)) {
         log_fn(LOG_PROTOCOL_WARN, LD_CIRC,
@@ -189,10 +159,10 @@ circuit_payment_request_handle_payment_request_negotiate(circuit_t *circ, cell_t
 
     return negotiate;
 }
-payment_payload_t*
+OR_request_t*
 circuit_payment_handle_payment_negotiate(cell_t *cell){
     int retval = 0;
-    payment_payload_t *negotiate;
+    OR_request_t *negotiate;
 
     if (circuit_payment_negotiate_parse(&negotiate, cell->payload+RELAY_HEADER_SIZE,
                                 CELL_PAYLOAD_SIZE-RELAY_HEADER_SIZE) < 0) {
@@ -205,7 +175,7 @@ circuit_payment_handle_payment_negotiate(cell_t *cell){
 }
 
 ssize_t
-circuit_payment_negotiate_parse(payment_payload_t **output, const uint8_t *input, const size_t len_in)
+circuit_payment_negotiate_parse(OR_request_t **output, const uint8_t *input, const size_t len_in)
 {
     ssize_t result;
     *output = payment_payload_new();
@@ -220,7 +190,7 @@ circuit_payment_negotiate_parse(payment_payload_t **output, const uint8_t *input
 }
 
 void
-circuit_payment__free(payment_payload_t *obj)
+circuit_payment__free(OR_request_t *obj)
 {
     if (obj == NULL)
         return;
@@ -230,7 +200,7 @@ circuit_payment__free(payment_payload_t *obj)
 }
 
 static void
-circuit_payment_negotiate_clear(payment_payload_t *obj)
+circuit_payment_negotiate_clear(OR_request_t *obj)
 {
     (void) obj;
 }
@@ -238,7 +208,7 @@ circuit_payment_negotiate_clear(payment_payload_t *obj)
 
 
 void
-circuit_payment__free_1(payment_request_payload_t *obj)
+circuit_payment__free_1(OP_request_t *obj)
 {
     if (obj == NULL)
         return;
@@ -248,14 +218,14 @@ circuit_payment__free_1(payment_request_payload_t *obj)
 }
 
 static void
-circuit_payment_negotiate_clear_1(payment_request_payload_t *obj)
+circuit_payment_negotiate_clear_1(OP_request_t *obj)
 {
     (void) obj;
 }
 
 
 ssize_t
-circuit_payment_request_negotiate_parse(payment_request_payload_t **output, const uint8_t *input, const size_t len_in)
+circuit_payment_request_negotiate_parse(OP_request_t **output, const uint8_t *input, const size_t len_in)
 {
     ssize_t result;
     *output = payment_request_payload_new();
@@ -270,18 +240,18 @@ circuit_payment_request_negotiate_parse(payment_request_payload_t **output, cons
 }
 
 
-payment_payload_t * payment_payload_new(void)
+OR_request_t * payment_payload_new(void)
 {
-    payment_payload_t *val = trunnel_calloc(1, sizeof(payment_payload_t));
+    OR_request_t *val = trunnel_calloc(1, sizeof(OR_request_t));
     if (NULL == val)
         return NULL;
     val->command = CELL_PAYMENT;
     return val;
 }
 
-payment_request_payload_t * payment_request_payload_new(void)
+OP_request_t * payment_request_payload_new(void)
 {
-    payment_request_payload_t *val = trunnel_calloc(1, sizeof(payment_request_payload_t));
+    OP_request_t *val = trunnel_calloc(1, sizeof(OP_request_t));
     if (NULL == val)
         return NULL;
     val->command = CELL_PAYMENT_REQUEST;
@@ -290,7 +260,7 @@ payment_request_payload_t * payment_request_payload_new(void)
 
 
 ssize_t
-payment_request_parse_into(payment_request_payload_t *obj, const uint8_t *input, const size_t len_in)
+payment_request_parse_into(OP_request_t *obj, const uint8_t *input, const size_t len_in)
 {
     const uint8_t *ptr = input;
     size_t remaining = len_in;
@@ -311,14 +281,18 @@ payment_request_parse_into(payment_request_payload_t *obj, const uint8_t *input,
     if (! (obj->command == CELL_PAYMENT_REQUEST))
         goto fail;
 
-    CHECK_REMAINING(TRUNNEL_PAYMENT_LEN, fail);
-    memcpy(obj->nickname, ptr, strlen(obj->nickname));
-    remaining -= strlen(obj->nickname); ptr += strlen(obj->nickname);
+    CHECK_REMAINING(1, truncated);
+    obj->message_type = (trunnel_get_uint8(ptr));
+    remaining -= 1; ptr += 1;
 
-    /* Parse char data[TRUNNEL_PAYMENT_LEN] */
-    CHECK_REMAINING(TRUNNEL_PAYMENT_LEN, fail);
-    memcpy(obj->data, ptr, TRUNNEL_PAYMENT_LEN);
-    remaining -= TRUNNEL_PAYMENT_LEN; ptr += TRUNNEL_PAYMENT_LEN;
+    CHECK_REMAINING(sizeof(obj->nickname), fail);
+    memcpy(obj->nickname, ptr, sizeof(obj->nickname));
+    remaining -= sizeof(obj->nickname); ptr += sizeof(obj->nickname);
+
+    /* Parse char data[message] */
+    CHECK_REMAINING(sizeof(obj->message), fail);
+    memcpy(obj->message, ptr, sizeof(obj->message));
+    remaining -= sizeof(obj->message); ptr += sizeof(obj->message);
 
     trunnel_assert(ptr + remaining == input + len_in);
     return len_in - remaining;
@@ -331,7 +305,7 @@ payment_request_parse_into(payment_request_payload_t *obj, const uint8_t *input,
 }
 
 ssize_t
-payment_parse_into(payment_payload_t *obj, const uint8_t *input, const size_t len_in)
+payment_parse_into(OR_request_t *obj, const uint8_t *input, const size_t len_in)
 {
     const uint8_t *ptr = input;
     size_t remaining = len_in;
@@ -352,10 +326,18 @@ payment_parse_into(payment_payload_t *obj, const uint8_t *input, const size_t le
     if (! (obj->command == CELL_PAYMENT_REQUEST))
         goto fail;
 
-    /* Parse u8 data[TRUNNEL_PAYMENT_LEN] */
-    CHECK_REMAINING(TRUNNEL_PAYMENT_LEN, fail);
-    memcpy(obj->data, ptr, TRUNNEL_PAYMENT_LEN);
-    remaining -= TRUNNEL_PAYMENT_LEN; ptr += TRUNNEL_PAYMENT_LEN;
+    CHECK_REMAINING(1, truncated);
+    obj->message_type = (trunnel_get_uint8(ptr));
+    remaining -= 1; ptr += 1;
+
+    CHECK_REMAINING(sizeof(obj->nickname), fail);
+    memcpy(obj->nickname, ptr, sizeof(obj->nickname));
+    remaining -= sizeof(obj->nickname); ptr += sizeof(obj->nickname);
+
+    /* Parse char data[message] */
+    CHECK_REMAINING(sizeof(obj->message), fail);
+    memcpy(obj->message, ptr, sizeof(obj->message));
+    remaining -= sizeof(obj->message); ptr += sizeof(obj->message);
 
     trunnel_assert(ptr + remaining == input + len_in);
     return len_in - remaining;
@@ -368,7 +350,7 @@ payment_parse_into(payment_payload_t *obj, const uint8_t *input, const size_t le
 }
 
 
-ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t avail, const payment_request_payload_t *obj)
+ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t avail, const OR_request_t *obj)
 {
     ssize_t result = 0;
     size_t written = 0;
@@ -400,19 +382,19 @@ ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t a
     written += 1; ptr += 1;
 
     trunnel_assert(written <= avail);
-    if (avail - written < strlen(obj->nickname))
+    if (avail - written < sizeof(obj->nickname))
         goto truncated;
-    memcpy(ptr, obj->nickname, strlen(obj->nickname));
-    written += strlen(obj->nickname); ptr += strlen(obj->nickname);
+    memcpy(ptr, obj->nickname, sizeof(obj->nickname));
+    written += sizeof(obj->nickname); ptr += sizeof(obj->nickname);
     trunnel_assert(ptr == output + written);
 
-    /* Encode u4 data[TRUNNEL_PAYMENT_LEN] */
     trunnel_assert(written <= avail);
-    if (avail - written < TRUNNEL_PAYMENT_LEN)
+    if (avail - written < sizeof(obj->message))
         goto truncated;
-    memcpy(ptr, obj->data, TRUNNEL_PAYMENT_LEN);
-    written += TRUNNEL_PAYMENT_LEN; ptr += TRUNNEL_PAYMENT_LEN;
+    memcpy(ptr, obj->message, sizeof(obj->message));
+    written += sizeof(obj->message); ptr += sizeof(obj->message);
     trunnel_assert(ptr == output + written);
+
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
     {
     trunnel_assert(encoded_len >= 0);
@@ -435,7 +417,7 @@ ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t a
     return result;
 }
 
-ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const payment_payload_t *obj)
+ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const OP_request_t *obj)
 {
     ssize_t result = 0;
     size_t written = 0;
@@ -465,13 +447,19 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
 
     /* Encode u4 data[TRUNNEL_PAYMENT_LEN] */
     trunnel_assert(written <= avail);
-    if (avail - written < TRUNNEL_PAYMENT_LEN)
+    if (avail - written < sizeof(obj->nickname))
         goto truncated;
-    memcpy(ptr, obj->data, TRUNNEL_PAYMENT_LEN);
-    written += TRUNNEL_PAYMENT_LEN; ptr += TRUNNEL_PAYMENT_LEN;
+    memcpy(ptr, obj->nickname, sizeof(obj->nickname));
+    written += sizeof(obj->nickname); ptr += sizeof(obj->nickname);
     trunnel_assert(ptr == output + written);
 
+    trunnel_assert(written <= avail);
+    if (avail - written < sizeof(obj->message))
+        goto truncated;
+    memcpy(ptr, obj->message, sizeof(obj->message));
+    written += sizeof(obj->message); ptr += sizeof(obj->message);
     trunnel_assert(ptr == output + written);
+
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
     {
     trunnel_assert(encoded_len >= 0);
