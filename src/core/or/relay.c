@@ -1601,6 +1601,14 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
 
     if(paymet_request_payload == NULL) return -1;
 
+
+    char ggg[200] = "";
+    strcat(ggg, "PAYMENT CELL was recieved to the following machine: ");
+    strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
+    strcat(ggg, " Message is: ");
+    strcat(ggg, paymet_request_payload->message);
+    log_notice(1, ggg);
+
     payment_request_t* request;
     request = malloc(sizeof(payment_request_t));
     request->prm_1 = "1";
@@ -2060,6 +2068,14 @@ void send_payment_request_to_client(circuit_t *circ) {
         input = malloc(sizeof(OR_request_t));
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
         input->nickname = nickname;
+        input->message = "to node";
+
+        char ggg[200] = "";
+        strcat(ggg, "PAYMENT CELL was sent to the following machine: ");
+        strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
+        strcat(ggg, " Message is: ");
+        strcat(ggg, input->message);
+        log_notice(1, ggg);
 
         circuit_payment_send_OR(circ, input);
         circ->total_package_received = 0;
@@ -3025,7 +3041,7 @@ channel_flush_from_first_active_circuit, (channel_t *chan, int max))
       /* frees dcell */
       cell = destroy_cell_to_packed_cell(dcell, chan->wide_circ_ids);
 
-        write_log_eduard_out(&cell, circ);
+       // write_log_eduard_out(&cell, circ);
 
       /* Send the DESTROY cell. It is very unlikely that this fails but just
        * in case, get rid of the channel. */
