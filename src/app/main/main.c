@@ -1137,7 +1137,7 @@ run_tor_main_loop(void)
   initialize_mainloop_events();
 
 
-   start();
+   //start();
 
   /* load the private keys, if we're supposed to have them, and set up the
    * TLS context. */

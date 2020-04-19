@@ -115,8 +115,7 @@ int start() {
         ret = ulfius_start_framework(&instance);
    // }
 
-    for (;;) {
-    }
+
 //    y_log_message(Y_LOG_LEVEL_DEBUG, "End framework");
 //
 //    y_close_logs();

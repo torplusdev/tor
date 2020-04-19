@@ -1605,7 +1605,7 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     request = malloc(sizeof(payment_request_t));
     request->prm_1 = "1";
     request->prm_2 = "NULL";
-    request_response_t* response = send_payment_request("", request);
+    //request_response_t* response = send_payment_request("", request);
 
     char nickname = &circ->n_hop->nickname;
 
@@ -2052,7 +2052,7 @@ void send_payment_request_to_client(circuit_t *circ) {
         request = malloc(sizeof(payment_creation_request_t));
         request->prm_1 = "1";
         request->prm_2 = "NULL";
-        request_response_t* response = send_payment_request_creation("", request);
+        //request_response_t* response = send_payment_request_creation("", request);
 
         char nickname = &circ->n_hop->nickname;
 
