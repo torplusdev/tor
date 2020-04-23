@@ -38,9 +38,11 @@ typedef struct circuit_payment_state_t {
 
 struct OR_request_st {
     uint8_t version;
-    char* nickname;
-    uint8_t command;
     uint8_t message_type;
+    uint8_t command;
+    uint16_t nicknameLength;
+    char* nickname;
+    uint16_t messageLength;
     char* message;
 
 };
@@ -48,8 +50,10 @@ struct OR_request_st {
 struct OP_request_st {
     uint8_t version;
     uint8_t command;
-    char* nickname;
     uint8_t message_type;
+    uint16_t nicknameLength;
+    char* nickname;
+    uint16_t messageLength;
     char* message;
 
 };

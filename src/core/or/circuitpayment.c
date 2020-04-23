@@ -74,22 +74,19 @@ error_t circuit_payment_send_OP(circuit_t *circ, uint8_t target_hopnum, OP_reque
 
 error_t circuit_payment_send_OR(circuit_t *circ, OR_request_t* input)
 {
-    cell_t cell;
+    uint8_t payload[RELAY_PAYLOAD_SIZE];
     ssize_t len;
 
-    if (!CIRCUIT_IS_ORIGIN(circ)) {
+    if (CIRCUIT_IS_ORIGIN(circ)) {
         return 0;
     }
 
-    cell.command = CELL_RELAY;
-
-
-    if ((len = circuit_payment_request_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE,  input)) < 0)
+    if ((len = circuit_payment_request_negotiate_encode(payload, CELL_PAYLOAD_SIZE,  input)) < 0)
         return 0;
 
     return circuit_payment_send_command_to_origin(circ,
                                                   RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN,
-                                                  cell.payload, len);
+                                                  payload, len);
 }
 
 node_t* circuit_payment_get_nth_node(origin_circuit_t *circ, int hop) {
@@ -142,11 +139,8 @@ OP_request_t*
 circuit_payment_request_handle_payment_request_negotiate(circuit_t *circ, cell_t *cell) {
     OP_request_t *negotiate = NULL;
 
-    if (CIRCUIT_IS_ORIGIN(circ)) {
-        log_fn(LOG_PROTOCOL_WARN, LD_CIRC,
-               "Padding negotiate cell unsupported at origin (circuit %u)",
-               TO_ORIGIN_CIRCUIT(circ)->global_identifier);
-        return negotiate;
+    if (!CIRCUIT_IS_ORIGIN(circ)) {
+         return negotiate;
     }
 
     if (circuit_payment_request_negotiate_parse(&negotiate, cell->payload+RELAY_HEADER_SIZE,
@@ -271,28 +265,35 @@ payment_request_parse_into(OP_request_t *obj, const uint8_t *input, const size_t
     CHECK_REMAINING(1, truncated);
     obj->version = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
-    if (! (obj->version == 0))
-        goto fail;
 
     /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
     CHECK_REMAINING(1, truncated);
     obj->command = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
-    if (! (obj->command == CELL_PAYMENT_REQUEST))
-        goto fail;
 
+    /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
     CHECK_REMAINING(1, truncated);
     obj->message_type = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
 
-    CHECK_REMAINING(sizeof(obj->nickname), fail);
-    memcpy(obj->nickname, ptr, sizeof(obj->nickname));
-    remaining -= sizeof(obj->nickname); ptr += sizeof(obj->nickname);
+    CHECK_REMAINING(2, truncated);
+    obj->nicknameLength = (trunnel_get_uint8(ptr));
+    remaining -= 2; ptr += 2;
+
+    CHECK_REMAINING(obj->nicknameLength, fail);
+    obj->nickname = (char *)malloc(obj->nicknameLength + 1);
+    strcpy(obj->nickname,ptr);
+    remaining -= obj->nicknameLength; ptr += obj->nicknameLength;
+
+    CHECK_REMAINING(2, truncated);
+    obj->messageLength = (trunnel_get_uint8(ptr));
+    remaining -= 2; ptr += 2;
 
     /* Parse char data[message] */
-    CHECK_REMAINING(sizeof(obj->message), fail);
-    memcpy(obj->message, ptr, sizeof(obj->message));
-    remaining -= sizeof(obj->message); ptr += sizeof(obj->message);
+    CHECK_REMAINING(obj->messageLength, fail);
+    obj->message = (char *)malloc(obj->messageLength + 1);
+    strcpy(obj->message,ptr);
+    remaining -= obj->messageLength; ptr += obj->messageLength;
 
     trunnel_assert(ptr + remaining == input + len_in);
     return len_in - remaining;
@@ -316,28 +317,35 @@ payment_parse_into(OR_request_t *obj, const uint8_t *input, const size_t len_in)
     CHECK_REMAINING(1, truncated);
     obj->version = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
-    if (! (obj->version == 0))
-        goto fail;
 
-    /* Parse u4 command IN [CELL_PAYMENT_REQUEST] */
+    /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
     CHECK_REMAINING(1, truncated);
     obj->command = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
-    if (! (obj->command == CELL_PAYMENT_REQUEST))
-        goto fail;
 
+    /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
     CHECK_REMAINING(1, truncated);
     obj->message_type = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
 
-    CHECK_REMAINING(sizeof(obj->nickname), fail);
-    memcpy(obj->nickname, ptr, sizeof(obj->nickname));
-    remaining -= sizeof(obj->nickname); ptr += sizeof(obj->nickname);
+    CHECK_REMAINING(2, truncated);
+    obj->nicknameLength = (trunnel_get_uint8(ptr));
+    remaining -= 2; ptr += 2;
+
+    CHECK_REMAINING(obj->nicknameLength, fail);
+    obj->nickname = (char *)malloc(obj->nicknameLength + 1);
+    strcpy(obj->nickname,ptr);
+    remaining -= obj->nicknameLength; ptr += obj->nicknameLength;
+
+    CHECK_REMAINING(2, truncated);
+    obj->messageLength = (trunnel_get_uint8(ptr));
+    remaining -= 2; ptr += 2;
 
     /* Parse char data[message] */
-    CHECK_REMAINING(sizeof(obj->message), fail);
-    memcpy(obj->message, ptr, sizeof(obj->message));
-    remaining -= sizeof(obj->message); ptr += sizeof(obj->message);
+    CHECK_REMAINING(obj->messageLength, fail);
+    obj->message = (char *)malloc(obj->messageLength + 1);
+    strcpy(obj->message,ptr);
+    remaining -= obj->messageLength; ptr += obj->messageLength;
 
     trunnel_assert(ptr + remaining == input + len_in);
     return len_in - remaining;
@@ -360,8 +368,8 @@ ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t a
     const ssize_t encoded_len = circpad_negotiate_encoded_len(obj);
 #endif
 
-
-
+    if (obj == NULL)
+        return "Object was NULL";
 
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
         trunnel_assert(encoded_len >= 0);
@@ -374,25 +382,47 @@ ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t a
     trunnel_set_uint8(ptr, (obj->version));
     written += 1; ptr += 1;
 
-    /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
+    /* Encode u8 command IN  */
     trunnel_assert(written <= avail);
     if (avail - written < 1)
         goto truncated;
     trunnel_set_uint8(ptr, (obj->command));
     written += 1; ptr += 1;
 
+    /* Encode u8 command IN  */
     trunnel_assert(written <= avail);
-    if (avail - written < sizeof(obj->nickname))
+    if (avail - written < 1)
         goto truncated;
-    memcpy(ptr, obj->nickname, sizeof(obj->nickname));
-    written += sizeof(obj->nickname); ptr += sizeof(obj->nickname);
+    trunnel_set_uint8(ptr, (obj->message_type));
+    written += 1; ptr += 1;
+
+    /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
+    trunnel_assert(written <= avail);
+    if (avail - written < 2)
+        goto truncated;
+    trunnel_set_uint16(ptr, (obj->nicknameLength));
+    written += 2; ptr += 2;
+
+    /* Encode u4 data[TRUNNEL_PAYMENT_LEN] */
+    trunnel_assert(written <= avail);
+    if (avail - written < obj->nicknameLength)
+        goto truncated;
+    memcpy(ptr, obj->nickname, obj->nicknameLength);
+    written += obj->nicknameLength; ptr += obj->nicknameLength;
     trunnel_assert(ptr == output + written);
 
+    /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
     trunnel_assert(written <= avail);
-    if (avail - written < sizeof(obj->message))
+    if (avail - written < 2)
         goto truncated;
-    memcpy(ptr, obj->message, sizeof(obj->message));
-    written += sizeof(obj->message); ptr += sizeof(obj->message);
+    trunnel_set_uint16(ptr, (obj->messageLength));
+    written += 2; ptr += 2;
+
+    trunnel_assert(written <= avail);
+    if (avail - written < obj->messageLength)
+        goto truncated;
+    memcpy(ptr, obj->message, obj->messageLength);
+    written += obj->messageLength; ptr += obj->messageLength;
     trunnel_assert(ptr == output + written);
 
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
@@ -445,19 +475,40 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
     trunnel_set_uint8(ptr, (obj->command));
     written += 1; ptr += 1;
 
+    /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
+    trunnel_assert(written <= avail);
+    if (avail - written < 1)
+        goto truncated;
+    trunnel_set_uint8(ptr, (obj->message_type));
+    written += 1; ptr += 1;
+
+    /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
+    trunnel_assert(written <= avail);
+    if (avail - written < 2)
+        goto truncated;
+    trunnel_set_uint16(ptr, (obj->nicknameLength));
+    written += 2; ptr += 2;
+
     /* Encode u4 data[TRUNNEL_PAYMENT_LEN] */
     trunnel_assert(written <= avail);
-    if (avail - written < sizeof(obj->nickname))
+    if (avail - written < obj->nicknameLength)
         goto truncated;
-    memcpy(ptr, obj->nickname, sizeof(obj->nickname));
-    written += sizeof(obj->nickname); ptr += sizeof(obj->nickname);
+    memcpy(ptr, obj->nickname, obj->nicknameLength);
+    written += obj->nicknameLength; ptr += obj->nicknameLength;
     trunnel_assert(ptr == output + written);
 
+    /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
     trunnel_assert(written <= avail);
-    if (avail - written < sizeof(obj->message))
+    if (avail - written < 2)
         goto truncated;
-    memcpy(ptr, obj->message, sizeof(obj->message));
-    written += sizeof(obj->message); ptr += sizeof(obj->message);
+    trunnel_set_uint16(ptr, (obj->messageLength));
+    written += 2; ptr += 2;
+
+    trunnel_assert(written <= avail);
+    if (avail - written < obj->messageLength)
+        goto truncated;
+    memcpy(ptr, obj->message, obj->messageLength);
+    written += obj->messageLength; ptr += obj->messageLength;
     trunnel_assert(ptr == output + written);
 
 #ifdef TRUNNEL_CHECK_ENCODED_LEN

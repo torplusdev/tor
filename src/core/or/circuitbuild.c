@@ -743,7 +743,7 @@ circuit_deliver_create_cell(circuit_t *circ, const create_cell_t *create_cell,
   char ggg[200] = "";
   strcat(ggg, cell_command_to_string(cell.command));
   strcat(ggg, " CELL was sent to the following machine: ");
-  strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
+  //strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
   log_notice(1, ggg);
 
   append_cell_to_circuit_queue(circ, circ->n_chan, &cell,

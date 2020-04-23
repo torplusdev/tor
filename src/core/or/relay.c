@@ -329,7 +329,6 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
       cell->circ_id = splice_->p_circ_id;
       cell->command = CELL_RELAY; /* can't be relay_early anyway */
 
-      write_log_eduard_out(cell, circ);
 
       if ((reason = circuit_receive_relay_cell(cell, TO_CIRCUIT(splice_),
                                                CELL_DIRECTION_IN)) < 0) {
@@ -710,7 +709,6 @@ relay_send_command_from_edge_,(streamid_t stream_id, circuit_t *circ,
     circuit_sent_valid_data(origin_circ, rh.length);
   }
 
-   write_log_eduard_out(&cell, circ);
 
   if (circuit_package_relay_cell(&cell, circ, cell_direction, cpath_layer,
                                  stream_id, filename, lineno) < 0) {
@@ -1596,7 +1594,7 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
                                      crypt_path_t *layer_hint, int domain)
 {
 
-    OP_request_t* paymet_request_payload = circuit_payment_request_handle_payment_request_negotiate(cell, circ);
+    OP_request_t* paymet_request_payload = circuit_payment_request_handle_payment_request_negotiate(circ, cell);
 
 
     if(paymet_request_payload == NULL) return -1;
@@ -1604,7 +1602,7 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
 
     char ggg[200] = "";
     strcat(ggg, "PAYMENT CELL was recieved to the following machine: ");
-    strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
+    //strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
     strcat(ggg, " Message is: ");
     strcat(ggg, paymet_request_payload->message);
     log_notice(1, ggg);
@@ -1615,25 +1613,32 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     request->prm_2 = "NULL";
     //request_response_t* response = send_payment_request("", request);
 
-    char nickname = &circ->n_hop->nickname;
+    char* nickname = paymet_request_payload->nickname;
 
 
     OR_request_t* input;
     input = malloc(sizeof(OR_request_t));
     input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
     input->nickname = nickname;
+    input->message_type = 1;
+    input->nicknameLength = sizeof(nickname) + 1;
+    input->version = 0;
+    input->message = paymet_request_payload->message;
+    input->messageLength = sizeof(paymet_request_payload->message);
 
-    int hop_num = circuit_get_num_by_nickname(hop_num, nickname);
+    int hop_num = circuit_get_num_by_nickname(circ, nickname);
     circuit_payment_send_OP(circ, hop_num, input);
 
   return 0;
 }
 
 int
-circuit_get_num_by_nickname(origin_circuit_t *circ, char* nickname)
+circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname)
 {
-    int n = 0;
-    if (circ && circ->cpath) {
+    char nickname_array[MAX_HEX_NICKNAME_LEN+1] = {NULL};
+    memcpy(nickname_array, nickname, sizeof(nickname));
+    int n = 1;
+    if (circ != NULL && circ->cpath != NULL) {
         crypt_path_t *cpath, *cpath_next = NULL;
         for (cpath = circ->cpath;
              cpath->state == CPATH_STATE_OPEN
@@ -1732,7 +1737,6 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
         connection_edge_end_close(conn, END_STREAM_REASON_TORPROTOCOL);
         return -END_CIRC_REASON_TORPROTOCOL;
       }
-
 
        if (!CIRCUIT_IS_ORIGIN(circ)) {
            send_payment_request_to_client(circ);
@@ -1989,6 +1993,7 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
       return 0;
     case RELAY_COMMAND_SENDME:
       return process_sendme_cell(rh, cell, circ, conn, layer_hint, domain);
+
     case RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN:
       return process_payment_command_cell_to_node(rh, cell, circ, conn, layer_hint, domain);
     case RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE:
@@ -2061,18 +2066,23 @@ void send_payment_request_to_client(circuit_t *circ) {
         request->prm_1 = "1";
         request->prm_2 = "NULL";
         //request_response_t* response = send_payment_request_creation("", request);
-
-        char nickname = &circ->n_hop->nickname;
+        or_circuit_t* j = TO_OR_CIRCUIT(circ);
+        or_options_t *options = get_options();
+        char* nickname =  options->Nickname;
 
         OR_request_t* input;
         input = malloc(sizeof(OR_request_t));
+        input->version = 0;
+        input->message_type = 0;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
         input->nickname = nickname;
+        input->nicknameLength = sizeof(input->nickname) + 1;
         input->message = "to node";
+        input->messageLength = sizeof(input->message);
 
         char ggg[200] = "";
-        strcat(ggg, "PAYMENT CELL was sent to the following machine: ");
-        strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
+        strcat(ggg, "PAYMENT CELL was sent to client.");
+        //strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
         strcat(ggg, " Message is: ");
         strcat(ggg, input->message);
         log_notice(1, ggg);
@@ -3108,7 +3118,6 @@ channel_flush_from_first_active_circuit, (channel_t *chan, int max))
         testing_cell_stats_entry_t *ent =
           tor_malloc_zero(sizeof(testing_cell_stats_entry_t));
         ent->command = command;
-          write_log_eduard_out(&cell, circ);
 
         ent->waiting_time = msec_waiting / 10;
         ent->removed = 1;
