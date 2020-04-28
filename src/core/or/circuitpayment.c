@@ -349,7 +349,7 @@ void divideString(List_of_str_t* output, char *str, int n)
     int part_size;
     part_size = str_size / n;
     int oddment = str_size % n;
-    int size = (part_size + 1);
+
 
 // Check if string can be divided in
 // n equal parts

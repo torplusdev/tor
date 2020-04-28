@@ -137,7 +137,8 @@ uint64_t stats_n_circ_max_cell_reached = 0;
 
 long uniq_id = 1;
 
-Node payment_dictionary_list = NULL;
+char merged_string[MAX_REAL_MESSAGE_LEN];
+int merged_string_len = 0;
 /**
  * Update channel usage state based on the type of relay cell and
  * circuit properties.
@@ -1600,26 +1601,14 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
 
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
-    if (payment_request_payload == NULL) return -1;
+    strncat(merged_string, payment_request_payload->message, payment_request_payload->messageLength);
 
-    if (payment_dictionary_list == NULL) {
-        prepend_node(&payment_dictionary_list,
-                     create_node(payment_request_payload->nickname, payment_request_payload->message));
-    } else {
-        Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
-        if (node != NULL) {
-            strcat(node->value, payment_request_payload->message);
-        } else {
-            append_node(&payment_dictionary_list,
-                        create_node(payment_request_payload->nickname, payment_request_payload->message));
-        }
-    }
+    merged_string_len += payment_request_payload->messageLength;
 
     if (payment_request_payload->is_last == 0) {
         return 0;
     }
 
-    Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
 
     payment_request_t request;
     request.prm_1 = "1";
@@ -1638,14 +1627,14 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     input.is_last = 0;
     int hop_num = circuit_get_num_by_nickname(circ, nickname);
     int chunck_size = MAX_MESSAGE_LEN - 1;
-    List_of_str_t array[chunck_size];
 
-    divideString(array, node->value, chunck_size);
 
-    int part_size = strlen(node->value) / chunck_size;
-    int oddment = strlen(node->value) % chunck_size;
+    int part_size = merged_string_len / chunck_size;
+    int oddment = merged_string_len % chunck_size;
+    List_of_str_t array[part_size + 1];
 
-    for(int g = 0 ; g < part_size ;g++){
+    divideString(array, merged_string, chunck_size);
+    for(int g = 0 ; g < 3 ;g++){
         strncpy(input.message, array[g].msg, chunck_size);
         input.message[chunck_size] = '\0';
         input.messageLength = chunck_size;
@@ -1653,11 +1642,15 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     }
     strncpy(input.message, array[part_size].msg, oddment);
     input.message[oddment] = '\0';
-    input.messageLength = oddment;
+    input.messageLength = 296;
     input.is_last = 1;
     circuit_payment_send_OP(circ, hop_num, &input);
     circ->total_package_received = 0;
 
+    int j;
+    for (j=0; j<MAX_REAL_MESSAGE_LEN; j++)
+        merged_string[j] = 0;
+    merged_string_len = 0;
     return 0;
 }
 
@@ -1691,31 +1684,15 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
 
     OR_OP_request_t* payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
-    if(payment_request_payload == NULL) return -1;
 
-    if(payment_dictionary_list == NULL){
-        prepend_node(&payment_dictionary_list, create_node(payment_request_payload->nickname, payment_request_payload->message));
-    }
-    else {
-        Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
-        if(node != NULL){
-            strcat(node->value, payment_request_payload->message);
-        }
-        else{
-            append_node(&payment_dictionary_list, create_node(payment_request_payload->nickname, payment_request_payload->message));
-        }
-    }
 
     if(payment_request_payload->is_last == 0){
         return 0;
     }
 
-    Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
-
     if(payment_request_payload->is_last == 0){
         return 0;
     }
-    remove_node(&payment_dictionary_list, node);
 
     return 0;
 }
@@ -2052,7 +2029,7 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
     case RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN:
       return process_payment_command_cell_to_node(rh, cell, circ, conn, layer_hint, domain);
     case RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE:
-    //  return process_payment_cell(rh, cell, circ, conn, layer_hint, domain);
+      return process_payment_cell(rh, cell, circ, conn, layer_hint, domain);
     case RELAY_COMMAND_RESOLVE:
       if (layer_hint) {
         log_fn(LOG_PROTOCOL_WARN, LD_APP,
@@ -2114,7 +2091,7 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
 }
 
 void send_payment_request_to_client(circuit_t *circ) {
-    if(circ->total_package_received > 50){
+    if(circ->total_package_sent > 50){
 
         payment_creation_request_t* request;
         request = tor_malloc_zero(sizeof(payment_creation_request_t));
@@ -2152,6 +2129,7 @@ void send_payment_request_to_client(circuit_t *circ) {
         input.is_last = 1;
         circuit_payment_send_OR(circ, &input);
         circ->total_package_received = 0;
+        circ->total_package_sent = 0;
 
         return;
     }
@@ -2226,6 +2204,7 @@ connection_edge_process_relay_cell(cell_t *cell, circuit_t *circ,
     } else if (rh.stream_id == 0 && rh.command == RELAY_COMMAND_DATA) {
       log_warn(LD_BUG, "Somehow I had a connection that matched a "
                "data cell with stream ID 0.");
+
     } else {
       return connection_edge_process_relay_cell_not_open(
                &rh, cell, circ, conn, layer_hint);
