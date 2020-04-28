@@ -46,6 +46,8 @@
  **/
 
 #define RELAY_PRIVATE
+
+#include <src/ext/trunnel/trunnel-impl.h>
 #include "core/or/or.h"
 #include "feature/client/addressmap.h"
 #include "lib/err/backtrace.h"
@@ -1594,70 +1596,69 @@ process_sendme_cell(const relay_header_t *rh, const cell_t *cell,
 int
 process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cell,
                                      circuit_t *circ, edge_connection_t *conn,
-                                     crypt_path_t *layer_hint, int domain)
-{
+                                     crypt_path_t *layer_hint, int domain) {
 
-    OP_request_t* payment_request_payload = circuit_payment_request_handle_payment_request_negotiate(circ, cell);
+    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
+    if (payment_request_payload == NULL) return -1;
 
-    if(payment_request_payload == NULL) return -1;
-
-    if(payment_dictionary_list == NULL){
-        prepend_node(&payment_dictionary_list, create_node(payment_request_payload->nickname, payment_request_payload->message));
-    }
-    else {
+    if (payment_dictionary_list == NULL) {
+        prepend_node(&payment_dictionary_list,
+                     create_node(payment_request_payload->nickname, payment_request_payload->message));
+    } else {
         Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
-        if(node != NULL){
+        if (node != NULL) {
             strcat(node->value, payment_request_payload->message);
-        }
-        else{
-            append_node(&payment_dictionary_list, create_node(payment_request_payload->nickname, payment_request_payload->message));
+        } else {
+            append_node(&payment_dictionary_list,
+                        create_node(payment_request_payload->nickname, payment_request_payload->message));
         }
     }
 
-    if(payment_request_payload->is_last == 0){
+    if (payment_request_payload->is_last == 0) {
         return 0;
     }
 
     Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
 
-    payment_request_t* request;
-    request = malloc(sizeof(payment_request_t));
-    request->prm_1 = "1";
-    request->prm_2 = "NULL";
+    payment_request_t request;
+    request.prm_1 = "1";
+    request.prm_2 = "NULL";
     //request_response_t* response = send_payment_request("", request);
+    or_options_t *options = get_options();
+    char *nickname = options->Nickname;;
 
-    char* nickname = payment_request_payload->nickname;
-
-
-    OR_request_t* input;
-    input = malloc(sizeof(OR_request_t));
-    input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-    input->nickname = nickname;
-    input->message_type = 1;
-    input->nicknameLength = strnlen(nickname, 43);
-    input->version = 0;
-    input->is_last = 0;
+    OR_OP_request_t input;
+    input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
+    strncpy(input.nickname, nickname, strlen(nickname));
+    input.nickname[strlen(nickname)] = '\0';
+    input.message_type = 1;
+    input.nicknameLength = strlen(nickname);
+    input.version = 0;
+    input.is_last = 0;
     int hop_num = circuit_get_num_by_nickname(circ, nickname);
-    int chunck_size = 300;
-    char** array = divideString(node->value, chunck_size);
+    int chunck_size = MAX_MESSAGE_LEN - 1;
+    List_of_str_t array[chunck_size];
+
+    divideString(array, node->value, chunck_size);
+
     int part_size = strlen(node->value) / chunck_size;
     int oddment = strlen(node->value) % chunck_size;
 
     for(int g = 0 ; g < part_size ;g++){
-        input->message = array[g];
-        input->messageLength = chunck_size;
-        circuit_payment_send_OP(circ, hop_num, input);
+        strncpy(input.message, array[g].msg, chunck_size);
+        input.message[chunck_size] = '\0';
+        input.messageLength = chunck_size;
+        circuit_payment_send_OP(circ, hop_num, &input);
     }
-    input->message = array[part_size];
-    input->messageLength = oddment;
-    input->is_last = 1;
-    circuit_payment_send_OP(circ, hop_num, input);
+    strncpy(input.message, array[part_size].msg, oddment);
+    input.message[oddment] = '\0';
+    input.messageLength = oddment;
+    input.is_last = 1;
+    circuit_payment_send_OP(circ, hop_num, &input);
     circ->total_package_received = 0;
 
-    //remove_node(&payment_dictionary_list, node);
-
-  return 0;
+    return 0;
 }
 
 int
@@ -1688,7 +1689,7 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
                              crypt_path_t *layer_hint, int domain)
 {
 
-    OR_request_t* payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
+    OR_OP_request_t* payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
     if(payment_request_payload == NULL) return -1;
 
@@ -1709,7 +1710,7 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
         return 0;
     }
 
-    Node node = find_node(payment_dictionary_list, payment_request_payload->u_id);
+    Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
 
     if(payment_request_payload->is_last == 0){
         return 0;
@@ -2051,7 +2052,7 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
     case RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN:
       return process_payment_command_cell_to_node(rh, cell, circ, conn, layer_hint, domain);
     case RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE:
-      return process_payment_cell(rh, cell, circ, conn, layer_hint, domain);
+    //  return process_payment_cell(rh, cell, circ, conn, layer_hint, domain);
     case RELAY_COMMAND_RESOLVE:
       if (layer_hint) {
         log_fn(LOG_PROTOCOL_WARN, LD_APP,
@@ -2116,7 +2117,7 @@ void send_payment_request_to_client(circuit_t *circ) {
     if(circ->total_package_received > 50){
 
         payment_creation_request_t* request;
-        request = malloc(sizeof(payment_creation_request_t));
+        request = tor_malloc_zero(sizeof(payment_creation_request_t));
         request->prm_1 = "1";
         request->prm_2 = "NULL";
         //request_response_t* response = send_payment_request_creation("", request);
@@ -2124,33 +2125,35 @@ void send_payment_request_to_client(circuit_t *circ) {
         or_options_t *options = get_options();
         char* nickname =  options->Nickname;
 
-        OR_request_t* input;
-        input = malloc(sizeof(OR_request_t));
-        input->version = 0;
-        input->message_type = 0;
-        input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
-        input->nickname = nickname;
-        input->nicknameLength = strlen(input->nickname);
-        input->is_last = 0;
-        int chunck_size = 300;
+        OR_OP_request_t input;
+        //input = tor_malloc_zero(sizeof(OR_OP_request_t));
+        input.version = 0;
+        input.message_type = 0;
+        input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
+        strncpy(input.nickname, nickname, strlen(nickname));
+        input.nickname[strlen(nickname)] = '\0';
+        input.nicknameLength = strlen(nickname);
+        input.is_last = 0;
+        int chunck_size = MAX_MESSAGE_LEN-1;
         char* str = "Henry James a beaucoup voyagé en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
-        char** array = divideString(str, chunck_size);
-
         int part_size = strlen(str) / chunck_size;
         int oddment = strlen(str) % chunck_size;
-
+        List_of_str_t array[part_size+1];
+        divideString(array, str, chunck_size);
         for(int g = 0 ; g < part_size ;g++){
-            input->message = array[g];
-            input->messageLength = chunck_size;
-            circuit_payment_send_OR(circ, input);
+            strncpy(input.message, array[g].msg, chunck_size);
+            input.message[chunck_size] = '\0';
+            input.messageLength = chunck_size;
+            circuit_payment_send_OR(circ, &input);
         }
-        input->message = array[part_size];
-        input->messageLength = oddment;
-        input->is_last = 1;
-        circuit_payment_send_OR(circ, input);
+        strncpy(input.message, array[part_size].msg, oddment);
+        input.message[oddment] = '\0';
+        input.messageLength = oddment;
+        input.is_last = 1;
+        circuit_payment_send_OR(circ, &input);
         circ->total_package_received = 0;
 
-
+        return;
     }
 }
 
