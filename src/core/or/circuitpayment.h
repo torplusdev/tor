@@ -40,23 +40,35 @@ struct OR_request_st {
     uint8_t version;
     uint8_t message_type;
     uint8_t command;
+    int32_t u_id;
+    uint8_t is_last;
     uint16_t nicknameLength;
     char* nickname;
     uint16_t messageLength;
     char* message;
-
 };
 
 struct OP_request_st {
     uint8_t version;
     uint8_t command;
     uint8_t message_type;
+    int32_t u_id;
+    uint8_t is_last;
     uint16_t nicknameLength;
     char* nickname;
     uint16_t messageLength;
     char* message;
 
 };
+
+struct ListNode{
+    char* id;
+    char *value;
+    struct ListNode *next;
+};
+
+typedef struct ListNode *Node;
+
 
 typedef struct OP_request_st OP_request_t;
 typedef struct OR_request_st OR_request_t;
@@ -94,7 +106,20 @@ static void circuit_payment_negotiate_clear(OR_request_t *obj);
 ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t avail, const OR_request_t *obj);
 ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const OP_request_t *obj);
 
+int uuid_generate(unsigned long u_id);
+char ** divideString(char *str, int n);
 // public API
+extern Node create_node(char* id, const char *name);
+extern void free_node(Node node);
+extern void prepend_node(Node *head, Node node);
+extern void append_node(Node *head, Node node);
+extern int insert_node(Node *head, Node node, int pos);
+extern Node find_node(Node head, char* id);
+extern void remove_node(Node *head, Node node);
+extern void print_node(Node node);
+extern void print_list(Node head);
+extern void clear_node(Node head);
+
 
 OP_request_t*
 circuit_payment_request_handle_payment_request_negotiate(circuit_t *circ, cell_t *cell);

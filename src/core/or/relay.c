@@ -133,6 +133,9 @@ uint64_t stats_n_relay_cells_delivered = 0;
  * reached (see append_cell_to_circuit_queue()) */
 uint64_t stats_n_circ_max_cell_reached = 0;
 
+long uniq_id = 1;
+
+Node payment_dictionary_list = NULL;
 /**
  * Update channel usage state based on the type of relay cell and
  * circuit properties.
@@ -1594,18 +1597,29 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
                                      crypt_path_t *layer_hint, int domain)
 {
 
-    OP_request_t* paymet_request_payload = circuit_payment_request_handle_payment_request_negotiate(circ, cell);
+    OP_request_t* payment_request_payload = circuit_payment_request_handle_payment_request_negotiate(circ, cell);
 
 
-    if(paymet_request_payload == NULL) return -1;
+    if(payment_request_payload == NULL) return -1;
 
+    if(payment_dictionary_list == NULL){
+        prepend_node(&payment_dictionary_list, create_node(payment_request_payload->nickname, payment_request_payload->message));
+    }
+    else {
+        Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
+        if(node != NULL){
+            strcat(node->value, payment_request_payload->message);
+        }
+        else{
+            append_node(&payment_dictionary_list, create_node(payment_request_payload->nickname, payment_request_payload->message));
+        }
+    }
 
-    char ggg[200] = "";
-    strcat(ggg, "PAYMENT CELL was recieved to the following machine: ");
-    //strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
-    strcat(ggg, " Message is: ");
-    strcat(ggg, paymet_request_payload->message);
-    log_notice(1, ggg);
+    if(payment_request_payload->is_last == 0){
+        return 0;
+    }
+
+    Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
 
     payment_request_t* request;
     request = malloc(sizeof(payment_request_t));
@@ -1613,7 +1627,7 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     request->prm_2 = "NULL";
     //request_response_t* response = send_payment_request("", request);
 
-    char* nickname = paymet_request_payload->nickname;
+    char* nickname = payment_request_payload->nickname;
 
 
     OR_request_t* input;
@@ -1621,13 +1635,27 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
     input->nickname = nickname;
     input->message_type = 1;
-    input->nicknameLength = sizeof(nickname) + 1;
+    input->nicknameLength = strnlen(nickname, 43);
     input->version = 0;
-    input->message = paymet_request_payload->message;
-    input->messageLength = sizeof(paymet_request_payload->message);
-
+    input->is_last = 0;
     int hop_num = circuit_get_num_by_nickname(circ, nickname);
+    int chunck_size = 300;
+    char** array = divideString(node->value, chunck_size);
+    int part_size = strlen(node->value) / chunck_size;
+    int oddment = strlen(node->value) % chunck_size;
+
+    for(int g = 0 ; g < part_size ;g++){
+        input->message = array[g];
+        input->messageLength = chunck_size;
+        circuit_payment_send_OP(circ, hop_num, input);
+    }
+    input->message = array[part_size];
+    input->messageLength = oddment;
+    input->is_last = 1;
     circuit_payment_send_OP(circ, hop_num, input);
+    circ->total_package_received = 0;
+
+    //remove_node(&payment_dictionary_list, node);
 
   return 0;
 }
@@ -1660,7 +1688,33 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
                              crypt_path_t *layer_hint, int domain)
 {
 
-    OR_request_t* paymet_request_payload = circuit_payment_handle_payment_negotiate(cell);
+    OR_request_t* payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
+
+    if(payment_request_payload == NULL) return -1;
+
+    if(payment_dictionary_list == NULL){
+        prepend_node(&payment_dictionary_list, create_node(payment_request_payload->nickname, payment_request_payload->message));
+    }
+    else {
+        Node node = find_node(payment_dictionary_list, payment_request_payload->nickname);
+        if(node != NULL){
+            strcat(node->value, payment_request_payload->message);
+        }
+        else{
+            append_node(&payment_dictionary_list, create_node(payment_request_payload->nickname, payment_request_payload->message));
+        }
+    }
+
+    if(payment_request_payload->is_last == 0){
+        return 0;
+    }
+
+    Node node = find_node(payment_dictionary_list, payment_request_payload->u_id);
+
+    if(payment_request_payload->is_last == 0){
+        return 0;
+    }
+    remove_node(&payment_dictionary_list, node);
 
     return 0;
 }
@@ -2076,19 +2130,27 @@ void send_payment_request_to_client(circuit_t *circ) {
         input->message_type = 0;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
         input->nickname = nickname;
-        input->nicknameLength = sizeof(input->nickname) + 1;
-        input->message = "to node";
-        input->messageLength = sizeof(input->message);
+        input->nicknameLength = strlen(input->nickname);
+        input->is_last = 0;
+        int chunck_size = 300;
+        char* str = "Henry James a beaucoup voyagé en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
+        char** array = divideString(str, chunck_size);
 
-        char ggg[200] = "";
-        strcat(ggg, "PAYMENT CELL was sent to client.");
-        //strcat(ggg, TO_ORIGIN_CIRCUIT(circ)->cpath->extend_info->nickname);
-        strcat(ggg, " Message is: ");
-        strcat(ggg, input->message);
-        log_notice(1, ggg);
+        int part_size = strlen(str) / chunck_size;
+        int oddment = strlen(str) % chunck_size;
 
+        for(int g = 0 ; g < part_size ;g++){
+            input->message = array[g];
+            input->messageLength = chunck_size;
+            circuit_payment_send_OR(circ, input);
+        }
+        input->message = array[part_size];
+        input->messageLength = oddment;
+        input->is_last = 1;
         circuit_payment_send_OR(circ, input);
         circ->total_package_received = 0;
+
+
     }
 }
 

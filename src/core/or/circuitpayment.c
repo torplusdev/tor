@@ -276,23 +276,33 @@ payment_request_parse_into(OP_request_t *obj, const uint8_t *input, const size_t
     obj->message_type = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
 
+    /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
+    CHECK_REMAINING(4, truncated);
+    obj->u_id = (trunnel_get_uint32(ptr));
+    remaining -= 4; ptr += 4;
+
+    /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
+    CHECK_REMAINING(1, truncated);
+    obj->is_last = (trunnel_get_uint8(ptr));
+    remaining -= 1; ptr += 1;
+
     CHECK_REMAINING(2, truncated);
-    obj->nicknameLength = (trunnel_get_uint8(ptr));
+    obj->nicknameLength = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
 
     CHECK_REMAINING(obj->nicknameLength, fail);
-    obj->nickname = (char *)malloc(obj->nicknameLength + 1);
-    strcpy(obj->nickname,ptr);
+    obj->nickname = (char *)calloc(sizeof(char), obj->nicknameLength);
+    memcpy(obj->nickname, ptr, obj->nicknameLength);
     remaining -= obj->nicknameLength; ptr += obj->nicknameLength;
 
     CHECK_REMAINING(2, truncated);
-    obj->messageLength = (trunnel_get_uint8(ptr));
+    obj->messageLength = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
 
     /* Parse char data[message] */
     CHECK_REMAINING(obj->messageLength, fail);
-    obj->message = (char *)malloc(obj->messageLength + 1);
-    strcpy(obj->message,ptr);
+    obj->message = (char *)calloc (sizeof(char), obj->messageLength);
+    memcpy(obj->message,ptr, obj->messageLength);
     remaining -= obj->messageLength; ptr += obj->messageLength;
 
     trunnel_assert(ptr + remaining == input + len_in);
@@ -328,23 +338,34 @@ payment_parse_into(OR_request_t *obj, const uint8_t *input, const size_t len_in)
     obj->message_type = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
 
+    /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
+    CHECK_REMAINING(4, truncated);
+    obj->u_id = (trunnel_get_uint32(ptr));
+    remaining -= 4; ptr += 4;
+
+    /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
+    CHECK_REMAINING(1, truncated);
+    obj->is_last = (trunnel_get_uint8(ptr));
+    remaining -= 1; ptr += 1;
+
     CHECK_REMAINING(2, truncated);
-    obj->nicknameLength = (trunnel_get_uint8(ptr));
+    obj->nicknameLength = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
 
+
     CHECK_REMAINING(obj->nicknameLength, fail);
-    obj->nickname = (char *)malloc(obj->nicknameLength + 1);
-    strcpy(obj->nickname,ptr);
+    obj->nickname = (char *)calloc (sizeof(char), obj->nicknameLength);
+    memcpy(obj->nickname,ptr, obj->nicknameLength);
     remaining -= obj->nicknameLength; ptr += obj->nicknameLength;
 
     CHECK_REMAINING(2, truncated);
-    obj->messageLength = (trunnel_get_uint8(ptr));
+    obj->messageLength = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
 
     /* Parse char data[message] */
     CHECK_REMAINING(obj->messageLength, fail);
-    obj->message = (char *)malloc(obj->messageLength + 1);
-    strcpy(obj->message,ptr);
+    obj->message = (char *)calloc(sizeof(char), obj->messageLength);
+    memcpy(obj->message,ptr, obj->messageLength);
     remaining -= obj->messageLength; ptr += obj->messageLength;
 
     trunnel_assert(ptr + remaining == input + len_in);
@@ -394,6 +415,20 @@ ssize_t circuit_payment_request_negotiate_encode(uint8_t *output, const size_t a
     if (avail - written < 1)
         goto truncated;
     trunnel_set_uint8(ptr, (obj->message_type));
+    written += 1; ptr += 1;
+
+    /* Encode u8 command IN  */
+    trunnel_assert(written <= avail);
+    if (avail - written < 4)
+        goto truncated;
+    trunnel_set_uint32(ptr, (obj->u_id));
+    written += 4; ptr += 4;
+
+    /* Encode u8 command IN  */
+    trunnel_assert(written <= avail);
+    if (avail - written < 1)
+        goto truncated;
+    trunnel_set_uint8(ptr, (obj->is_last));
     written += 1; ptr += 1;
 
     /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
@@ -482,6 +517,20 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
     trunnel_set_uint8(ptr, (obj->message_type));
     written += 1; ptr += 1;
 
+    /* Encode u8 command IN  */
+    trunnel_assert(written <= avail);
+    if (avail - written < 4)
+        goto truncated;
+    trunnel_set_uint32(ptr, (obj->u_id));
+    written += 4; ptr += 4;
+
+    /* Encode u8 command IN  */
+    trunnel_assert(written <= avail);
+    if (avail - written < 1)
+        goto truncated;
+    trunnel_set_uint8(ptr, (obj->is_last));
+    written += 1; ptr += 1;
+
     /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
     trunnel_assert(written <= avail);
     if (avail - written < 2)
@@ -533,4 +582,171 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
     return result;
 }
 
+int32_t uuid_generate(unsigned long u_id){
+    struct timeval t;
+    unsigned long id;
+    gettimeofday(&t,NULL);
+    id = (t.tv_sec * 1000 * 1000) + (t.tv_usec * 1000) << 42;
+    id |= (u_id % 16777216) << 24;
+    printf("%lu\n ",id);
+    return id;
+}
 
+char **divideString(char *str, int n)
+{
+    int str_size = strlen(str);
+    int i;
+    int part_size;
+    part_size = str_size / n;
+    int oddment = str_size % n;
+    int size = (part_size + 1);
+
+    char** array = malloc(size);
+// Check if string can be divided in
+// n equal parts
+    if (str_size / n == 0)
+    {
+        array[0] = malloc(sizeof(str) * sizeof(char));
+        strcpy(array[0], str);
+        return array;
+    }
+
+// Calculate the size of parts to
+// find the division points
+
+    for (i = 0; i < part_size; i++)
+    {
+
+        array[i] = malloc(n * sizeof(char));
+        memcpy(array[i], &str[i*n], n);
+    }
+    array[part_size] = malloc(oddment * sizeof(char));
+    memcpy(array[part_size], &str[part_size*n], oddment);
+    return array;
+}
+
+Node create_node(char* id, const char *value){
+    Node node;
+    node = (Node) malloc(sizeof(struct ListNode));
+    if(node == NULL){
+        fprintf(stderr, "Error: not enough memory.\n");
+        return NULL;
+    }
+    node->id = strdup(id);
+    node->value = strdup(value);
+    node->next = NULL;
+    return node;
+}
+
+void free_node(Node node){
+    if(node){
+        if(node->value){
+            free(node->value);
+        }
+        free(node);
+    }
+}
+
+void prepend_node(Node *head, Node node){
+    node->next = *head;
+    *head = node;
+}
+
+void append_node(Node *head, Node node){
+    Node tmp = *head;
+    if(*head == NULL) { /*no node (empty)*/
+        *head = node;
+    }else{
+        while(tmp->next){
+            tmp = tmp->next;
+        }
+        tmp->next = node;
+    }
+}
+
+int insert_node(Node *head, Node node, int pos){
+    int i = 0;
+    /*tmp is the head*/
+    Node tmp = *head;
+
+    /*insert at the beginning of the list*/
+    if(pos == 1){
+        *head = node;
+        (*head)->next = tmp;
+        return 0;
+    }
+    /*get position*/
+    while(tmp){
+        /*invalid or matching position*/
+        if(++i >= pos-1){
+            break;
+        }
+        tmp = tmp->next;
+    }
+    if(i != pos-1){
+        fprintf(stderr, "Error: can not insert at pos %d", pos);
+        return -1;
+    }
+    /*update all links*/
+    node->next = tmp->next;
+    tmp->next = node;
+    return 0;
+}
+
+Node find_node(Node head, char* id){
+    while(head != NULL && /*reached last element*/
+                          strstr(head->id,id) == NULL && strstr(id, head->id) == NULL){
+
+        head = head->next;
+    }
+    /*found it: return it*/
+    return head;
+}
+
+void remove_node(Node *head, Node node){
+    Node tmp = *head;
+
+    /*handle empty list*/
+    if(*head == NULL){
+        return;
+    } else if (*head == node) {
+        *head = (*head)->next;
+        /*give memory back to its owner (free)*/
+        free_node(node);
+    } else {
+        while(tmp->next){
+            /*we found the node*/
+            if(tmp->next == node){
+                /*unlink it*/
+                tmp->next = tmp->next->next;
+                /*give memory back*/
+                free_node(node);
+                return;
+            }
+            tmp = tmp->next;
+        }
+    }
+}
+
+void clear_node(Node head){
+    Node node;
+
+    while(head){
+        node = head;
+        head = head->next;
+        free_node(node);
+    }
+}
+
+void print_node(Node node){
+    if(node){
+        printf("id = %d, name = %s\n", node->id, node->value);
+    }
+}
+
+void print_list(Node head){
+    while(head){
+        print_node(head);
+        head = head->next;
+    }
+}
