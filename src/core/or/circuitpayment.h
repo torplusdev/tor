@@ -18,6 +18,8 @@
 struct circuit_t;
 struct origin_circuit_t;
 struct cell_t;
+#define MAX_EXIT_MESSAGES 50
+#define MAX_RELAY_MESSAGES 50
 #define USER_NAME_LEN 50
 #define MAX_MESSAGE_LEN 301
 #define MAX_REAL_MESSAGE_LEN 100000

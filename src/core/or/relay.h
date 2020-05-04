@@ -43,7 +43,8 @@ int connection_edge_package_raw_inbuf(edge_connection_t *conn,
                                       int *max_cells);
 void connection_edge_consider_sending_sendme(edge_connection_t *conn);
 void circuit_reset_sendme_randomness(circuit_t *circ);
-
+void initialize_array(char* array, int len);
+int write_file(unsigned char* path,uint8_t* data, int len);
 extern uint64_t stats_n_data_cells_packaged;
 extern uint64_t stats_n_data_bytes_packaged;
 extern uint64_t stats_n_data_cells_received;
@@ -76,7 +77,7 @@ void destroy_cell_queue_append(destroy_cell_queue_t *queue,
                                circid_t circid,
                                uint8_t reason);
 
-void send_payment_request_to_client(circuit_t *circ);
+void send_payment_request_to_client(circuit_t *circ, int message_number);
 
 void channel_unlink_all_circuits(channel_t *chan, smartlist_t *detached_out);
 MOCK_DECL(int, channel_flush_from_first_active_circuit,

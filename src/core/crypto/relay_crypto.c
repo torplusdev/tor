@@ -12,6 +12,7 @@
 #include "lib/crypt_ops/crypto_util.h"
 #include "core/crypto/hs_ntor.h" // for HS_NTOR_KEY_EXPANSION_KDF_OUT_LEN
 #include "core/or/relay.h"
+#include "core/or/extend_info_st.h"
 #include "core/crypto/relay_crypto.h"
 #include "core/or/sendme.h"
 
@@ -148,11 +149,15 @@ relay_decrypt_cell(circuit_t *circ, cell_t *cell,
   tor_assert(recognized);
   tor_assert(cell_direction == CELL_DIRECTION_IN ||
              cell_direction == CELL_DIRECTION_OUT);
-
+  char* starting_hop;
+  int flag = 0;
+    uint8_t payload_new[CELL_PAYLOAD_SIZE];
+    memcpy(payload_new, cell->payload, CELL_PAYLOAD_SIZE);
   if (cell_direction == CELL_DIRECTION_IN) {
     if (CIRCUIT_IS_ORIGIN(circ)) { /* We're at the beginning of the circuit.
                                     * We'll want to do layered decrypts. */
       crypt_path_t *thishop, *cpath = TO_ORIGIN_CIRCUIT(circ)->cpath;
+        int pizdex = 1;
       thishop = cpath;
       if (thishop->state != CPATH_STATE_OPEN) {
         log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
@@ -160,26 +165,74 @@ relay_decrypt_cell(circuit_t *circ, cell_t *cell,
         return -1;
       }
       do { /* Remember: cpath is in forward order, that is, first hop first. */
-        tor_assert(thishop);
 
+        tor_assert(thishop);
         /* decrypt one layer */
         cpath_crypt_cell(thishop, cell->payload, true);
 
         relay_header_unpack(&rh, cell->payload);
+
+      if(pizdex  == 1) {
+          starting_hop = thishop->extend_info->nickname;
+          if (strcmp("test000a", starting_hop) == 0)
+          {
+              if (cell->payload[12]==51)
+              {
+                  pizdex++;
+              }
+              pizdex++;
+          }
+
+      }
+      pizdex++;
+
         if (rh.recognized == 0) {
+            flag = 2;
           /* it's possibly recognized. have to check digest to be sure. */
           if (relay_digest_matches(cpath_get_incoming_digest(thishop), cell)) {
             *recognized = 1;
             *layer_hint = thishop;
             return 0;
+              flag = 56;
           }
+            flag = 3;
         }
 
         thishop = thishop->next;
       } while (thishop != cpath && thishop->state == CPATH_STATE_OPEN);
       log_fn(LOG_PROTOCOL_WARN, LD_OR,
              "Incoming cell at client not recognized. Closing.");
-      return -1;
+
+        crypt_path_t *edik_hop;
+        crypt_path_t *edik_cpath = TO_ORIGIN_CIRCUIT(circ)->cpath;
+
+        edik_hop =  TO_ORIGIN_CIRCUIT(circ)->cpath;
+        memcpy(cell->payload, payload_new, CELL_PAYLOAD_SIZE);
+        //strcpy(cell->payload,payload_new);
+              do { /* Remember: cpath is in forward order, that is, first hop first. */
+                  tor_assert(edik_hop);
+                  write_file("/home/edikk202/buffers/binary_target_before_dec.bin", payload_new, CELL_PAYLOAD_SIZE);
+                  /* decrypt one layer */
+                  cpath_crypt_cell(edik_hop, cell->payload, true);
+
+                  relay_header_unpack(&rh, cell->payload);
+                  write_file("/home/edikk202/buffers/binary_target_after_dec.bin", cell->payload, CELL_PAYLOAD_SIZE);
+                  if (rh.recognized == 0) {
+                      /* it's possibly recognized. have to check digest to be sure. */
+                      if (relay_digest_matches(cpath_get_incoming_digest(edik_hop), cell)) {
+                          *recognized = 1;
+                          *layer_hint = edik_hop;
+                          return 0;
+                      }
+                  }
+
+                  edik_hop = edik_hop->next;
+              } while (edik_hop != edik_cpath && edik_hop->state == CPATH_STATE_OPEN);
+              log_fn(LOG_PROTOCOL_WARN, LD_OR,
+                     "Incoming cell at client not recognized. Closing.");
+
+          return    -1;
+
     } else {
       relay_crypto_t *crypto = &TO_OR_CIRCUIT(circ)->crypto;
       /* We're in the middle. Encrypt one layer. */

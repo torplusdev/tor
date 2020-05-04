@@ -355,6 +355,7 @@ void divideString(List_of_str_t* output, char *str, int n)
 // n equal parts
     if (str_size / n == 0)
     {
+        initialize_array(output[0].msg, MAX_MESSAGE_LEN);
         strcpy(output[0].msg, str);
     }
 // Calculate the size of parts to
@@ -362,134 +363,11 @@ void divideString(List_of_str_t* output, char *str, int n)
 
     for (i = 0; i < part_size; i++)
     {
+        initialize_array(output[0].msg, MAX_MESSAGE_LEN);
         strncpy(output[i].msg, &str[i*n], n);
     }
 
+    initialize_array(output[0].msg, MAX_MESSAGE_LEN);
     strncpy(output[part_size].msg, &str[part_size*n], oddment);
 }
 
-Node create_node(char* id, const char *value){
-    Node node;
-    node = (Node) tor_malloc_zero(sizeof(struct ListNode));
-    if(node == NULL){
-        fprintf(stderr, "Error: not enough memory.\n");
-        return NULL;
-    }
-    node->id = strdup(id);
-    node->value = strdup(value);
-    node->next = NULL;
-    return node;
-}
-
-void free_node(Node node){
-    if(node){
-        if(node->value){
-            free(node->value);
-        }
-        free(node);
-    }
-}
-
-void prepend_node(Node *head, Node node){
-    node->next = *head;
-    *head = node;
-}
-
-void append_node(Node *head, Node node){
-    Node tmp = *head;
-    if(*head == NULL) { /*no node (empty)*/
-        *head = node;
-    }else{
-        while(tmp->next){
-            tmp = tmp->next;
-        }
-        tmp->next = node;
-    }
-}
-
-int insert_node(Node *head, Node node, int pos){
-    int i = 0;
-    /*tmp is the head*/
-    Node tmp = *head;
-
-    /*insert at the beginning of the list*/
-    if(pos == 1){
-        *head = node;
-        (*head)->next = tmp;
-        return 0;
-    }
-    /*get position*/
-    while(tmp){
-        /*invalid or matching position*/
-        if(++i >= pos-1){
-            break;
-        }
-        tmp = tmp->next;
-    }
-    if(i != pos-1){
-        fprintf(stderr, "Error: can not insert at pos %d", pos);
-        return -1;
-    }
-    /*update all links*/
-    node->next = tmp->next;
-    tmp->next = node;
-    return 0;
-}
-
-Node find_node(Node head, char* id){
-    while(head != NULL && /*reached last element*/
-                          strstr(head->id,id) == NULL && strstr(id, head->id) == NULL){
-
-        head = head->next;
-    }
-    /*found it: return it*/
-    return head;
-}
-
-void remove_node(Node *head, Node node){
-    Node tmp = *head;
-
-    /*handle empty list*/
-    if(*head == NULL){
-        return;
-    } else if (*head == node) {
-        *head = (*head)->next;
-        /*give memory back to its owner (free)*/
-        free_node(node);
-    } else {
-        while(tmp->next){
-            /*we found the node*/
-            if(tmp->next == node){
-                /*unlink it*/
-                tmp->next = tmp->next->next;
-                /*give memory back*/
-                free_node(node);
-                return;
-            }
-            tmp = tmp->next;
-        }
-    }
-}
-
-void clear_node(Node head){
-    Node node;
-
-    while(head){
-        node = head;
-        head = head->next;
-        free_node(node);
-    }
-}
-
-void print_node(Node node){
-    if(node){
-        printf("id = %s, name = %s\n", node->id, node->value);
-    }
-}
-
-void print_list(Node head){
-    while(head){
-        print_node(head);
-        head = head->next;
-    }
-}

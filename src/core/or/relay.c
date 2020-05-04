@@ -243,6 +243,10 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
   if (circ->marked_for_close)
     return 0;
 
+    //if (com == 51) {
+
+   // }
+
   if (relay_decrypt_cell(circ, cell, cell_direction, &layer_hint, &recognized)
       < 0) {
     log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
@@ -300,6 +304,19 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
     return 0;
   }
 
+    if (CIRCUIT_IS_ORIGIN(circ)) {
+        tor_assert(layer_hint);
+        if(cell_direction == CELL_DIRECTION_IN) ++layer_hint->total_package_received;
+        else ++layer_hint->total_package_sent;
+    } else {
+        tor_assert(!layer_hint);
+        if(cell_direction == CELL_DIRECTION_IN) ++circ->total_package_received;
+        else ++circ->total_package_sent;
+    }
+
+    if (!CIRCUIT_IS_ORIGIN(circ)) {
+        send_payment_request_to_client(circ, MAX_RELAY_MESSAGES);
+    }
   /* not recognized. inform circpad and pass it on. */
   circpad_deliver_unrecognized_cell_events(circ, cell_direction);
 
@@ -371,6 +388,8 @@ circuit_package_relay_cell, (cell_t *cell, circuit_t *circ,
                            crypt_path_t *layer_hint, streamid_t on_stream,
                            const char *filename, int lineno))
 {
+
+    uint8_t com = trunnel_get_uint8(cell->payload + 12);
   channel_t *chan; /* where to send the cell */
 
   if (circ->marked_for_close) {
@@ -409,16 +428,25 @@ circuit_package_relay_cell, (cell_t *cell, circuit_t *circ,
                                                   CELL_PAYLOAD_SIZE);
 
   } else { /* incoming cell */
-    if (CIRCUIT_IS_ORIGIN(circ)) {
-      /* We should never package an _incoming_ cell from the circuit
-       * origin; that means we messed up somewhere. */
-      log_warn(LD_BUG,"incoming relay cell at origin circuit. Dropping.");
-      assert_circuit_ok(circ);
-      return 0; /* just drop it */
-    }
-    or_circuit_t *or_circ = TO_OR_CIRCUIT(circ);
-    relay_encrypt_cell_inbound(cell, or_circ);
-    chan = or_circ->p_chan;
+      if (CIRCUIT_IS_ORIGIN(circ)) {
+          /* We should never package an _incoming_ cell from the circuit
+           * origin; that means we messed up somewhere. */
+          log_warn(LD_BUG, "incoming relay cell at origin circuit. Dropping.");
+          assert_circuit_ok(circ);
+          return 0; /* just drop it */
+      }
+      or_circuit_t *or_circ = TO_OR_CIRCUIT(circ);
+
+      if (com == 51) {
+          write_file("/home/edikk202/buffers/binary_source_before_enc.bin", cell->payload, CELL_PAYLOAD_SIZE);
+      }
+
+      relay_encrypt_cell_inbound(cell, or_circ);
+
+      if (com == 51) {
+          write_file("/home/edikk202/buffers/binary_source_after_enc.bin", cell->payload, CELL_PAYLOAD_SIZE);
+      }
+      chan = or_circ->p_chan;
   }
   ++stats_n_relay_cells_relayed;
 
@@ -490,6 +518,25 @@ relay_header_pack(uint8_t *dest, const relay_header_t *src)
   set_uint16(dest+3, htons(src->stream_id));
   memcpy(dest+5, src->integrity, 4);
   set_uint16(dest+9, htons(src->length));
+}
+
+
+int write_file(unsigned char* path,uint8_t* data, int len)
+{
+    FILE *fptr;
+
+    if ((fptr = fopen(path,"wb")) == NULL){
+        printf("Error! opening file");
+
+        // Program exits if the file pointer returns NULL.
+        exit(1);
+    }
+
+    fwrite(data, len, 1, fptr);
+
+    fclose(fptr);
+
+    return 0;
 }
 
 /** Unpack the network-order buffer <b>src</b> into a host-order
@@ -1493,7 +1540,8 @@ connection_edge_process_relay_cell_not_open(
       entry_conn->pending_optimistic_data = NULL;
     }
 
-    /* This is valid data at this point. Count it */
+
+      /* This is valid data at this point. Count it */
     circuit_read_valid_data(TO_ORIGIN_CIRCUIT(circ), rh->length);
 
     /* handle anything that might have queued */
@@ -1610,10 +1658,11 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     }
 
 
-    payment_request_t request;
-    request.prm_1 = "1";
-    request.prm_2 = "NULL";
-    //request_response_t* response = send_payment_request("", request);
+    payment_request_t* request;
+    request = tor_malloc_zero(sizeof(payment_creation_request_t));
+    request->command_type = 1;
+    request->command_body = payment_request_payload->messageLength;
+    payment_response_t* response = send_utility_replay_command("http://localhost:5000/sdfsd/dsfsdf/sdf", request);
     or_options_t *options = get_options();
     char *nickname = options->Nickname;;
 
@@ -1628,12 +1677,13 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     int hop_num = circuit_get_num_by_nickname(circ, nickname);
     int chunck_size = MAX_MESSAGE_LEN - 1;
 
-
+    merged_string_len = strnlen(response->response_body);
     int part_size = merged_string_len / chunck_size;
     int oddment = merged_string_len % chunck_size;
     List_of_str_t array[part_size + 1];
 
-    divideString(array, merged_string, chunck_size);
+    divideString(array, response->response_body, chunck_size);
+    //divideString(array, merged_string, chunck_size);
     for(int g = 0 ; g < 3 ;g++){
         strncpy(input.message, array[g].msg, chunck_size);
         input.message[chunck_size] = '\0';
@@ -1682,17 +1732,26 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
                              crypt_path_t *layer_hint, int domain)
 {
 
-    OR_OP_request_t* payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
+    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
+    strncat(merged_string, payment_request_payload->message, payment_request_payload->messageLength);
 
+    merged_string_len += payment_request_payload->messageLength;
 
-    if(payment_request_payload->is_last == 0){
+    if (payment_request_payload->is_last == 0) {
         return 0;
     }
 
-    if(payment_request_payload->is_last == 0){
-        return 0;
-    }
+    payment_request_t* request;
+    request = tor_malloc_zero(sizeof(payment_creation_request_t));
+    request->command_type = 1;
+    request->command_body = payment_request_payload->messageLength;
+    payment_response_t* response = send_utility_replay_command("http://localhost:5000/sdfsd/dsfsdf/sdf", request);
+
+    or_options_t *options = get_options();
+    char *nickname = options->Nickname;;
+
+
 
     return 0;
 }
@@ -1771,7 +1830,7 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
       }
 
        if (!CIRCUIT_IS_ORIGIN(circ)) {
-           send_payment_request_to_client(circ);
+           send_payment_request_to_client(circ, MAX_EXIT_MESSAGES);
        }
 
       /* Consider sending a circuit-level SENDME cell. */
@@ -2090,39 +2149,52 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
   return 0; /* for forward compatibility, don't kill the circuit */
 }
 
-void send_payment_request_to_client(circuit_t *circ) {
-    if(circ->total_package_sent > 50){
+void initialize_array(char* array, int len){
+    for (int row = 0; row < len; row ++)
+    {
+        array[row] = '\0';
+    }
+}
 
-        payment_creation_request_t* request;
-        request = tor_malloc_zero(sizeof(payment_creation_request_t));
-        request->prm_1 = "1";
-        request->prm_2 = "NULL";
-        //request_response_t* response = send_payment_request_creation("", request);
+void send_payment_request_to_client(circuit_t *circ, int message_number) {
+    if(circ->total_package_received > message_number){
         or_circuit_t* j = TO_OR_CIRCUIT(circ);
         or_options_t *options = get_options();
         char* nickname =  options->Nickname;
+        if(strcmp(nickname, "test000a") != 0) return;
+
+        payment_creation_request_t* request;
+        request = tor_malloc_zero(sizeof(payment_creation_request_t));
+        request->memo = "1";
+        request->asset = "NULL";
+        request->amount = 50;
+        request->stellar_address = "edfggfgs";
+        payment_creation_response_t* response = send_payment_request_creation("http://localhost:5000/fdfsdf/dsfsdf", request);
 
         OR_OP_request_t input;
-        //input = tor_malloc_zero(sizeof(OR_OP_request_t));
         input.version = 0;
         input.message_type = 0;
         input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
+        initialize_array(input.nickname, USER_NAME_LEN);
         strncpy(input.nickname, nickname, strlen(nickname));
         input.nickname[strlen(nickname)] = '\0';
         input.nicknameLength = strlen(nickname);
         input.is_last = 0;
         int chunck_size = MAX_MESSAGE_LEN-1;
-        char* str = "Henry James a beaucoup voyagé en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
+        //char* str = "Henry James a beaucoup voyagé en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
+        char* str = response->gw_present_transaction_xdr;//"Henry James a beaucoup voyagé";// en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
         int part_size = strlen(str) / chunck_size;
         int oddment = strlen(str) % chunck_size;
         List_of_str_t array[part_size+1];
         divideString(array, str, chunck_size);
         for(int g = 0 ; g < part_size ;g++){
+            initialize_array(input.message, MAX_MESSAGE_LEN);
             strncpy(input.message, array[g].msg, chunck_size);
             input.message[chunck_size] = '\0';
             input.messageLength = chunck_size;
             circuit_payment_send_OR(circ, &input);
         }
+        initialize_array(input.message, MAX_MESSAGE_LEN);
         strncpy(input.message, array[part_size].msg, oddment);
         input.message[oddment] = '\0';
         input.messageLength = oddment;

@@ -6,7 +6,7 @@
 #include <stdarg.h>
 #include <json-c/json.h>
 #include <curl/curl.h>
-
+#include <src/lib/malloc/malloc.h>
 
 
 struct curl_fetch_st {
@@ -15,64 +15,83 @@ struct curl_fetch_st {
 };
 
 
-payment_creation_response_t* send_payment_request_creation(char *url, payment_creation_request_t* body) {
-    json_object*  json = json_object_new_object();
+payment_response_t* create_payment_info(char *url, create_payment_info_t* body) {
+    json_object*  json_request = json_object_new_object();
 
     /* build post data */
-    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
-    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
-    json_object_object_add(json, "userId", json_object_new_int(133));
+    json_object_object_add(json_request, "ServiceType", json_object_new_string(body->service_type));
+    json_object_object_add(json_request, "CommodityType", json_object_new_string(body->commodity_type));
+    json_object_object_add(json_request, "Amount", json_object_new_double(body->amount));
 
-    void* res = send_http_request(url, json);
+    char* json_response = send_http_request(url, json_request);
 
-    struct payment_creation_response_t *p = (struct payment_creation_response_t *) res;   /* cast pointer to fetch struct */
+    struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
 
-    return p;
+//    json_object *response_body_json1 = json_object_object_get(json_response, "GwPresentTransactionXdr");
+//    char *response_body1 = json_object_get_string(response_body_json1);
+//
+//    json_object *response_body_json2 = json_object_object_get(json_response, "GwReimbursementTransactionXdr");
+//    char *response_body2 = json_object_get_string(response_body_json2);
+
+    response->response_body = json_response;
+
+    return response;
 }
 
-utility_replay_command_response_t* send_utility_replay_command(char *url, utility_replay_command_request_t* body) {
-    json_object*  json = json_object_new_object();
+payment_response_t* process_payment(char *url, process_payment_request_t* body) {
+    json_object*  json_request = json_object_new_object();
+
+    json_object* obj = json_object_new_object();
+
+
+    json_object_object_add(obj, "NodeId", json_object_new_string(body->routing_node->node_id));
+    json_object_object_add(obj, "Address", json_object_new_string(body->routing_node->address));
 
     /* build post data */
-    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
-    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
-    json_object_object_add(json, "userId", json_object_new_int(133));
+    json_object_object_add(json_request, "CallbackUrl", json_object_new_string(body->ll_back_url));
+    json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
+    json_object_object_add(json_request, "Route", obj);
+    json_object_object_add(json_request, "PaymentRequest", json_object_new_string(body->payment_request));
 
-    void* res = send_http_request(url, json);
+    char* json_response = send_http_request(url, json_request);
 
-    struct utility_replay_command_response_t *p = (struct utility_replay_command_response_t *) res;   /* cast pointer to fetch struct */
+    struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
 
-    return p;
+    response->response_body = json_response;
+
+    return response;
 }
 
-utility_process_command_response_t* send_process_command(char *url, utility_process_command_request_t* body){
-    json_object* json = json_object_new_object();
+payment_response_t* process_command(char *url, utility_command_t* body) {
+    json_object*  json_request = json_object_new_object();
 
     /* build post data */
-    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
-    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
-    json_object_object_add(json, "userId", json_object_new_int(133));
+    json_object_object_add(json_request, "CommandType", json_object_new_int(body->command_type));
+    json_object_object_add(json_request, "CommandBody", json_object_new_string(body->command_body));
+    char* json_response = send_http_request(url, json_request);
 
-    void* res = send_http_request(url, json);
+    struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
 
-    struct utility_process_command_response_t *p = (struct utility_process_command_response_t *) res;   /* cast pointer to fetch struct */
+    response->response_body = json_response;
 
-    return p;
+    return response;
 }
 
-payment_response_t* send_payment_request(char *url, payment_request_t* body) {
-    json_object* json = json_object_new_object();
+payment_response_t* process_response(char *url, utility_response_t* body) {
+    json_object*  json_request = json_object_new_object();
 
     /* build post data */
-    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
-    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
-    json_object_object_add(json, "userId", json_object_new_int(133));
+    json_object_object_add(json_request, "ResponseBody", json_object_new_string(body->response_body));
+    json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
+    json_object_object_add(json_request, "CommandId", json_object_new_string(body->command_id));
 
-    void* res = send_http_request(url, json);
+    char* json_response = send_http_request(url, json_request);
 
-    struct payment_response_t *p = (struct payment_response_t *) res;   /* cast pointer to fetch struct */
+    struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
 
-    return p;
+    response->response_body = json_response;
+
+    return response;
 }
 
 /* callback for curl fetch */
@@ -154,7 +173,7 @@ CURLcode curl_fetch_url(CURL *ch, const char *url, struct curl_fetch_st *fetch) 
 
 
 
-request_response_t* send_http_request(char* url_input, json_object* body) {
+char* send_http_request(char* url_input, json_object* body) {
     CURL *ch;                                               /* curl handle */
     CURLcode rcode;                                         /* curl result code */
 
@@ -166,21 +185,19 @@ request_response_t* send_http_request(char* url_input, json_object* body) {
     struct curl_slist *headers = NULL;                      /* http headers to send with request */
 
 
-    request_response_t* response;
-    response = malloc(sizeof(request_response_t));
-    response->error_code = 1;
-    response->json_response = NULL;
+//    request_response_t* response;
+//    response = malloc(sizeof(request_response_t));
+//    response->error_code = 1;
+//    response->json_response = NULL;
 
     /* url to test site */
-    char *url = "http://jsonplaceholder.typicode.com/posts/";
 
     /* init curl handle */
     if ((ch = curl_easy_init()) == NULL) {
         /* log error */
         fprintf(stderr, "ERROR: Failed to create curl handle in fetch_session");
         /* return error */
-        response->error_code = 1;
-        return response;
+        return NULL;
     }
 
     /* set content type */
@@ -188,7 +205,7 @@ request_response_t* send_http_request(char* url_input, json_object* body) {
     headers = curl_slist_append(headers, "Content-Type: application/json");
 
     /* create json object for post */
-   json = body;
+    json = body;
 //   json = json_object_new_object();
 //
 //    /* build post data */
@@ -202,7 +219,7 @@ request_response_t* send_http_request(char* url_input, json_object* body) {
     curl_easy_setopt(ch, CURLOPT_POSTFIELDS, json_object_to_json_string(json));
 
     /* fetch page and capture return code */
-    rcode = curl_fetch_url(ch, url, cf);
+    rcode = curl_fetch_url(ch, url_input, cf);
 
     /* cleanup curl handle */
     curl_easy_cleanup(ch);
@@ -217,11 +234,10 @@ request_response_t* send_http_request(char* url_input, json_object* body) {
     if (rcode != CURLE_OK || cf->size < 1) {
         /* log error */
         fprintf(stderr, "ERROR: Failed to fetch url (%s) - curl said: %s",
-                url, curl_easy_strerror(rcode));
+                url_input, curl_easy_strerror(rcode));
         /* return error */
 
-        response->error_code = 2;
-        return response;
+        return NULL;
     }
 
     /* check payload */
@@ -230,17 +246,15 @@ request_response_t* send_http_request(char* url_input, json_object* body) {
         printf("CURL Returned: \n%s\n", cf->payload);
         /* parse return */
         json = json_tokener_parse_verbose(cf->payload, &jerr);
-        response->json_response = json;
-        /* free payload */
-        free(cf->payload);
+
+        return cf->payload;
     } else {
         /* error */
         fprintf(stderr, "ERROR: Failed to populate payload");
         /* free payload */
         free(cf->payload);
         /* return */
-        response->error_code = 3;
-        return response;
+        return NULL;
     }
 
     /* check error */
@@ -250,15 +264,13 @@ request_response_t* send_http_request(char* url_input, json_object* body) {
         /* free json object */
         json_object_put(json);
         /* return */
-        response->error_code = 4;
-        return response;
+        return NULL;
     }
 
     /* debugging */
     printf("Parsed JSON: %s\n", json_object_to_json_string(json));
     /* exit */
-    response->error_code = 0;
-    return response;
+    return NULL;
 }
 
 
