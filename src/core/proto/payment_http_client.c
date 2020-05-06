@@ -94,6 +94,24 @@ payment_response_t* process_response(char *url, utility_response_t* body) {
     return response;
 }
 
+payment_response_t*
+test() {
+    json_object*  json_request = json_object_new_object();
+
+    /* build post data */
+    json_object_object_add(json_request, "X", json_object_new_int(3));
+    json_object_object_add(json_request, "Y", json_object_new_int(4));
+    json_object_object_add(json_request, "Z", json_object_new_int(5));
+
+    char* json_response = send_http_request("https://httpbin.org/post", json_request);
+
+    struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
+
+    response->response_body = json_response;
+
+    return response;
+}
+
 /* callback for curl fetch */
 size_t curl_callback (void *contents, size_t size, size_t nmemb, void *userp) {
     size_t realsize = size * nmemb;                             /* calculate buffer size */

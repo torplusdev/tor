@@ -240,6 +240,10 @@ payment_into(OR_OP_request_t *obj, const uint8_t *input, const size_t len_in)
     memcpy(obj->message, ptr, MAX_MESSAGE_LEN);
     remaining -= MAX_MESSAGE_LEN; ptr += MAX_MESSAGE_LEN;
 
+    CHECK_REMAINING(2, truncated);
+    obj->messageTotalLength = (trunnel_get_uint16(ptr));
+    remaining -= 2; ptr += 2;
+
     trunnel_assert(ptr + remaining == input + len_in);
     return len_in - remaining;
 
@@ -320,6 +324,13 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
     written += MAX_MESSAGE_LEN; ptr += MAX_MESSAGE_LEN;
     trunnel_assert(ptr == output + written);
 
+    /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
+    trunnel_assert(written <= avail);
+    if (avail - written < 2)
+        goto truncated;
+    trunnel_set_uint16(ptr, (obj->messageTotalLength));
+    written += 2; ptr += 2;
+
 #ifdef TRUNNEL_CHECK_ENCODED_LEN
     {
     trunnel_assert(encoded_len >= 0);
@@ -342,9 +353,9 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
 }
 
 
-void divideString(List_of_str_t* output, char *str, int n)
+void divideString(List_of_str_t* output, char *str, int len, int n)
 {
-    int str_size = strlen(str);
+    int str_size = len;
     int i;
     int part_size;
     part_size = str_size / n;
@@ -363,11 +374,11 @@ void divideString(List_of_str_t* output, char *str, int n)
 
     for (i = 0; i < part_size; i++)
     {
-        initialize_array(output[0].msg, MAX_MESSAGE_LEN);
+        initialize_array(output[i].msg, MAX_MESSAGE_LEN);
         strncpy(output[i].msg, &str[i*n], n);
     }
 
-    initialize_array(output[0].msg, MAX_MESSAGE_LEN);
+    initialize_array(output[part_size].msg, MAX_MESSAGE_LEN);
     strncpy(output[part_size].msg, &str[part_size*n], oddment);
 }
 

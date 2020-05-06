@@ -64,6 +64,7 @@ LIBTOR_APP_A_SOURCES = 				\
 	src/core/proto/proto_cell.c		\
 	src/core/proto/payment_http_client.c		\
 	src/core/proto/payment_http_server.c		\
+	src/core/or/payment_hash.c		\
 	src/core/proto/proto_control0.c		\
 	src/core/proto/proto_ext_or.c		\
 	src/core/proto/proto_http.c		\
@@ -303,6 +304,7 @@ noinst_HEADERS +=					\
 	src/core/proto/proto_socks.h			\
 	src/core/proto/payment_http_client.h		\
     src/core/proto/payment_http_server.h		\
+    src/core/or/payment_hash.h		\
 	src/feature/api/tor_api_internal.h		\
 	src/feature/client/addressmap.h			\
 	src/feature/client/bridges.h			\

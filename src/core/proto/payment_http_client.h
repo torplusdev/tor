@@ -48,4 +48,7 @@ process_command(char *url, utility_command_t* request); //4
 payment_response_t*
 process_response(char *url, utility_response_t* request); //5
 
+payment_response_t*
+test(); //5
+
 char* send_http_request(char* url_input, json_object* body);

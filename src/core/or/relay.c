@@ -85,6 +85,7 @@
 #include "core/or/scheduler.h"
 
 #include "core/or/circuitpayment.h"
+#include "core/or/payment_hash.h"
 #include "core/or/cell_st.h"
 #include "core/or/cell_queue_st.h"
 #include "core/or/cpath_build_state_st.h"
@@ -137,8 +138,8 @@ uint64_t stats_n_circ_max_cell_reached = 0;
 
 long uniq_id = 1;
 
-char merged_string[MAX_REAL_MESSAGE_LEN];
-int merged_string_len = 0;
+hashtable_t *hashtable = NULL;
+
 /**
  * Update channel usage state based on the type of relay cell and
  * circuit properties.
@@ -229,153 +230,155 @@ circuit_update_channel_usage(circuit_t *circ, cell_t *cell)
  */
 int
 circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
-                           cell_direction_t cell_direction)
-{
-  channel_t *chan = NULL;
-  crypt_path_t *layer_hint=NULL;
-  char recognized=0;
-  int reason;
+                           cell_direction_t cell_direction) {
+    channel_t *chan = NULL;
+    crypt_path_t *layer_hint = NULL;
+    char recognized = 0;
+    int reason;
 
-  tor_assert(cell);
-  tor_assert(circ);
-  tor_assert(cell_direction == CELL_DIRECTION_OUT ||
-             cell_direction == CELL_DIRECTION_IN);
-  if (circ->marked_for_close)
-    return 0;
+    tor_assert(cell);
+    tor_assert(circ);
+    tor_assert(cell_direction == CELL_DIRECTION_OUT ||
+               cell_direction == CELL_DIRECTION_IN);
+    if (circ->marked_for_close)
+        return 0;
 
     //if (com == 51) {
 
-   // }
+    // }
 
-  if (relay_decrypt_cell(circ, cell, cell_direction, &layer_hint, &recognized)
-      < 0) {
-    log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
-           "relay crypt failed. Dropping connection.");
-    return -END_CIRC_REASON_INTERNAL;
-  }
-
-  circuit_update_channel_usage(circ, cell);
-
-  if (recognized) {
-    edge_connection_t *conn = NULL;
-
-    /* Recognized cell, the cell digest has been updated, we'll record it for
-     * the SENDME if need be. */
-    sendme_record_received_cell_digest(circ, layer_hint);
-
-    if (circ->purpose == CIRCUIT_PURPOSE_PATH_BIAS_TESTING) {
-      if (pathbias_check_probe_response(circ, cell) == -1) {
-        pathbias_count_valid_cells(circ, cell);
-      }
-
-      /* We need to drop this cell no matter what to avoid code that expects
-       * a certain purpose (such as the hidserv code). */
-      return 0;
-    }
-
-    conn = relay_lookup_conn(circ, cell, cell_direction, layer_hint);
-    if (cell_direction == CELL_DIRECTION_OUT) {
-      ++stats_n_relay_cells_delivered;
-      log_debug(LD_OR,"Sending away from origin.");
-      reason = connection_edge_process_relay_cell(cell, circ, conn, NULL);
-      if (reason < 0) {
+    if (relay_decrypt_cell(circ, cell, cell_direction, &layer_hint, &recognized)
+        < 0) {
         log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
-               "connection_edge_process_relay_cell (away from origin) "
-               "failed.");
-        return reason;
-      }
+               "relay crypt failed. Dropping connection.");
+        return -END_CIRC_REASON_INTERNAL;
     }
-    if (cell_direction == CELL_DIRECTION_IN) {
-      ++stats_n_relay_cells_delivered;
-      log_debug(LD_OR,"Sending to origin.");
-      reason = connection_edge_process_relay_cell(cell, circ, conn,
-                                                  layer_hint);
-      if (reason < 0) {
-        /* If a client is trying to connect to unknown hidden service port,
-         * END_CIRC_AT_ORIGIN is sent back so we can then close the circuit.
-         * Do not log warn as this is an expected behavior for a service. */
-        if (reason != END_CIRC_AT_ORIGIN) {
-          log_warn(LD_OR,
-                   "connection_edge_process_relay_cell (at origin) failed.");
+
+    circuit_update_channel_usage(circ, cell);
+
+    if (recognized) {
+        edge_connection_t *conn = NULL;
+
+        /* Recognized cell, the cell digest has been updated, we'll record it for
+         * the SENDME if need be. */
+        sendme_record_received_cell_digest(circ, layer_hint);
+
+        if (circ->purpose == CIRCUIT_PURPOSE_PATH_BIAS_TESTING) {
+            if (pathbias_check_probe_response(circ, cell) == -1) {
+                pathbias_count_valid_cells(circ, cell);
+            }
+
+            /* We need to drop this cell no matter what to avoid code that expects
+             * a certain purpose (such as the hidserv code). */
+            return 0;
         }
-        return reason;
-      }
+
+        conn = relay_lookup_conn(circ, cell, cell_direction, layer_hint);
+        if (cell_direction == CELL_DIRECTION_OUT) {
+            ++stats_n_relay_cells_delivered;
+            log_debug(LD_OR, "Sending away from origin.");
+            reason = connection_edge_process_relay_cell(cell, circ, conn, NULL);
+            if (reason < 0) {
+                log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
+                       "connection_edge_process_relay_cell (away from origin) "
+                       "failed.");
+                return reason;
+            }
+        }
+        if (cell_direction == CELL_DIRECTION_IN) {
+            ++stats_n_relay_cells_delivered;
+            log_debug(LD_OR, "Sending to origin.");
+            reason = connection_edge_process_relay_cell(cell, circ, conn,
+                                                        layer_hint);
+            if (reason < 0) {
+                /* If a client is trying to connect to unknown hidden service port,
+                 * END_CIRC_AT_ORIGIN is sent back so we can then close the circuit.
+                 * Do not log warn as this is an expected behavior for a service. */
+                if (reason != END_CIRC_AT_ORIGIN) {
+                    log_warn(LD_OR,
+                             "connection_edge_process_relay_cell (at origin) failed.");
+                }
+                return reason;
+            }
+        }
+        return 0;
     }
-    return 0;
-  }
 
     if (CIRCUIT_IS_ORIGIN(circ)) {
         tor_assert(layer_hint);
-        if(cell_direction == CELL_DIRECTION_IN) ++layer_hint->total_package_received;
+        if (cell_direction == CELL_DIRECTION_IN) ++layer_hint->total_package_received;
         else ++layer_hint->total_package_sent;
     } else {
         tor_assert(!layer_hint);
-        if(cell_direction == CELL_DIRECTION_IN) ++circ->total_package_received;
+        if (cell_direction == CELL_DIRECTION_IN) ++circ->total_package_received;
         else ++circ->total_package_sent;
     }
+
+
+    /* not recognized. inform circpad and pass it on. */
+    circpad_deliver_unrecognized_cell_events(circ, cell_direction);
+
+    if (cell_direction == CELL_DIRECTION_OUT) {
+        cell->circ_id = circ->n_circ_id; /* switch it */
+        chan = circ->n_chan;
+    } else if (!CIRCUIT_IS_ORIGIN(circ)) {
+        cell->circ_id = TO_OR_CIRCUIT(circ)->p_circ_id; /* switch it */
+        chan = TO_OR_CIRCUIT(circ)->p_chan;
+    } else {
+        log_fn(LOG_PROTOCOL_WARN, LD_OR,
+               "Dropping unrecognized inbound cell on origin circuit.");
+        /* If we see unrecognized cells on path bias testing circs,
+         * it's bad mojo. Those circuits need to die.
+         * XXX: Shouldn't they always die? */
+        if (circ->purpose == CIRCUIT_PURPOSE_PATH_BIAS_TESTING) {
+            TO_ORIGIN_CIRCUIT(circ)->path_state = PATH_STATE_USE_FAILED;
+            return -END_CIRC_REASON_TORPROTOCOL;
+        } else {
+            return 0;
+        }
+    }
+
+    if (!chan) {
+        // XXXX Can this splice stuff be done more cleanly?
+        if (!CIRCUIT_IS_ORIGIN(circ) &&
+            TO_OR_CIRCUIT(circ)->rend_splice &&
+            cell_direction == CELL_DIRECTION_OUT) {
+            or_circuit_t *splice_ = TO_OR_CIRCUIT(circ)->rend_splice;
+            tor_assert(circ->purpose == CIRCUIT_PURPOSE_REND_ESTABLISHED);
+            tor_assert(splice_->base_.purpose == CIRCUIT_PURPOSE_REND_ESTABLISHED);
+
+            cell->circ_id = splice_->p_circ_id;
+            cell->command = CELL_RELAY; /* can't be relay_early anyway */
+
+
+            if ((reason = circuit_receive_relay_cell(cell, TO_CIRCUIT(splice_),
+                                                     CELL_DIRECTION_IN)) < 0) {
+                log_warn(LD_REND, "Error relaying cell across rendezvous; closing "
+                                  "circuits");
+                /* XXXX Do this here, or just return -1? */
+                circuit_mark_for_close(circ, -reason);
+                return reason;
+            }
+            return 0;
+        }
+        log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
+               "Didn't recognize cell, but circ stops here! Closing circ.");
+        return -END_CIRC_REASON_TORPROTOCOL;
+    }
+
+    log_debug(LD_OR, "Passing on unrecognized cell.");
+
+    ++stats_n_relay_cells_relayed; /* XXXX no longer quite accurate {cells}
+                                  * we might kill the circ before we relay
+                                  * the cells. */
+
+    append_cell_to_circuit_queue(circ, chan, cell, cell_direction, 0);
 
     if (!CIRCUIT_IS_ORIGIN(circ)) {
         send_payment_request_to_client(circ, MAX_RELAY_MESSAGES);
     }
-  /* not recognized. inform circpad and pass it on. */
-  circpad_deliver_unrecognized_cell_events(circ, cell_direction);
 
-  if (cell_direction == CELL_DIRECTION_OUT) {
-    cell->circ_id = circ->n_circ_id; /* switch it */
-    chan = circ->n_chan;
-  } else if (! CIRCUIT_IS_ORIGIN(circ)) {
-    cell->circ_id = TO_OR_CIRCUIT(circ)->p_circ_id; /* switch it */
-    chan = TO_OR_CIRCUIT(circ)->p_chan;
-  } else {
-    log_fn(LOG_PROTOCOL_WARN, LD_OR,
-           "Dropping unrecognized inbound cell on origin circuit.");
-    /* If we see unrecognized cells on path bias testing circs,
-     * it's bad mojo. Those circuits need to die.
-     * XXX: Shouldn't they always die? */
-    if (circ->purpose == CIRCUIT_PURPOSE_PATH_BIAS_TESTING) {
-      TO_ORIGIN_CIRCUIT(circ)->path_state = PATH_STATE_USE_FAILED;
-      return -END_CIRC_REASON_TORPROTOCOL;
-    } else {
-      return 0;
-    }
-  }
-
-  if (!chan) {
-    // XXXX Can this splice stuff be done more cleanly?
-    if (! CIRCUIT_IS_ORIGIN(circ) &&
-        TO_OR_CIRCUIT(circ)->rend_splice &&
-        cell_direction == CELL_DIRECTION_OUT) {
-      or_circuit_t *splice_ = TO_OR_CIRCUIT(circ)->rend_splice;
-      tor_assert(circ->purpose == CIRCUIT_PURPOSE_REND_ESTABLISHED);
-      tor_assert(splice_->base_.purpose == CIRCUIT_PURPOSE_REND_ESTABLISHED);
-
-      cell->circ_id = splice_->p_circ_id;
-      cell->command = CELL_RELAY; /* can't be relay_early anyway */
-
-
-      if ((reason = circuit_receive_relay_cell(cell, TO_CIRCUIT(splice_),
-                                               CELL_DIRECTION_IN)) < 0) {
-        log_warn(LD_REND, "Error relaying cell across rendezvous; closing "
-                 "circuits");
-        /* XXXX Do this here, or just return -1? */
-        circuit_mark_for_close(circ, -reason);
-        return reason;
-      }
-      return 0;
-    }
-    log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
-           "Didn't recognize cell, but circ stops here! Closing circ.");
-    return -END_CIRC_REASON_TORPROTOCOL;
-  }
-
-  log_debug(LD_OR,"Passing on unrecognized cell.");
-
-  ++stats_n_relay_cells_relayed; /* XXXX no longer quite accurate {cells}
-                                  * we might kill the circ before we relay
-                                  * the cells. */
-
-  append_cell_to_circuit_queue(circ, chan, cell, cell_direction, 0);
-  return 0;
+    return 0;
 }
 
 /** Package a relay cell from an edge:
@@ -1642,27 +1645,50 @@ process_sendme_cell(const relay_header_t *rh, const cell_t *cell,
   return 0;
 }
 
+char* create_key(uint32_t circuit_id, char* nickname) {
+    char str[80];
+    strcpy(str, circuit_id);
+    strcat(str, "_");
+    strcat(str, nickname);
+
+    return str;
+}
+
 int
 process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cell,
                                      circuit_t *circ, edge_connection_t *conn,
                                      crypt_path_t *layer_hint, int domain) {
 
+
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
-    strncat(merged_string, payment_request_payload->message, payment_request_payload->messageLength);
+    if(hashtable == NULL){
+        hashtable = ht_create( 65536 );
+    }
+    char* key = create_key(circ->n_circ_id , payment_request_payload->nickname);
 
-    merged_string_len += payment_request_payload->messageLength;
+    char* value = ht_get( hashtable, key);
+
+    if(value == NULL){
+        char str[MAX_REAL_MESSAGE_LEN];
+        value = str;
+    }
+
+    strncat(value, payment_request_payload->message, payment_request_payload->messageLength);
+
+    ht_set( hashtable, key, value);
 
     if (payment_request_payload->is_last == 0) {
         return 0;
     }
 
 
-    payment_request_t* request;
-    request = tor_malloc_zero(sizeof(payment_creation_request_t));
-    request->command_type = 1;
-    request->command_body = payment_request_payload->messageLength;
-    payment_response_t* response = send_utility_replay_command("http://localhost:5000/sdfsd/dsfsdf/sdf", request);
+      return 0;
+//    payment_request_t* request;
+//    request = tor_malloc_zero(sizeof(payment_creation_request_t));
+//    request->command_type = 1;
+//    request->command_body = payment_request_payload->messageLength;
+//    payment_response_t* response = send_utility_replay_command("http://localhost:5000/sdfsd/dsfsdf/sdf", request);
     or_options_t *options = get_options();
     char *nickname = options->Nickname;;
 
@@ -1674,17 +1700,16 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     input.nicknameLength = strlen(nickname);
     input.version = 0;
     input.is_last = 0;
-    int hop_num = circuit_get_num_by_nickname(circ, nickname);
+    int hop_num = circuit_get_num_by_nickname(circ, payment_request_payload->nickname);
     int chunck_size = MAX_MESSAGE_LEN - 1;
 
-    merged_string_len = strnlen(response->response_body);
-    int part_size = merged_string_len / chunck_size;
-    int oddment = merged_string_len % chunck_size;
+    int part_size = payment_request_payload->messageTotalLength / chunck_size;
+    int oddment = payment_request_payload->messageTotalLength % chunck_size;
     List_of_str_t array[part_size + 1];
 
-    divideString(array, response->response_body, chunck_size);
+    divideString(array, value, payment_request_payload->messageTotalLength, chunck_size);
     //divideString(array, merged_string, chunck_size);
-    for(int g = 0 ; g < 3 ;g++){
+    for(int g = 0 ; g < part_size ;g++){
         strncpy(input.message, array[g].msg, chunck_size);
         input.message[chunck_size] = '\0';
         input.messageLength = chunck_size;
@@ -1697,10 +1722,8 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     circuit_payment_send_OP(circ, hop_num, &input);
     circ->total_package_received = 0;
 
-    int j;
-    for (j=0; j<MAX_REAL_MESSAGE_LEN; j++)
-        merged_string[j] = 0;
-    merged_string_len = 0;
+    char merged_string[MAX_REAL_MESSAGE_LEN];
+    ht_set( hashtable, key, merged_string);
     return 0;
 }
 
@@ -1710,6 +1733,8 @@ circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname)
     char nickname_array[MAX_HEX_NICKNAME_LEN+1] = {NULL};
     memcpy(nickname_array, nickname, sizeof(nickname));
     int n = 1;
+    if(strcmp(circ->cpath->extend_info->nickname, nickname) == 0)
+        return 1;
     if (circ != NULL && circ->cpath != NULL) {
         crypt_path_t *cpath, *cpath_next = NULL;
         for (cpath = circ->cpath;
@@ -1734,25 +1759,39 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
 
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
-    strncat(merged_string, payment_request_payload->message, payment_request_payload->messageLength);
+    if(hashtable == NULL){
+        hashtable = ht_create( 65536 );
+    }
+    char* key = create_key(circ->n_circ_id , payment_request_payload->nickname);
 
-    merged_string_len += payment_request_payload->messageLength;
+    char* value = ht_get( hashtable, key);
+
+    if(value == NULL){
+        char str[MAX_REAL_MESSAGE_LEN];
+        value = str;
+    }
+
+    strncat(value, payment_request_payload->message, payment_request_payload->messageLength);
+
+    ht_set( hashtable, key, value);
 
     if (payment_request_payload->is_last == 0) {
         return 0;
     }
-
-    payment_request_t* request;
-    request = tor_malloc_zero(sizeof(payment_creation_request_t));
-    request->command_type = 1;
-    request->command_body = payment_request_payload->messageLength;
-    payment_response_t* response = send_utility_replay_command("http://localhost:5000/sdfsd/dsfsdf/sdf", request);
+//    payment_request_t* request;
+//    request = tor_malloc_zero(sizeof(payment_creation_request_t));
+//    request->command_type = 1;
+//    request->command_body = payment_request_payload->messageLength;
+//    payment_response_t* response = send_utility_replay_command("http://localhost:5000/sdfsd/dsfsdf/sdf", request);
 
     or_options_t *options = get_options();
     char *nickname = options->Nickname;;
 
 
 
+    char merged_string[MAX_REAL_MESSAGE_LEN];
+    ht_set( hashtable, key, merged_string);
+    return 0;
     return 0;
 }
 
@@ -1829,9 +1868,7 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
         return -END_CIRC_REASON_TORPROTOCOL;
       }
 
-       if (!CIRCUIT_IS_ORIGIN(circ)) {
-           send_payment_request_to_client(circ, MAX_EXIT_MESSAGES);
-       }
+
 
       /* Consider sending a circuit-level SENDME cell. */
       sendme_circuit_consider_sending(circ, layer_hint);
@@ -1893,6 +1930,9 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
         sendme_connection_edge_consider_sending(conn);
       }
 
+      if (!CIRCUIT_IS_ORIGIN(circ)) {
+          send_payment_request_to_client(circ, MAX_EXIT_MESSAGES);
+      }
       return 0;
     case RELAY_COMMAND_END:
       reason = rh->length > 0 ?
@@ -2161,15 +2201,15 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         or_circuit_t* j = TO_OR_CIRCUIT(circ);
         or_options_t *options = get_options();
         char* nickname =  options->Nickname;
-        if(strcmp(nickname, "test000a") != 0) return;
+       // if(strcmp(nickname, "test000a") != 0) return;
 
-        payment_creation_request_t* request;
-        request = tor_malloc_zero(sizeof(payment_creation_request_t));
-        request->memo = "1";
-        request->asset = "NULL";
-        request->amount = 50;
-        request->stellar_address = "edfggfgs";
-        payment_creation_response_t* response = send_payment_request_creation("http://localhost:5000/fdfsdf/dsfsdf", request);
+//        payment_creation_request_t* request;
+//        request = tor_malloc_zero(sizeof(payment_creation_request_t));
+//        request->memo = "1";
+//        request->asset = "NULL";
+//        request->amount = 50;
+//        request->stellar_address = "edfggfgs";
+//        payment_creation_response_t* response = send_payment_request_creation("http://localhost:5000/fdfsdf/dsfsdf", request);
 
         OR_OP_request_t input;
         input.version = 0;
@@ -2181,12 +2221,13 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         input.nicknameLength = strlen(nickname);
         input.is_last = 0;
         int chunck_size = MAX_MESSAGE_LEN-1;
-        //char* str = "Henry James a beaucoup voyagé en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
-        char* str = response->gw_present_transaction_xdr;//"Henry James a beaucoup voyagé";// en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
+        char* str = "Henry James a beaucoup voyagé en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
+        //char* str = "Henry James a beaucoup voyagé";// en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
+        input.messageTotalLength = strlen(str);
         int part_size = strlen(str) / chunck_size;
         int oddment = strlen(str) % chunck_size;
         List_of_str_t array[part_size+1];
-        divideString(array, str, chunck_size);
+        divideString(array, str, strlen(str), chunck_size);
         for(int g = 0 ; g < part_size ;g++){
             initialize_array(input.message, MAX_MESSAGE_LEN);
             strncpy(input.message, array[g].msg, chunck_size);
@@ -2202,7 +2243,6 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         circuit_payment_send_OR(circ, &input);
         circ->total_package_received = 0;
         circ->total_package_sent = 0;
-
         return;
     }
 }

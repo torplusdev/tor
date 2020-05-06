@@ -34,10 +34,27 @@ struct OR_OP_request_st {
     char nickname[USER_NAME_LEN];
     uint16_t messageLength;
     char message[MAX_MESSAGE_LEN];
+    uint16_t messageTotalLength;
 };
 struct List_of_str_st {
     char msg[MAX_MESSAGE_LEN];
 };
+
+typedef struct payment_chunk_st {
+    char nickname[USER_NAME_LEN];
+    char merged_string[MAX_REAL_MESSAGE_LEN];
+    int merged_string_len;
+}payment_chunk_t;
+
+typedef struct list_of_chunks_st {
+    int circuit_id;
+    payment_chunk_t chunk[3];
+}list_of_chunks_t;
+
+typedef struct chunk_payment_st {
+    int len;
+    list_of_chunks_t list[50];
+}chunk_payment_t;
 
 typedef struct List_of_str_st List_of_str_t;
 
@@ -67,7 +84,7 @@ static void circuit_payment_negotiate_clear(OR_OP_request_t *obj);
 ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const OR_OP_request_t *obj);
 
 
-void divideString(List_of_str_t* output, char *str, int n);
+void divideString(List_of_str_t* output, char *str, int len, int n);
 // public API
 
 OR_OP_request_t*
