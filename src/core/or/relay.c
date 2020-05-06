@@ -83,7 +83,6 @@
 #include "feature/rend/rendcommon.h"
 #include "feature/nodelist/describe.h"
 #include "core/or/scheduler.h"
-
 #include "core/or/circuitpayment.h"
 #include "core/or/payment_hash.h"
 #include "core/or/cell_st.h"
@@ -136,9 +135,9 @@ uint64_t stats_n_relay_cells_delivered = 0;
  * reached (see append_cell_to_circuit_queue()) */
 uint64_t stats_n_circ_max_cell_reached = 0;
 
-long uniq_id = 1;
+bool hash_exists = false;
 
-hashtable_t *hashtable = NULL;
+static hashtable_t hashtable;
 
 /**
  * Update channel usage state based on the type of relay cell and
@@ -1645,13 +1644,24 @@ process_sendme_cell(const relay_header_t *rh, const cell_t *cell,
   return 0;
 }
 
-char* create_key(uint32_t circuit_id, char* nickname) {
-    char str[80];
-    strcpy(str, circuit_id);
-    strcat(str, "_");
-    strcat(str, nickname);
+void create_key(char* output, char* circuit_id, char* nickname) {
 
-    return str;
+    strcpy(output, circuit_id);
+    strcat(output, "_");
+    strcat(output, nickname);
+}
+
+int32_t char4_to_int(char* pChar4)
+{
+    return (pChar4[3] << 24) | (pChar4[2] << 16) | (pChar4[1] << 8) | (pChar4[0]);
+}
+
+void stuff_int_into_char4(char* pIntoChar4, uint32_t val)
+{
+    pIntoChar4[3] = val>>24;
+    pIntoChar4[2] = val>>16;
+    pIntoChar4[1] = val>>8;
+    pIntoChar4[0] = val;
 }
 
 int
@@ -1662,21 +1672,30 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
 
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
-    if(hashtable == NULL){
+    if(!hash_exists){
         hashtable = ht_create( 65536 );
+        hash_exists = true;
     }
-    char* key = create_key(circ->n_circ_id , payment_request_payload->nickname);
 
-    char* value = ht_get( hashtable, key);
+    char circ_key[4];
+    stuff_int_into_char4(circ_key, circ->n_circ_id);
+
+    char key[80];
+    for (int i = 0; i < 80; ++i) {
+        key[i] = '\0';
+    }
+    create_key(key, circ_key , payment_request_payload->nickname);
+
+    char* value = ht_get(&hashtable, key);
 
     if(value == NULL){
         char str[MAX_REAL_MESSAGE_LEN];
-        value = str;
+        value= str;
     }
 
     strncat(value, payment_request_payload->message, payment_request_payload->messageLength);
 
-    ht_set( hashtable, key, value);
+    ht_set(&hashtable, key, value);
 
     if (payment_request_payload->is_last == 0) {
         return 0;
@@ -1723,7 +1742,7 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     circ->total_package_received = 0;
 
     char merged_string[MAX_REAL_MESSAGE_LEN];
-    ht_set( hashtable, key, merged_string);
+    ht_set(&hashtable, key, merged_string);
     return 0;
 }
 
@@ -1759,25 +1778,35 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
 
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
-    if(hashtable == NULL){
-        hashtable = ht_create( 65536 );
+    if(!hash_exists){
+        hashtable = ht_create();
+        hash_exists = true;
     }
-    char* key = create_key(circ->n_circ_id , payment_request_payload->nickname);
 
-    char* value = ht_get( hashtable, key);
+    char circ_key[4];
+    stuff_int_into_char4(circ_key, circ->n_circ_id);
+
+    char key[80];
+    for (int i = 0; i < 80; ++i) {
+        key[i] = '\0';
+    }
+    create_key(key, circ_key , payment_request_payload->nickname);
+
+    char* value = ht_get(&hashtable, key);
 
     if(value == NULL){
         char str[MAX_REAL_MESSAGE_LEN];
-        value = str;
+        strcpy(value,str);
     }
 
     strncat(value, payment_request_payload->message, payment_request_payload->messageLength);
 
-    ht_set( hashtable, key, value);
+    ht_set(&hashtable, key, value);
 
     if (payment_request_payload->is_last == 0) {
         return 0;
     }
+
 //    payment_request_t* request;
 //    request = tor_malloc_zero(sizeof(payment_creation_request_t));
 //    request->command_type = 1;
@@ -1790,7 +1819,7 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
 
 
     char merged_string[MAX_REAL_MESSAGE_LEN];
-    ht_set( hashtable, key, merged_string);
+    ht_set(&hashtable, key, merged_string);
     return 0;
     return 0;
 }

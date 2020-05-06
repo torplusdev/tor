@@ -1,23 +1,23 @@
 //
 // Created by edikk202 on 5/5/20.
 //
+#define SIZE 65536
 
 struct entry_s {
     char *key;
     char *value;
-    struct entry_s *next;
+    struct entry_t *next;
 };
 
 typedef struct entry_s entry_t;
 
 struct hashtable_s {
-    int size;
-    struct entry_s **table;
+    struct entry_s* table[SIZE];
 };
 
 typedef struct hashtable_s hashtable_t;
 
-hashtable_t *ht_create( int size ) ;
+hashtable_t ht_create() ;
 
 /* Hash a string for a particular hash table. */
 int ht_hash( hashtable_t *hashtable, char *key ) ;
