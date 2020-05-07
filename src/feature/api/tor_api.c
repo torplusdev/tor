@@ -149,9 +149,14 @@ tor_api_get_provider_version(void)
  * Some embedders have historically called this function; but that usage is
  * deprecated: they should use tor_run_main() instead.
  */
+
+
+
 int
 tor_main(int argc, char *argv[])
 {
+
+
   tor_main_configuration_t *cfg = tor_main_configuration_new();
   if (!cfg) {
     puts("INTERNAL ERROR: Allocation failure. Cannot proceed");

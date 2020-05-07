@@ -113,6 +113,7 @@
 #include "feature/nodelist/routerinfo_st.h"
 #include "core/or/socks_request_st.h"
 
+#include "app/main/rest_lib.h"
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -2491,9 +2492,33 @@ run_main_loop_once(void)
  *
  * Shadow won't invoke this function, so don't fill it up with things.
  */
+
+void getTorRoute(const char* targetNode,tor_route *route)
+{
+
+}
+
+int processCommand(tor_command* command)
+{
+}
+
 STATIC int
 run_main_loop_until_done(void)
 {
+
+    int port = 5876;
+
+    or_options_t *options = get_options();
+    char* nickname =  options->Nickname;
+    if(strcmp(nickname, "test000a") == 0) port = 5812;
+    if(strcmp(nickname, "test001a") == 0) port = 5813;
+    if(strcmp(nickname, "test002a") == 0) port = 5814;
+    if(strcmp(nickname, "test003a") == 0) port = 5815;
+    if(strcmp(nickname, "test004r") == 0) port = 5816;
+    if(strcmp(nickname, "test005c") == 0) port = 5817;
+
+    runServer(port,getTorRoute,processCommand);
+
   int loop_result = 1;
 
   main_loop_should_exit = 0;
