@@ -221,6 +221,11 @@ payment_into(OR_OP_request_t *obj, const uint8_t *input, const size_t len_in)
     obj->is_last = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
 
+    /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
+    CHECK_REMAINING(2, truncated);
+    obj->command_type = (trunnel_get_int16(ptr));
+    remaining -= 2; ptr += 2;
+
     CHECK_REMAINING(2, truncated);
     obj->nicknameLength = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
@@ -294,6 +299,13 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
         goto truncated;
     trunnel_set_uint8(ptr, (obj->is_last));
     written += 1; ptr += 1;
+
+    /* Encode u8 command IN  */
+    trunnel_assert(written <= avail);
+    if (avail - written < 2)
+        goto truncated;
+    trunnel_set_int16(ptr, (obj->command_type));
+    written += 2; ptr += 2;
 
     /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
     trunnel_assert(written <= avail);
@@ -380,5 +392,28 @@ void divideString(List_of_str_t* output, char *str, int len, int n)
 
     initialize_array(output[part_size].msg, MAX_MESSAGE_LEN);
     strncpy(output[part_size].msg, &str[part_size*n], oddment);
+}
+
+int
+circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname)
+{
+    char nickname_array[MAX_HEX_NICKNAME_LEN+1] = {NULL};
+    memcpy(nickname_array, nickname, sizeof(nickname));
+    int n = 1;
+    if(strcmp(circ->cpath->extend_info->nickname, nickname) == 0)
+        return 1;
+    if (circ != NULL && circ->cpath != NULL) {
+        crypt_path_t *cpath, *cpath_next = NULL;
+        for (cpath = circ->cpath;
+             cpath->state == CPATH_STATE_OPEN
+             && cpath_next != circ->cpath;
+             cpath = cpath_next) {
+            cpath_next = cpath->next;
+            ++n;
+            if(strcmp(cpath_next->extend_info->nickname, nickname) == 0)
+                return n;
+        }
+    }
+    return 0;
 }
 

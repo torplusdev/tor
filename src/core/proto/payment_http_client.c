@@ -7,6 +7,7 @@
 #include <json-c/json.h>
 #include <curl/curl.h>
 #include <src/lib/malloc/malloc.h>
+#include <src/lib/log/log.h>
 
 
 struct curl_fetch_st {
@@ -21,9 +22,17 @@ payment_response_t* create_payment_info(char *url, create_payment_info_t* body) 
     /* build post data */
     json_object_object_add(json_request, "ServiceType", json_object_new_string(body->service_type));
     json_object_object_add(json_request, "CommodityType", json_object_new_string(body->commodity_type));
-    json_object_object_add(json_request, "Amount", json_object_new_double(body->amount));
+    json_object_object_add(json_request, "Amount", json_object_new_int(body->amount));
+
+    char* request_string = json_object_to_json_string(json_request);
+
+    char log[200] = "";
+    strcat(log, request_string);
+    log_notice(1, log);
 
     char* json_response = send_http_request(url, json_request);
+
+
 
     struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
 
@@ -41,25 +50,35 @@ payment_response_t* create_payment_info(char *url, create_payment_info_t* body) 
 payment_response_t* process_payment(char *url, process_payment_request_t* body) {
     json_object*  json_request = json_object_new_object();
 
-    json_object* obj = json_object_new_object();
 
+    json_object *jarray = json_object_new_array();
+    for (int i = 0; i < 0; ++i) {
+        json_object* obj = json_object_new_object();
+        json_object_object_add(obj, "NodeId", json_object_new_string(body->routing_node[i].node_id));
+        json_object_object_add(obj, "Address", json_object_new_string(body->routing_node[i].address));
+        json_object_array_add(jarray,obj);
+    }
 
-    json_object_object_add(obj, "NodeId", json_object_new_string(body->routing_node->node_id));
-    json_object_object_add(obj, "Address", json_object_new_string(body->routing_node->address));
 
     /* build post data */
-    json_object_object_add(json_request, "CallbackUrl", json_object_new_string(body->ll_back_url));
+    json_object_object_add(json_request, "CallbackUrl", json_object_new_string(body->call_back_url));
     json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
-    json_object_object_add(json_request, "Route", obj);
+    json_object_object_add(json_request, "Route", jarray);
     json_object_object_add(json_request, "PaymentRequest", json_object_new_string(body->payment_request));
+
+    char* request_string = json_object_to_json_string(json_request);
+
+    char log[2000] = "";
+    strcat(log, request_string);
+    log_notice(1, log);
+
 
     char* json_response = send_http_request(url, json_request);
 
-    struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
+    payment_response_t response;
+    response.response_body = json_response;
 
-    response->response_body = json_response;
-
-    return response;
+    return &response;
 }
 
 payment_response_t* process_command(char *url, utility_command_t* body) {
@@ -289,6 +308,37 @@ char* send_http_request(char* url_input, json_object* body) {
     printf("Parsed JSON: %s\n", json_object_to_json_string(json));
     /* exit */
     return NULL;
+}
+
+int32_t char4_to_int(char* pChar8)
+{
+    return (pChar8[3] << 24) | (pChar8[2] << 16) | (pChar8[1] << 8) | (pChar8[0]);
+}
+
+int64_t char8_to_int(char* pChar8)
+{
+    return (pChar8[7] << 56) | (pChar8[6] << 48) | (pChar8[5] << 40) | (pChar8[4] << 32) |
+           (pChar8[3] << 24) | (pChar8[2] << 16) | (pChar8[1] << 8) | (pChar8[0]);
+}
+
+void stuff_int_into_char4(char* pIntoChar4, uint32_t val)
+{
+    pIntoChar4[3] = val>>24;
+    pIntoChar4[2] = val>>16;
+    pIntoChar4[1] = val>>8;
+    pIntoChar4[0] = val;
+}
+
+void stuff_int_into_char8(char* pIntoChar4, uint64_t val)
+{
+    pIntoChar4[7] = val>>56;
+    pIntoChar4[6] = val>>48;
+    pIntoChar4[5] = val>>40;
+    pIntoChar4[4] = val>>32;
+    pIntoChar4[3] = val>>24;
+    pIntoChar4[2] = val>>16;
+    pIntoChar4[1] = val>>8;
+    pIntoChar4[0] = val;
 }
 
 

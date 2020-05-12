@@ -176,6 +176,7 @@ static void crash_handler(int sig, siginfo_t *si, void *ctx_)
 /** Signal handler: write a crash message with a stack trace, and die. */
 static void
 crash_handler(int sig, siginfo_t *si, void *ctx_)
+
 {
   char buf[40];
   size_t depth;

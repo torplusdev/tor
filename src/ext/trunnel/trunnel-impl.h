@@ -65,6 +65,11 @@ trunnel_set_uint8(void *p, uint8_t v) {
   memcpy(p, &v, 1);
 }
 
+static inline void
+trunnel_set_int16(void *p, int16_t v) {
+  memcpy(p, &v, 2);
+}
+
 static inline uint64_t
 trunnel_get_uint64(const void *p) {
   uint64_t x;
@@ -86,6 +91,11 @@ trunnel_get_uint16(const void *p) {
 static inline uint8_t
 trunnel_get_uint8(const void *p) {
   return *(const uint8_t*)p;
+}
+
+static inline int16_t
+trunnel_get_int16(const void *p) {
+  return *(const int16_t*)p;
 }
 
 

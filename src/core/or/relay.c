@@ -1651,17 +1651,13 @@ void create_key(char* output, char* circuit_id, char* nickname) {
     strcat(output, nickname);
 }
 
-int32_t char4_to_int(char* pChar4)
-{
-    return (pChar4[3] << 24) | (pChar4[2] << 16) | (pChar4[1] << 8) | (pChar4[0]);
-}
+void create_node_id(char* output, char* circuit_id, char* chan_id, char* nickname) {
 
-void stuff_int_into_char4(char* pIntoChar4, uint32_t val)
-{
-    pIntoChar4[3] = val>>24;
-    pIntoChar4[2] = val>>16;
-    pIntoChar4[1] = val>>8;
-    pIntoChar4[0] = val;
+    strcpy(output, circuit_id);
+    strcat(output, "_");
+    strcat(output, chan_id);
+    strcat(output, "_");
+    strcat(output, nickname);
 }
 
 int
@@ -1670,6 +1666,17 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
                                      crypt_path_t *layer_hint, int domain) {
 
 
+    char node_id[300];
+    char key[100];
+    char circ_key[4];
+    char chanel_key[8];
+    for (int i = 0; i < 100; ++i) {
+        key[i] = '\0';
+    }
+
+    for (int i = 0; i < 200; ++i) {
+        node_id[i] = '\0';
+    }
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
     if(!hash_exists){
@@ -1677,40 +1684,86 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
         hash_exists = true;
     }
 
-    char circ_key[4];
+
     stuff_int_into_char4(circ_key, circ->n_circ_id);
 
-    char key[80];
-    for (int i = 0; i < 80; ++i) {
-        key[i] = '\0';
-    }
+
+
     create_key(key, circ_key , payment_request_payload->nickname);
 
     char* value = ht_get(&hashtable, key);
 
+
     if(value == NULL){
         char str[MAX_REAL_MESSAGE_LEN];
-        value= str;
+        for (int i = 0; i < MAX_REAL_MESSAGE_LEN; ++i) {
+            str[i] = '\0';
+        }
+        value = str;
+
+        strncat(str, payment_request_payload->message, payment_request_payload->messageLength);
+
+        ht_set(&hashtable, key, str);
     }
+    else {
+        strncat(value, payment_request_payload->message, payment_request_payload->messageLength);
 
-    strncat(value, payment_request_payload->message, payment_request_payload->messageLength);
-
-    ht_set(&hashtable, key, value);
-
+        ht_set(&hashtable, key, value);
+    }
     if (payment_request_payload->is_last == 0) {
         return 0;
     }
 
+    origin_circuit_t* orig_circ = TO_ORIGIN_CIRCUIT(circ);
 
-      return 0;
-//    payment_request_t* request;
-//    request = tor_malloc_zero(sizeof(payment_creation_request_t));
-//    request->command_type = 1;
-//    request->command_body = payment_request_payload->messageLength;
-//    payment_response_t* response = send_utility_replay_command("http://localhost:5000/sdfsd/dsfsdf/sdf", request);
     or_options_t *options = get_options();
     char *nickname = options->Nickname;;
 
+    if(payment_request_payload->message_type == 1) {  //payment creation request method
+
+       // stuff_int_into_char8(circ_key, circ->n_chan->global_identifier);
+       // create_node_id(node_id, circ_key, chanel_key, nickname);
+        sprintf(node_id, "%s | %d", nickname, circ->n_circ_id);
+        sprintf(node_id, "%s | %d", node_id, circ->n_chan->global_identifier);
+        routing_node_t nodes[0];
+
+//        nodes[0].node_id = orig_circ->cpath->extend_info->nickname;
+//        nodes[0].address = "";
+//        nodes[1].node_id = orig_circ->cpath->next->extend_info->nickname;
+//        nodes[1].address = "";
+//        nodes[2].node_id = orig_circ->cpath->next->next->extend_info->nickname;
+//        nodes[2].address = "";
+
+        process_payment_request_t request;
+        request.payment_request = value;
+        request.node_id = node_id;
+        request.routing_node = nodes;
+
+        request.call_back_url = "http://127.0.0.1:5817/api/command";
+        process_payment("http://localhost:5888/api/gateway/processPayment", &request);
+    }
+    if(payment_request_payload->message_type == 4) {  //payment creation request method
+
+        stuff_int_into_char8(circ_key, circ->n_chan->global_identifier);
+        create_node_id(node_id, circ_key, chanel_key, nickname);
+
+        routing_node_t nodes[3];
+        nodes[0].node_id = orig_circ->cpath->extend_info->nickname;
+        nodes[0].address = "";
+        nodes[1].node_id = orig_circ->cpath->next->extend_info->nickname;
+        nodes[1].address = "";
+        nodes[2].node_id = orig_circ->cpath->next->next->extend_info->nickname;
+        nodes[2].address = "";
+
+        utility_response_t request;
+        request.command_id = value;
+        request.node_id = node_id;
+        request.response_body = value;
+        process_response("http://localhost:5888/api/gateway/processResponse", &request);
+    }
+    char merged_string[MAX_REAL_MESSAGE_LEN];
+    ht_set(&hashtable, key, merged_string);
+    return 0;
     OR_OP_request_t input;
     input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
     strncpy(input.nickname, nickname, strlen(nickname));
@@ -1741,34 +1794,8 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     circuit_payment_send_OP(circ, hop_num, &input);
     circ->total_package_received = 0;
 
-    char merged_string[MAX_REAL_MESSAGE_LEN];
-    ht_set(&hashtable, key, merged_string);
-    return 0;
-}
 
-int
-circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname)
-{
-    char nickname_array[MAX_HEX_NICKNAME_LEN+1] = {NULL};
-    memcpy(nickname_array, nickname, sizeof(nickname));
-    int n = 1;
-    if(strcmp(circ->cpath->extend_info->nickname, nickname) == 0)
-        return 1;
-    if (circ != NULL && circ->cpath != NULL) {
-        crypt_path_t *cpath, *cpath_next = NULL;
-        for (cpath = circ->cpath;
-             cpath->state == CPATH_STATE_OPEN
-             && cpath_next != circ->cpath;
-             cpath = cpath_next) {
-            cpath_next = cpath->next;
-            ++n;
-            if(strcmp(cpath_next->extend_info->nickname, nickname) == 0)
-                return n;
-        }
-    }
-    return 0;
 }
-
 
 static int
 process_payment_cell(const relay_header_t *rh, const cell_t *cell,
@@ -1786,7 +1813,7 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
     char circ_key[4];
     stuff_int_into_char4(circ_key, circ->n_circ_id);
 
-    char key[80];
+    char key[100];
     for (int i = 0; i < 80; ++i) {
         key[i] = '\0';
     }
@@ -1796,7 +1823,8 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
 
     if(value == NULL){
         char str[MAX_REAL_MESSAGE_LEN];
-        strcpy(value,str);
+        value = str;
+        strcpy(value, payment_request_payload->message);
     }
 
     strncat(value, payment_request_payload->message, payment_request_payload->messageLength);
@@ -1807,20 +1835,17 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
         return 0;
     }
 
-//    payment_request_t* request;
-//    request = tor_malloc_zero(sizeof(payment_creation_request_t));
-//    request->command_type = 1;
-//    request->command_body = payment_request_payload->messageLength;
-//    payment_response_t* response = send_utility_replay_command("http://localhost:5000/sdfsd/dsfsdf/sdf", request);
+    utility_command_t request;
+    request.command_type = 1;
+    request.command_body = value;
+    process_command("http://localhost:5889/api/utility/processCommand", &request);
 
     or_options_t *options = get_options();
     char *nickname = options->Nickname;;
 
-
-
     char merged_string[MAX_REAL_MESSAGE_LEN];
     ht_set(&hashtable, key, merged_string);
-    return 0;
+
     return 0;
 }
 
@@ -2230,19 +2255,18 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         or_circuit_t* j = TO_OR_CIRCUIT(circ);
         or_options_t *options = get_options();
         char* nickname =  options->Nickname;
-       // if(strcmp(nickname, "test000a") != 0) return;
+        if(strcmp(nickname, "test000a") != 0) return;
 
-//        payment_creation_request_t* request;
-//        request = tor_malloc_zero(sizeof(payment_creation_request_t));
-//        request->memo = "1";
-//        request->asset = "NULL";
-//        request->amount = 50;
-//        request->stellar_address = "edfggfgs";
-//        payment_creation_response_t* response = send_payment_request_creation("http://localhost:5000/fdfsdf/dsfsdf", request);
+        create_payment_info_t request;
+        request.service_type = "tor";
+        request.commodity_type = "tor_data_block";
+        request.amount = 50;
+
+        payment_response_t* response = create_payment_info("http://localhost:5889/api/utility/createPaymentInfo", &request);
 
         OR_OP_request_t input;
         input.version = 0;
-        input.message_type = 0;
+        input.message_type = 1;
         input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
         initialize_array(input.nickname, USER_NAME_LEN);
         strncpy(input.nickname, nickname, strlen(nickname));
@@ -2250,8 +2274,11 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         input.nicknameLength = strlen(nickname);
         input.is_last = 0;
         int chunck_size = MAX_MESSAGE_LEN-1;
-        char* str = "Henry James a beaucoup voyagé en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
+
+        //char* str = "Henry James a beaucoup voyagé en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
         //char* str = "Henry James a beaucoup voyagé";// en France où il a longuement vécu, notamment à Paris. Il connaissait plusieurs écrivains célèbres de l’époque; il aimait et admirait le roman, le théâtre, la critique française, et ce qu’il appelait ‘le génie de la langue française’. En outre, il connaissait à fond le français et il pouvait rédiger des lettres entièrement dans cette langue. Ses lettres anglaises abondent également de mots et d’expressions en français. Le choix de ces derniers est pénétré de son esprit créateur et critique, et il a une importance particulière dans sa correspondance, puisque dans son œuvre littéraire l’usage du français a presque toujours une fonction dramatique appartenant aux personnages. Dans ses lettres, en revanche, c’est le personnage de l’écrivain qui se met en jeu. L’emploi du français semble parfois inconscient ou involontaire, déterminé par certaines ‘situations épistolaires’, mais l’on trouve aussi des traits d’art fins et perçants. C’est surtout le cas quand James parle de son propre métier. L’article étudie quelques exemples de ces traits plus profonds et plus voulus en guise de conclusion.";
+
+        char * str = response->response_body;
         input.messageTotalLength = strlen(str);
         int part_size = strlen(str) / chunck_size;
         int oddment = strlen(str) % chunck_size;

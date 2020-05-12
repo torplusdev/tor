@@ -30,6 +30,7 @@ struct OR_OP_request_st {
     uint8_t message_type;
     uint8_t command;
     uint8_t is_last;
+    int16_t command_type;
     uint16_t nicknameLength;
     char nickname[USER_NAME_LEN];
     uint16_t messageLength;

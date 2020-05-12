@@ -126,6 +126,10 @@
 #   define __INCLUDE_LEVEL__ 2
 #endif /* defined(__COVERITY__) && !defined(__INCLUDE_LEVEL__) */
 #include <systemd/sd-daemon.h>
+#include <src/core/proto/payment_http_client.h>
+#include <src/core/or/circuitpayment.h>
+#include <src/core/or/relay.h>
+
 #endif /* defined(HAVE_SYSTEMD) */
 
 /* Token bucket for all traffic. */
@@ -2498,40 +2502,108 @@ void getTorRoute(const char* targetNode,tor_route *route)
 
 }
 
-int processCommand(tor_command* command)
+node_id_item_t parse_node_id(char* string) {
+    char* parsing_result[3];
+    int index= 0;
+    node_id_item_t output;
+    // Extract the first token
+    char * token = strtok(string, "//|");
+    parsing_result[index] = token;
+
+    // loop through the string to extract all other tokens
+    while( token != NULL ) {
+        token = strtok(NULL,  "//|");
+        index++;
+        parsing_result[index] = token;
+    }
+    output.circuit_id = char4_to_int(parsing_result[0]);
+    output.channel_global_id = char8_to_int(parsing_result[1]);
+    output.nickname = parsing_result[2];
+
+    return output;
+}
+
+int
+processCommand(tor_command* command)
 {
+    char* node_id = command->nodeId;
+    node_id_item_t res = parse_node_id(node_id);
+    /* Get the channel */
+    channel_t * chan = channel_find_by_global_id(res.channel_global_id);
+    /* Get the circuit */
+    circid_t circ = circuit_get_by_circid_channel_even_if_marked(res.circuit_id, chan);
+    tor_assert(circ);
+
+
+    OR_OP_request_t input;
+    input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
+    strncpy(input.nickname, res.nickname, strlen(res.nickname));
+    input.nickname[strlen(res.nickname)] = '\0';
+    input.command_type =  (command->commandType[1] << 8) | (command->commandType[0]);
+    input.nicknameLength = strlen(res.nickname);
+    input.version = 0;
+    input.is_last = 0;
+    int hop_num = circuit_get_num_by_nickname(circ, res.nickname);
+    int chunck_size = MAX_MESSAGE_LEN - 1;
+
+    int part_size = strlen(command->commandBody) / chunck_size;
+    int oddment = strlen(command->commandBody) % chunck_size;
+    List_of_str_t array[part_size + 1];
+
+    divideString(array, command->commandBody, strlen(command->commandBody), chunck_size);
+    //divideString(array, merged_string, chunck_size);
+    for(int g = 0 ; g < part_size ;g++){
+        strncpy(input.message, array[g].msg, chunck_size);
+        input.message[chunck_size] = '\0';
+        input.messageLength = chunck_size;
+        circuit_payment_send_OP(circ, hop_num, &input);
+    }
+    strncpy(input.message, array[part_size].msg, oddment);
+    input.message[oddment] = '\0';
+    input.messageLength = 296;
+    input.is_last = 1;
+    circuit_payment_send_OP(circ, hop_num, &input);
+
+    return 0;
+
+
+
 }
 
 STATIC int
-run_main_loop_until_done(void)
-{
+run_main_loop_until_done(void) {
 
     int port = 5876;
 
     or_options_t *options = get_options();
-    char* nickname =  options->Nickname;
-    if(strcmp(nickname, "test000a") == 0) port = 5812;
-    if(strcmp(nickname, "test001a") == 0) port = 5813;
-    if(strcmp(nickname, "test002a") == 0) port = 5814;
-    if(strcmp(nickname, "test003a") == 0) port = 5815;
-    if(strcmp(nickname, "test004r") == 0) port = 5816;
-    if(strcmp(nickname, "test005c") == 0) port = 5817;
+    char *nickname = options->Nickname;
 
-    runServer(port,getTorRoute,processCommand);
+    if (nickname == NULL) port = 5879;
+    else if (strcmp(nickname, "test000a") == 0) port = 5812;
+    else if (strcmp(nickname, "test001a") == 0) port = 5813;
+    else if (strcmp(nickname, "test002a") == 0) port = 5814;
+    else if (strcmp(nickname, "test003a") == 0) port = 5815;
+    else if (strcmp(nickname, "test004r") == 0) port = 5816;
+    else if (strcmp(nickname, "test005c") == 0) port = 5817;
 
-  int loop_result = 1;
+    runServer(port, getTorRoute, processCommand);
 
-  main_loop_should_exit = 0;
-  main_loop_exit_value = 0;
+    char log[100]= "REST server starting, port:";
+    sprintf(log, "%s %d", log, port);
+    log_notice(LD_GENERAL, log);
+    int loop_result = 1;
 
-  do {
-    loop_result = run_main_loop_once();
-  } while (loop_result == 1);
+    main_loop_should_exit = 0;
+    main_loop_exit_value = 0;
 
-  if (main_loop_should_exit)
-    return main_loop_exit_value;
-  else
-    return loop_result;
+    do {
+        loop_result = run_main_loop_once();
+    } while (loop_result == 1);
+
+    if (main_loop_should_exit)
+        return main_loop_exit_value;
+    else
+        return loop_result;
 }
 
 /** Returns Tor's uptime. */

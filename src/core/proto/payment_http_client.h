@@ -1,6 +1,7 @@
 #include "trunnel/circpad_negotiation.h"
 #include "lib/evloop/timers.h"
 #include <json-c/json.h>
+#include <src/core/or/origin_circuit_st.h>
 
 typedef struct  routing_node {
     char* node_id;
@@ -14,8 +15,8 @@ typedef struct create_payment_info {
 } create_payment_info_t;
 
 typedef struct process_payment_request {
-    routing_node_t routing_node[3];
-    char* ll_back_url; 		        // process command url
+    routing_node_t* routing_node;
+    char* call_back_url; 		        // process command url
     char* payment_request;	        // json body
     char* node_id;           		// request reference identification
 
@@ -39,6 +40,15 @@ typedef struct payment_response_t {
 } payment_response_t;
 
 //public API
+
+int32_t char4_to_int(char* pChar4);
+void stuff_int_into_char4(char* pIntoChar4, uint32_t val);
+
+int64_t char8_to_int(char* pChar8);
+void stuff_int_into_char8(char* pIntoChar8, uint64_t val);
+int
+circuit_get_num_by_nickname(origin_circuit_t *circ, char* nickname);
+
 payment_response_t*
 create_payment_info(char *url, create_payment_info_t* request); //1
 payment_response_t*

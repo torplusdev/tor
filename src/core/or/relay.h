@@ -123,8 +123,7 @@ STATIC int resolved_cell_parse(const cell_t *cell, const relay_header_t *rh,
 STATIC int connection_edge_process_resolved_cell(edge_connection_t *conn,
                                                  const cell_t *cell,
                                                  const relay_header_t *rh);
-int
-circuit_get_num_by_nickname(origin_circuit_t *circ, char* nickname);
+
 STATIC packed_cell_t *packed_cell_new(void);
 STATIC packed_cell_t *cell_queue_pop(cell_queue_t *queue);
 STATIC destroy_cell_t *destroy_cell_queue_pop(destroy_cell_queue_t *queue);
@@ -141,6 +140,9 @@ int
 process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cell,
                                      circuit_t *circ, edge_connection_t *conn,
                                      crypt_path_t *layer_hint, int domain);
+
+
+
 
 #endif /* defined(RELAY_PRIVATE) */
 
