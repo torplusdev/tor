@@ -91,6 +91,8 @@ void divideString(List_of_str_t* output, char *str, int len, int n);
 OR_OP_request_t*
 circuit_payment_handle_payment_negotiate(cell_t *cell);
 
+int
+circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname);
 
 error_t circuit_payment_send_OP(circuit_t *circ, uint8_t target_hopnum, OR_OP_request_t* input);
 error_t circuit_payment_send_OR(circuit_t *circ, OR_OP_request_t* input);

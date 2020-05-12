@@ -48,7 +48,7 @@
 
 #define MAINLOOP_PRIVATE
 #include "core/or/or.h"
-
+#include <stdlib.h>
 #include "app/config/config.h"
 #include "app/config/statefile.h"
 #include "app/main/ntmain.h"
@@ -2502,48 +2502,49 @@ void getTorRoute(const char* targetNode,tor_route *route)
 
 }
 
-node_id_item_t parse_node_id(char* string) {
-    char* parsing_result[3];
+ void parse_node_id(node_id_item_t* output, char* string) {
     int index= 0;
-    node_id_item_t output;
+
     // Extract the first token
     char * token = strtok(string, "//|");
-    parsing_result[index] = token;
+    strcpy(output->nickname,token);
 
     // loop through the string to extract all other tokens
     while( token != NULL ) {
         token = strtok(NULL,  "//|");
         index++;
-        parsing_result[index] = token;
+        if(index == 1){
+            output->circuit_id = atoi(token);
+        }
+        if(index == 2){
+            output->channel_global_id = atoi(token);
+        }
     }
-    output.circuit_id = char4_to_int(parsing_result[0]);
-    output.channel_global_id = char8_to_int(parsing_result[1]);
-    output.nickname = parsing_result[2];
-
-    return output;
+     return;
 }
 
 int
 processCommand(tor_command* command)
 {
     char* node_id = command->nodeId;
-    node_id_item_t res = parse_node_id(node_id);
+    node_id_item_t* res = tor_malloc(sizeof(node_id_item_t));
+    parse_node_id(res, node_id);
     /* Get the channel */
-    channel_t * chan = channel_find_by_global_id(res.channel_global_id);
+    channel_t * chan = channel_find_by_global_id(res->channel_global_id);
     /* Get the circuit */
-    circid_t circ = circuit_get_by_circid_channel_even_if_marked(res.circuit_id, chan);
+    circid_t* circ = circuit_get_by_circid_channel_even_if_marked(res->circuit_id, chan);
     tor_assert(circ);
 
 
     OR_OP_request_t input;
     input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-    strncpy(input.nickname, res.nickname, strlen(res.nickname));
-    input.nickname[strlen(res.nickname)] = '\0';
+    strncpy(input.nickname, res->nickname, strlen(res->nickname));
+    input.nickname[strlen(res->nickname)] = '\0';
     input.command_type =  (command->commandType[1] << 8) | (command->commandType[0]);
-    input.nicknameLength = strlen(res.nickname);
+    input.nicknameLength = strlen(res->nickname);
     input.version = 0;
     input.is_last = 0;
-    int hop_num = circuit_get_num_by_nickname(circ, res.nickname);
+    int hop_num = circuit_get_num_by_nickname(circ, res->nickname);
     int chunck_size = MAX_MESSAGE_LEN - 1;
 
     int part_size = strlen(command->commandBody) / chunck_size;

@@ -13,11 +13,12 @@
 #define TOR_MAINLOOP_H
 
 typedef struct node_id_item_ts {
-    const char *nickname;
+    const char nickname[50];
     uint32_t circuit_id;
     uint64_t channel_global_id;
 } node_id_item_t;
 
+void parse_node_id(node_id_item_t* output, char* string);
 int have_completed_a_circuit(void);
 void note_that_we_completed_a_circuit(void);
 void note_that_we_maybe_cant_complete_circuits(void);
