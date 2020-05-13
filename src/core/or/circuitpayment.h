@@ -21,6 +21,7 @@ struct cell_t;
 #define MAX_EXIT_MESSAGES 50
 #define MAX_RELAY_MESSAGES 50
 #define USER_NAME_LEN 50
+#define COMMAND_ID_LEN 40
 #define MAX_MESSAGE_LEN 301
 #define MAX_REAL_MESSAGE_LEN 100000
 typedef int error_t;
@@ -31,6 +32,8 @@ struct OR_OP_request_st {
     uint8_t command;
     uint8_t is_last;
     int16_t command_type;
+    uint16_t command_id_length;
+    char command_id[COMMAND_ID_LEN];
     uint16_t nicknameLength;
     char nickname[USER_NAME_LEN];
     uint16_t messageLength;

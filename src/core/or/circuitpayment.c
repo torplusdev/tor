@@ -227,6 +227,15 @@ payment_into(OR_OP_request_t *obj, const uint8_t *input, const size_t len_in)
     remaining -= 2; ptr += 2;
 
     CHECK_REMAINING(2, truncated);
+    obj->command_id_length = (trunnel_get_uint16(ptr));
+    remaining -= 2; ptr += 2;
+
+    /* Parse char name[len] */
+    CHECK_REMAINING(COMMAND_ID_LEN, fail);
+    memcpy(obj->command_id, ptr, COMMAND_ID_LEN);
+    remaining -= COMMAND_ID_LEN; ptr += COMMAND_ID_LEN;
+
+    CHECK_REMAINING(2, truncated);
     obj->nicknameLength = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
 
@@ -306,6 +315,21 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
         goto truncated;
     trunnel_set_int16(ptr, (obj->command_type));
     written += 2; ptr += 2;
+
+    /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
+    trunnel_assert(written <= avail);
+    if (avail - written < 2)
+        goto truncated;
+    trunnel_set_uint16(ptr, (obj->command_id_length));
+    written += 2; ptr += 2;
+
+    /* Encode u4 data[TRUNNEL_PAYMENT_LEN] */
+    trunnel_assert(written <= avail);
+    if (avail - written < COMMAND_ID_LEN)
+        goto truncated;
+    memcpy(ptr, obj->command_id,COMMAND_ID_LEN);
+    written += COMMAND_ID_LEN; ptr += COMMAND_ID_LEN;
+    trunnel_assert(ptr == output + written);
 
     /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
     trunnel_assert(written <= avail);
@@ -410,7 +434,7 @@ circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname)
              cpath = cpath_next) {
             cpath_next = cpath->next;
             ++n;
-            if(strcmp(cpath_next->extend_info->nickname, nickname) == 0)
+            if(strcmp(cpath_next->extend_info->nickname, nickname_array) == 0)
                 return n;
         }
     }

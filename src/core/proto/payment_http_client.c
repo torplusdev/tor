@@ -87,6 +87,9 @@ payment_response_t* process_command(char *url, utility_command_t* body) {
     /* build post data */
     json_object_object_add(json_request, "CommandType", json_object_new_int(body->command_type));
     json_object_object_add(json_request, "CommandBody", json_object_new_string(body->command_body));
+    json_object_object_add(json_request, "CommandId", json_object_new_string(body->command_id));
+    json_object_object_add(json_request, "CallbackUrl", json_object_new_string(body->callback_url));
+    json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
     char* json_response = send_http_request(url, json_request);
 
     struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));

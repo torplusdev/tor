@@ -2540,10 +2540,12 @@ processCommand(tor_command* command)
     input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
     strncpy(input.nickname, res->nickname, strlen(res->nickname));
     input.nickname[strlen(res->nickname)] = '\0';
-    input.command_type =  (command->commandType[1] << 8) | (command->commandType[0]);
+    input.command_type =  atoi(command->commandType);
     input.nicknameLength = strlen(res->nickname);
     input.version = 0;
     input.is_last = 0;
+    strcpy(input.command_id, command->commandId);
+    input.command_id_length = strlen(res->nickname);
     int hop_num = circuit_get_num_by_nickname(circ, res->nickname);
     int chunck_size = MAX_MESSAGE_LEN - 1;
 
@@ -2561,14 +2563,56 @@ processCommand(tor_command* command)
     }
     strncpy(input.message, array[part_size].msg, oddment);
     input.message[oddment] = '\0';
-    input.messageLength = 296;
+    input.messageLength = oddment;
     input.is_last = 1;
     circuit_payment_send_OP(circ, hop_num, &input);
 
     return 0;
+}
+int
+processCommandReplay(tor_command_replay * command)
+{
+    char* node_id = command->nodeId;
+    node_id_item_t* res = tor_malloc(sizeof(node_id_item_t));
+    parse_node_id(res, node_id);
+    /* Get the channel */
+    channel_t * chan = channel_find_by_global_id(res->channel_global_id);
+    /* Get the circuit */
+    circid_t* circ = circuit_get_by_circid_channel_even_if_marked(res->circuit_id, chan);
+    tor_assert(circ);
 
 
+    OR_OP_request_t input;
+    input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
+    strncpy(input.nickname, res->nickname, strlen(res->nickname));
+    input.nickname[strlen(res->nickname)] = '\0';
+    input.command_type =  0;
+    input.nicknameLength = strlen(res->nickname);
+    input.version = 0;
+    input.is_last = 0;
+    input.message_type = 4;
+    strcpy(input.command_id, command->commandId);
+    input.command_id_length = strlen(res->nickname);
+    int chunck_size = MAX_MESSAGE_LEN - 1;
 
+    int part_size = strlen(command->commandResponse) / chunck_size;
+    int oddment = strlen(command->commandResponse) % chunck_size;
+    List_of_str_t array[part_size + 1];
+
+    divideString(array, command->commandResponse, strlen(command->commandResponse), chunck_size);
+    for(int g = 0 ; g < part_size ;g++){
+        strncpy(input.message, array[g].msg, chunck_size);
+        input.message[chunck_size] = '\0';
+        input.messageLength = chunck_size;
+        circuit_payment_send_OR(circ, &input);
+    }
+    strncpy(input.message, array[part_size].msg, oddment);
+    input.message[oddment] = '\0';
+    input.messageLength = oddment;
+    input.is_last = 1;
+    circuit_payment_send_OR(circ, &input);
+
+    return 0;
 }
 
 STATIC int
@@ -2587,7 +2631,7 @@ run_main_loop_until_done(void) {
     else if (strcmp(nickname, "test004r") == 0) port = 5816;
     else if (strcmp(nickname, "test005c") == 0) port = 5817;
 
-    runServer(port, getTorRoute, processCommand);
+    runServer(port, getTorRoute, processCommand, processCommandReplay);
 
     char log[100]= "REST server starting, port:";
     sprintf(log, "%s %d", log, port);

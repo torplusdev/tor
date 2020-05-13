@@ -25,6 +25,9 @@ typedef struct process_payment_request {
 typedef struct utility_command{
     int command_type;
     char* command_body;
+    char* callback_url;
+    char* command_id;
+    char* node_id;
 } utility_command_t;
 
 typedef struct utility_response{
