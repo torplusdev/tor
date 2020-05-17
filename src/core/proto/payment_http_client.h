@@ -44,11 +44,6 @@ typedef struct payment_response_t {
 
 //public API
 
-int32_t char4_to_int(char* pChar4);
-void stuff_int_into_char4(char* pIntoChar4, uint32_t val);
-
-int64_t char8_to_int(char* pChar8);
-void stuff_int_into_char8(char* pIntoChar8, uint64_t val);
 int
 circuit_get_num_by_nickname(origin_circuit_t *circ, char* nickname);
 
@@ -64,4 +59,4 @@ process_response(char *url, utility_response_t* request); //5
 payment_response_t*
 test(); //5
 
-char* send_http_request(char* url_input, json_object* body);
+char* send_http_request(const char* url_input, const json_object* body);

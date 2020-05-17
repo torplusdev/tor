@@ -184,7 +184,7 @@ circuit_payment_negotiate_clear(OR_OP_request_t *obj)
 
 OR_OP_request_t * payment_payload_new(void)
 {
-    OR_OP_request_t *val = trunnel_calloc(1, sizeof(OR_OP_request_t));
+    OR_OP_request_t *val = tor_malloc_(sizeof(OR_OP_request_t));
     if (NULL == val)
         return NULL;
     val->command = CELL_PAYMENT;

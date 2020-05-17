@@ -2536,6 +2536,8 @@ processCommand(tor_command* command)
     tor_assert(circ);
 
 
+//    json_object* json  = json_tokener_parse(command->commandBody);
+//    command->commandBody = json_object_to_json_string_ext(json, JSON_C_TO_STRING_NOSLASHESCAPE);
     OR_OP_request_t input;
     input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
     strncpy(input.nickname, res->nickname, strlen(res->nickname));
@@ -2580,7 +2582,6 @@ processCommandReplay(tor_command_replay * command)
     /* Get the circuit */
     circid_t* circ = circuit_get_by_circid_channel_even_if_marked(res->circuit_id, chan);
     tor_assert(circ);
-
 
     OR_OP_request_t input;
     input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;

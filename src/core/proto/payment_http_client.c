@@ -106,7 +106,7 @@ payment_response_t* process_response(char *url, utility_response_t* body) {
     json_object_object_add(json_request, "ResponseBody", json_object_new_string(body->response_body));
     json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
     json_object_object_add(json_request, "CommandId", json_object_new_string(body->command_id));
-
+    char* str = json_object_to_json_string(json_request);
     char* json_response = send_http_request(url, json_request);
 
     struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
@@ -170,7 +170,7 @@ CURLcode curl_fetch_url(CURL *ch, const char *url, struct curl_fetch_st *fetch) 
     CURLcode rcode;                   /* curl result code */
 
     /* init payload */
-    fetch->payload = (char *) calloc(1, sizeof(fetch->payload));
+    fetch->payload = (char *) tor_calloc_(1, sizeof(fetch->payload));
 
     /* check payload */
     if (fetch->payload == NULL) {
@@ -213,11 +213,11 @@ CURLcode curl_fetch_url(CURL *ch, const char *url, struct curl_fetch_st *fetch) 
 
 
 
-char* send_http_request(char* url_input, json_object* body) {
+char* send_http_request(const char* url_input, const json_object* json) {
     CURL *ch;                                               /* curl handle */
     CURLcode rcode;                                         /* curl result code */
 
-    json_object *json;                                      /* json post body */
+   // json_object *json;                                      /* json post body */
     enum json_tokener_error jerr = json_tokener_success;    /* json parse error */
 
     struct curl_fetch_st curl_fetch;                        /* curl fetch struct */
@@ -244,8 +244,6 @@ char* send_http_request(char* url_input, json_object* body) {
     headers = curl_slist_append(headers, "Accept: application/json");
     headers = curl_slist_append(headers, "Content-Type: application/json");
 
-    /* create json object for post */
-    json = body;
 //   json = json_object_new_object();
 //
 //    /* build post data */
@@ -313,36 +311,6 @@ char* send_http_request(char* url_input, json_object* body) {
     return NULL;
 }
 
-int32_t char4_to_int(char* pChar8)
-{
-    return (pChar8[3] << 24) | (pChar8[2] << 16) | (pChar8[1] << 8) | (pChar8[0]);
-}
-
-int64_t char8_to_int(char* pChar8)
-{
-    return (pChar8[7] << 56) | (pChar8[6] << 48) | (pChar8[5] << 40) | (pChar8[4] << 32) |
-           (pChar8[3] << 24) | (pChar8[2] << 16) | (pChar8[1] << 8) | (pChar8[0]);
-}
-
-void stuff_int_into_char4(char* pIntoChar4, uint32_t val)
-{
-    pIntoChar4[3] = val>>24;
-    pIntoChar4[2] = val>>16;
-    pIntoChar4[1] = val>>8;
-    pIntoChar4[0] = val;
-}
-
-void stuff_int_into_char8(char* pIntoChar4, uint64_t val)
-{
-    pIntoChar4[7] = val>>56;
-    pIntoChar4[6] = val>>48;
-    pIntoChar4[5] = val>>40;
-    pIntoChar4[4] = val>>32;
-    pIntoChar4[3] = val>>24;
-    pIntoChar4[2] = val>>16;
-    pIntoChar4[1] = val>>8;
-    pIntoChar4[0] = val;
-}
 
 
 

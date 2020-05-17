@@ -135,9 +135,7 @@ uint64_t stats_n_relay_cells_delivered = 0;
  * reached (see append_cell_to_circuit_queue()) */
 uint64_t stats_n_circ_max_cell_reached = 0;
 
-bool hash_exists = false;
-
-static hashtable_t hashtable;
+static smartlist_t *global_payment_list = NULL;
 
 /**
  * Update channel usage state based on the type of relay cell and
@@ -1644,6 +1642,41 @@ process_sendme_cell(const relay_header_t *rh, const cell_t *cell,
   return 0;
 }
 
+payment_entity_t* get_from_hash(const OR_OP_request_t* payment_request_payload, const char* key){
+
+    if (NULL == global_payment_list)
+        global_payment_list = smartlist_new();
+
+    payment_entity_t *origin=NULL;
+
+    SMARTLIST_FOREACH_BEGIN(global_payment_list, payment_entity_t *, element)
+                            {
+                                if(strcmp(element->key, key)){
+                                    origin = element;
+                                }
+                            }
+    SMARTLIST_FOREACH_END(element);
+
+    if(origin == NULL){
+        payment_entity_t* ent = (payment_entity_t*)tor_malloc_zero_(sizeof(payment_entity_t));
+        ent->key = (char*)tor_calloc_(1, 100*sizeof(char));
+        ent->value = (char*)tor_calloc_(1, 10000*sizeof(char));
+        strcpy(ent->key, key);
+        strcpy(ent->value, payment_request_payload->message);
+        origin = ent;
+        smartlist_add(global_payment_list, ent);
+    }
+    else {
+        strncat(origin->value, payment_request_payload->message, payment_request_payload->messageLength);
+    }
+
+    if (payment_request_payload->is_last == 0) {
+        return NULL;
+    }
+    else{
+        return origin;
+    }
+}
 
 int
 process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cell,
@@ -1652,49 +1685,25 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
 
 
     char node_id[300];
-    char key[100];
-
     initialize_array(node_id, 300);
-    initialize_array(key, 100);
+    node_id[0] = "\0";
+
+    char* key = (char*)tor_calloc_(1, 100*sizeof(char));
+
+
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
+    sprintf(key, "%s | %d", payment_request_payload->nickname, cell->circ_id);
 
-    if(!hash_exists){
-        hashtable = ht_create( 65536 );
-        hash_exists = true;
-    }
+    payment_entity_t* origin = get_from_hash(payment_request_payload, key);
 
-    sprintf(key, "%s | %d", payment_request_payload->nickname, circ->n_circ_id);
-    char* value = ht_get(&hashtable, key);
+    if(origin == NULL) return 0;
 
-    if(value == NULL){
-        char str[MAX_REAL_MESSAGE_LEN];
-        initialize_array(str, MAX_REAL_MESSAGE_LEN);
-        value = str;
-
-        strncat(str, payment_request_payload->message, payment_request_payload->messageLength);
-
-        ht_set(&hashtable, key, str);
-    }
-    else {
-        strncat(value, payment_request_payload->message, payment_request_payload->messageLength);
-
-        ht_set(&hashtable, key, value);
-    }
-    if (payment_request_payload->is_last == 0) {
-        return 0;
-    }
-
-    origin_circuit_t* orig_circ = TO_ORIGIN_CIRCUIT(circ);
-
-    or_options_t *options = get_options();
-    char *nickname = options->Nickname;
-
-    int hop_num = circuit_get_num_by_nickname(circ, payment_request_payload->nickname);
-
+    tor_free_(key);
     sprintf(node_id, "%s | %d", payment_request_payload->nickname, circ->n_circ_id);
     sprintf(node_id, "%s | %d", node_id, circ->n_chan->global_identifier);
 
-    routing_node_t nodes[0];
+    if(payment_request_payload->message_type == 1) {  //payment creation request method
+        routing_node_t nodes[0];
 //    routing_node_t nodes[hop_num];
 //    crypt_path_t * next = orig_circ->cpath;
 //    for (int i = 0; i < hop_num; ++i) {
@@ -1702,11 +1711,8 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
 //        nodes[0].address = "";
 //        next = next->next;
 //    }
-
-    if(payment_request_payload->message_type == 1) {  //payment creation request method
-
         process_payment_request_t request;
-        request.payment_request = value;
+        request.payment_request = origin->value;
         request.node_id = node_id;
         request.routing_node = nodes;
         request.call_back_url = "http://127.0.0.1:5817/api/command";
@@ -1717,13 +1723,12 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
         utility_response_t request;
         request.command_id = payment_request_payload->command_id;
         request.node_id = node_id;
-        request.response_body = value;
+        request.response_body = origin->value;
         process_response("http://localhost:5888/api/gateway/processResponse", &request);
     }
 
-
-    char merged_string[MAX_REAL_MESSAGE_LEN];
-    ht_set(&hashtable, key, merged_string);
+   // ht_set(hashtable, key, "");
+    tor_free_(payment_request_payload);
     return 0;
 //    OR_OP_request_t input;
 //    input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
@@ -1764,55 +1769,34 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
 {
 
     char node_id[300];
-    char key[100];
-
     initialize_array(node_id, 300);
-    initialize_array(key, 100);
+    node_id[0] = "\0";
+    char* key = (char*)tor_calloc_(1, 100*sizeof(char));
+
+
+
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
 
-    if(!hash_exists){
-        hashtable = ht_create( 65536 );
-        hash_exists = true;
-    }
+    sprintf(key, "%s | %d", payment_request_payload->nickname, cell->circ_id);
+    payment_entity_t* origin = get_from_hash(payment_request_payload, key);
 
-    sprintf(key, "%s | %d", payment_request_payload->nickname, circ->n_circ_id);
-    char* value = ht_get(&hashtable, key);
-
-    if(value == NULL){
-        char str[MAX_REAL_MESSAGE_LEN];
-        initialize_array(str, MAX_REAL_MESSAGE_LEN);
-        value = str;
-
-        strncat(str, payment_request_payload->message, payment_request_payload->messageLength);
-
-        ht_set(&hashtable, key, str);
-    }
-    else {
-        strncat(value, payment_request_payload->message, payment_request_payload->messageLength);
-
-        ht_set(&hashtable, key, value);
-    }
-    if (payment_request_payload->is_last == 0) {
-        return 0;
-    }
+    if(origin == NULL) return 0;
 
     sprintf(node_id, "%s | %d", payment_request_payload->nickname, cell->circ_id);
     sprintf(node_id, "%s | %d", node_id, TO_OR_CIRCUIT(circ)->p_chan->global_identifier);
 
     utility_command_t request;
     request.command_type = payment_request_payload->command_type;
-    request.command_body = value;
+    request.command_body = origin->value;
     request.node_id = node_id;
     request.callback_url = "http://127.0.0.1:5816/api/response";
     request.command_id = payment_request_payload->command_id;
     process_command("http://localhost:5889/api/utility/processCommand", &request);
 
-    or_options_t *options = get_options();
-    char *nickname = options->Nickname;;
 
-    char merged_string[MAX_REAL_MESSAGE_LEN];
-    ht_set(&hashtable, key, merged_string);
+    //ht_set(hashtable, key, "");
 
+    tor_free_(payment_request_payload);
     return 0;
 }
 
