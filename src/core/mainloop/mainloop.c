@@ -2506,12 +2506,12 @@ void getTorRoute(const char* targetNode,tor_route *route)
     int index= 0;
 
     // Extract the first token
-    char * token = strtok(string, "//|");
+    char * token = strtok(string, "/|");
     strcpy(output->nickname,token);
 
     // loop through the string to extract all other tokens
     while( token != NULL ) {
-        token = strtok(NULL,  "//|");
+        token = strtok(NULL,  "/|");
         index++;
         if(index == 1){
             output->circuit_id = atoi(token);
@@ -2540,8 +2540,7 @@ processCommand(tor_command* command)
 //    command->commandBody = json_object_to_json_string_ext(json, JSON_C_TO_STRING_NOSLASHESCAPE);
     OR_OP_request_t input;
     input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-    strncpy(input.nickname, res->nickname, strlen(res->nickname));
-    input.nickname[strlen(res->nickname)] = '\0';
+    strcpy(input.nickname, res->nickname);
     input.command_type =  atoi(command->commandType);
     input.nicknameLength = strlen(res->nickname);
     input.version = 0;
@@ -2559,12 +2558,10 @@ processCommand(tor_command* command)
     //divideString(array, merged_string, chunck_size);
     for(int g = 0 ; g < part_size ;g++){
         strncpy(input.message, array[g].msg, chunck_size);
-        input.message[chunck_size] = '\0';
         input.messageLength = chunck_size;
         circuit_payment_send_OP(circ, hop_num, &input);
     }
     strncpy(input.message, array[part_size].msg, oddment);
-    input.message[oddment] = '\0';
     input.messageLength = oddment;
     input.is_last = 1;
     circuit_payment_send_OP(circ, hop_num, &input);
@@ -2585,8 +2582,7 @@ processCommandReplay(tor_command_replay * command)
 
     OR_OP_request_t input;
     input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-    strncpy(input.nickname, res->nickname, strlen(res->nickname));
-    input.nickname[strlen(res->nickname)] = '\0';
+    strcpy(input.nickname, res->nickname);
     input.command_type =  0;
     input.nicknameLength = strlen(res->nickname);
     input.version = 0;
@@ -2603,12 +2599,10 @@ processCommandReplay(tor_command_replay * command)
     divideString(array, command->commandResponse, strlen(command->commandResponse), chunck_size);
     for(int g = 0 ; g < part_size ;g++){
         strncpy(input.message, array[g].msg, chunck_size);
-        input.message[chunck_size] = '\0';
         input.messageLength = chunck_size;
         circuit_payment_send_OR(circ, &input);
     }
     strncpy(input.message, array[part_size].msg, oddment);
-    input.message[oddment] = '\0';
     input.messageLength = oddment;
     input.is_last = 1;
     circuit_payment_send_OR(circ, &input);

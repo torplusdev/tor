@@ -30,7 +30,7 @@ payment_response_t* create_payment_info(char *url, create_payment_info_t* body) 
     strcat(log, request_string);
     log_notice(1, log);
 
-    char* json_response = send_http_request(url, json_request);
+    char* json_response = send_http_post_request(url, json_request);
 
 
 
@@ -73,7 +73,7 @@ payment_response_t* process_payment(char *url, process_payment_request_t* body) 
     log_notice(1, log);
 
 
-    char* json_response = send_http_request(url, json_request);
+    char* json_response = send_http_post_request(url, json_request);
 
     payment_response_t response;
     response.response_body = json_response;
@@ -90,7 +90,7 @@ payment_response_t* process_command(char *url, utility_command_t* body) {
     json_object_object_add(json_request, "CommandId", json_object_new_string(body->command_id));
     json_object_object_add(json_request, "CallbackUrl", json_object_new_string(body->callback_url));
     json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
-    char* json_response = send_http_request(url, json_request);
+    char* json_response = send_http_post_request(url, json_request);
 
     struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
 
@@ -107,7 +107,7 @@ payment_response_t* process_response(char *url, utility_response_t* body) {
     json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
     json_object_object_add(json_request, "CommandId", json_object_new_string(body->command_id));
     char* str = json_object_to_json_string(json_request);
-    char* json_response = send_http_request(url, json_request);
+    char* json_response = send_http_post_request(url, json_request);
 
     struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
 
@@ -116,20 +116,13 @@ payment_response_t* process_response(char *url, utility_response_t* body) {
     return response;
 }
 
-payment_response_t*
-test() {
-    json_object*  json_request = json_object_new_object();
+stellar_address_response_t* get_stellar_address(char *url) {
+    json_object* json_response = send_http_get_request(url);
+    json_object *address_obj = json_object_object_get(json_response, "Address");
+    char *address = json_object_get_string(address_obj);
+    struct stellar_address_response_t *response = tor_malloc_zero(sizeof(stellar_address_response_t));
 
-    /* build post data */
-    json_object_object_add(json_request, "X", json_object_new_int(3));
-    json_object_object_add(json_request, "Y", json_object_new_int(4));
-    json_object_object_add(json_request, "Z", json_object_new_int(5));
-
-    char* json_response = send_http_request("https://httpbin.org/post", json_request);
-
-    struct payment_response_t *response = tor_malloc_zero(sizeof(payment_response_t));
-
-    response->response_body = json_response;
+    response->address = address;
 
     return response;
 }
@@ -213,7 +206,7 @@ CURLcode curl_fetch_url(CURL *ch, const char *url, struct curl_fetch_st *fetch) 
 
 
 
-char* send_http_request(const char* url_input, const json_object* json) {
+char* send_http_post_request(const char* url_input, const json_object* json) {
     CURL *ch;                                               /* curl handle */
     CURLcode rcode;                                         /* curl result code */
 
@@ -307,6 +300,98 @@ char* send_http_request(const char* url_input, const json_object* json) {
 
     /* debugging */
     printf("Parsed JSON: %s\n", json_object_to_json_string(json));
+    /* exit */
+    return NULL;
+}
+
+json_object* send_http_get_request(const char* url_input) {
+    CURL *ch;                                               /* curl handle */
+    CURLcode rcode;                                         /* curl result code */
+    // json_object *json;                                      /* json post body */
+    enum json_tokener_error jerr = json_tokener_success;    /* json parse error */
+
+    struct curl_fetch_st curl_fetch;                        /* curl fetch struct */
+    struct curl_fetch_st *cf = &curl_fetch;                 /* pointer to fetch struct */
+    struct curl_slist *headers = NULL;                      /* http headers to send with request */
+
+
+//    request_response_t* response;
+//    response = malloc(sizeof(request_response_t));
+//    response->error_code = 1;
+//    response->json_response = NULL;
+
+    /* url to test site */
+
+    /* init curl handle */
+    if ((ch = curl_easy_init()) == NULL) {
+        /* log error */
+        fprintf(stderr, "ERROR: Failed to create curl handle in fetch_session");
+        /* return error */
+        return NULL;
+    }
+
+    /* set content type */
+    headers = curl_slist_append(headers, "Accept: application/json");
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+//   json = json_object_new_object();
+//
+//    /* build post data */
+//    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
+//    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
+//    json_object_object_add(json, "userId", json_object_new_int(133));
+
+    /* set curl options */
+    curl_easy_setopt(ch, CURLOPT_CUSTOMREQUEST, "GET");
+    curl_easy_setopt(ch, CURLOPT_HTTPHEADER, headers);
+
+    /* fetch page and capture return code */
+    rcode = curl_fetch_url(ch, url_input, cf);
+
+    /* cleanup curl handle */
+    curl_easy_cleanup(ch);
+
+    /* free headers */
+    curl_slist_free_all(headers);
+
+    /* check return code */
+    if (rcode != CURLE_OK || cf->size < 1) {
+        /* log error */
+        fprintf(stderr, "ERROR: Failed to fetch url (%s) - curl said: %s",
+                url_input, curl_easy_strerror(rcode));
+        /* return error */
+
+        return NULL;
+    }
+
+    /* check payload */
+    if (cf->payload != NULL) {
+        /* print result */
+        printf("CURL Returned: \n%s\n", cf->payload);
+        /* parse return */
+        json_object* json = json_tokener_parse_verbose(cf->payload, &jerr);
+        printf("Parsed JSON: %s\n", json_object_to_json_string(json));
+        return json;
+    } else {
+        /* error */
+        fprintf(stderr, "ERROR: Failed to populate payload");
+        /* free payload */
+        free(cf->payload);
+        /* return */
+        return NULL;
+    }
+
+    /* check error */
+    if (jerr != json_tokener_success) {
+        /* error */
+        fprintf(stderr, "ERROR: Failed to parse json string");
+        /* free json object */
+        /* return */
+        return NULL;
+    }
+
+    /* debugging */
+
     /* exit */
     return NULL;
 }

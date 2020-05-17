@@ -42,6 +42,11 @@ typedef struct payment_response_t {
 
 } payment_response_t;
 
+typedef struct stellar_address_response_t {
+    char* address;
+
+} stellar_address_response_t;
+
 //public API
 
 int
@@ -55,8 +60,7 @@ payment_response_t*
 process_command(char *url, utility_command_t* request); //4
 payment_response_t*
 process_response(char *url, utility_response_t* request); //5
+stellar_address_response_t* get_stellar_address(char *url);
 
-payment_response_t*
-test(); //5
-
-char* send_http_request(const char* url_input, const json_object* body);
+char* send_http_post_request(const char* url_input, const json_object* json);
+json_object* send_http_get_request(const char* url_input);

@@ -1651,7 +1651,7 @@ payment_entity_t* get_from_hash(const OR_OP_request_t* payment_request_payload, 
 
     SMARTLIST_FOREACH_BEGIN(global_payment_list, payment_entity_t *, element)
                             {
-                                if(strcmp(element->key, key)){
+                                if(strcmp(element->key, key) == 0){
                                     origin = element;
                                 }
                             }
@@ -1670,12 +1670,7 @@ payment_entity_t* get_from_hash(const OR_OP_request_t* payment_request_payload, 
         strncat(origin->value, payment_request_payload->message, payment_request_payload->messageLength);
     }
 
-    if (payment_request_payload->is_last == 0) {
-        return NULL;
-    }
-    else{
-        return origin;
-    }
+    return origin;
 }
 
 int
@@ -1689,18 +1684,18 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     node_id[0] = "\0";
 
     char* key = (char*)tor_calloc_(1, 100*sizeof(char));
-
+    char* nickname = (char*)tor_calloc_(1, 45*sizeof(char));
 
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
-    sprintf(key, "%s | %d", payment_request_payload->nickname, cell->circ_id);
-
+    sprintf(key, "%s|%d", payment_request_payload->nickname, cell->circ_id);
+    strcpy(nickname, payment_request_payload->nickname);
     payment_entity_t* origin = get_from_hash(payment_request_payload, key);
 
-    if(origin == NULL) return 0;
+    if(payment_request_payload ->is_last == 0) return 0;
 
     tor_free_(key);
-    sprintf(node_id, "%s | %d", payment_request_payload->nickname, circ->n_circ_id);
-    sprintf(node_id, "%s | %d", node_id, circ->n_chan->global_identifier);
+    sprintf(node_id, "%s|%d", nickname, circ->n_circ_id);
+    sprintf(node_id, "%s|%d", node_id, circ->n_chan->global_identifier);
 
     if(payment_request_payload->message_type == 1) {  //payment creation request method
         routing_node_t nodes[0];
@@ -1729,6 +1724,7 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
 
    // ht_set(hashtable, key, "");
     tor_free_(payment_request_payload);
+    smartlist_remove(global_payment_list, origin);
     return 0;
 //    OR_OP_request_t input;
 //    input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
@@ -1772,18 +1768,19 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
     initialize_array(node_id, 300);
     node_id[0] = "\0";
     char* key = (char*)tor_calloc_(1, 100*sizeof(char));
+    char* nickname = (char*)tor_calloc_(1, 45*sizeof(char));
 
 
 
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
-
-    sprintf(key, "%s | %d", payment_request_payload->nickname, cell->circ_id);
+    strcpy(nickname, payment_request_payload->nickname);
+    sprintf(key, "%s|%d", payment_request_payload->nickname, cell->circ_id);
     payment_entity_t* origin = get_from_hash(payment_request_payload, key);
 
-    if(origin == NULL) return 0;
+    if(payment_request_payload ->is_last == 0) return 0;
 
-    sprintf(node_id, "%s | %d", payment_request_payload->nickname, cell->circ_id);
-    sprintf(node_id, "%s | %d", node_id, TO_OR_CIRCUIT(circ)->p_chan->global_identifier);
+    sprintf(node_id, "%s|%d", nickname, cell->circ_id);
+    sprintf(node_id, "%s|%d", node_id, TO_OR_CIRCUIT(circ)->p_chan->global_identifier);
 
     utility_command_t request;
     request.command_type = payment_request_payload->command_type;
@@ -1797,6 +1794,7 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
     //ht_set(hashtable, key, "");
 
     tor_free_(payment_request_payload);
+    smartlist_remove(global_payment_list, origin);
     return 0;
 }
 
@@ -2222,10 +2220,8 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         input.command_id_length = 0;
         input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
         initialize_array(input.nickname, USER_NAME_LEN);
-        strncpy(input.nickname, nickname, strlen(nickname));
-        input.nickname[strlen(nickname)] = '\0';
+        strcpy(input.nickname, nickname);
         input.nicknameLength = strlen(nickname);
-
         input.is_last = 0;
         int chunck_size = MAX_MESSAGE_LEN-1;
 
@@ -2241,13 +2237,11 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         for(int g = 0 ; g < part_size ;g++){
             initialize_array(input.message, MAX_MESSAGE_LEN);
             strncpy(input.message, array[g].msg, chunck_size);
-            input.message[chunck_size] = '\0';
             input.messageLength = chunck_size;
             circuit_payment_send_OR(circ, &input);
         }
         initialize_array(input.message, MAX_MESSAGE_LEN);
         strncpy(input.message, array[part_size].msg, oddment);
-        input.message[oddment] = '\0';
         input.messageLength = oddment;
         input.is_last = 1;
         circuit_payment_send_OR(circ, &input);
