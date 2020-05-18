@@ -33,4 +33,4 @@ Release timeline:
 
 Tor+ prelininaries:
 
-Change the Makefile - LIBS=-lpthread -ldl --> LIBS = -lpthread -ldl -ljson-c -lcurl -ltor_new -Lsrc/lib
+Change the Makefile - LIBS=-lpthread -ldl --> LIBS = -lpthread -ldl -ljson-c -lcurl -ltor_new -lstdc++ -Lsrc/lib
