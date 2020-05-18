@@ -653,6 +653,9 @@ config_mark_lists_fragile(const config_mgr_t *mgr, void *options)
   tor_assert(options);
 
   SMARTLIST_FOREACH_BEGIN(mgr->all_vars, const managed_var_t *, mv) {
+              if(mv_sl_idx == 244){
+                  int a = 0;
+              }
     void *object = config_mgr_get_obj_mutable(mgr, options, mv->object_idx);
     struct_var_mark_fragile(object, &mv->cvar->member);
   } SMARTLIST_FOREACH_END(mv);
@@ -694,7 +697,9 @@ config_assign_line(const config_mgr_t *mgr, void *options,
   const managed_var_t *mvar;
 
   CONFIG_CHECK(mgr, options);
-
+   if(strcmp(c->key, "PPChannelCallbackUrl") == 0){
+       int a = 0;
+   }
   int var_index = -1;
   mvar = config_mgr_find_var(mgr, c->key, true, &var_index);
   if (!mvar) {

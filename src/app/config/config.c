@@ -552,6 +552,9 @@ static const config_var_t option_vars_[] = {
   OBSOLETE("NATDListenAddress"),
   VPORT(NATDPort),
   V(Nickname,                    STRING,   NULL),
+  V(PPChannelCallbackUrl,                    STRING,   NULL),
+  V(PPChannelUrl,                    STRING,   NULL),
+  V(StellarAddress,                    STRING,   NULL),
   OBSOLETE("PredictedPortsRelevanceTime"),
   OBSOLETE("WarnUnsafeSocks"),
   VAR("NodeFamily",              LINELIST, NodeFamilies,         NULL),
@@ -3435,6 +3438,24 @@ options_validate(or_options_t *old_options, or_options_t *options,
           "inclusive, and must contain only the characters [a-zA-Z0-9].",
           options->Nickname);
       return -1;
+    }
+  }
+
+  if (options->PPChannelCallbackUrl == NULL) {
+    if (server_mode(options)) {
+      options->PPChannelCallbackUrl = tor_strdup("");
+    }
+  }
+
+  if (options->PPChannelUrl == NULL) {
+    if (server_mode(options)) {
+      options->PPChannelUrl = tor_strdup("");
+    }
+  }
+
+  if (options->StellarAddress == NULL) {
+    if (server_mode(options)) {
+      options->StellarAddress = tor_strdup("");
     }
   }
 

@@ -67,6 +67,10 @@ struct or_options_t {
   int CacheDirectoryGroupReadable; /**< Boolean: Is the CacheDirectory g+r? */
 
   char *Nickname; /**< OR only: nickname of this onion router. */
+  char *PPChannelUrl; /**< OR only: nickname of this onion router. */
+  char *PPChannelCallbackUrl; /**< OR only: nickname of this onion router. */
+  char *StellarAddress; /**< OR only: nickname of this onion router. */
+
   char *Address; /**< OR only: configured address for this onion router. */
   char *PidFile; /**< Where to store PID of Tor process. */
 

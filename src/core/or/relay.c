@@ -2204,7 +2204,7 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         or_circuit_t* j = TO_OR_CIRCUIT(circ);
         or_options_t *options = get_options();
         char* nickname =  options->Nickname;
-        if(strcmp(nickname, "test004r") != 0) return;
+      //  if(strcmp(nickname, "test004r") != 0) return;
 
         create_payment_info_t request;
         request.service_type = "tor";
