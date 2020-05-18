@@ -2558,10 +2558,12 @@ processCommand(tor_command* command)
     //divideString(array, merged_string, chunck_size);
     for(int g = 0 ; g < part_size ;g++){
         strncpy(input.message, array[g].msg, chunck_size);
+        input.message[chunck_size] = '\0';
         input.messageLength = chunck_size;
         circuit_payment_send_OP(circ, hop_num, &input);
     }
     strncpy(input.message, array[part_size].msg, oddment);
+    input.message[oddment] = '\0';
     input.messageLength = oddment;
     input.is_last = 1;
     circuit_payment_send_OP(circ, hop_num, &input);
@@ -2599,10 +2601,12 @@ processCommandReplay(tor_command_replay * command)
     divideString(array, command->commandResponse, strlen(command->commandResponse), chunck_size);
     for(int g = 0 ; g < part_size ;g++){
         strncpy(input.message, array[g].msg, chunck_size);
+        input.message[chunck_size] = '\0';
         input.messageLength = chunck_size;
         circuit_payment_send_OR(circ, &input);
     }
     strncpy(input.message, array[part_size].msg, oddment);
+    input.message[oddment] = '\0';
     input.messageLength = oddment;
     input.is_last = 1;
     circuit_payment_send_OR(circ, &input);

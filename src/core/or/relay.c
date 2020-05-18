@@ -2237,11 +2237,13 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         for(int g = 0 ; g < part_size ;g++){
             initialize_array(input.message, MAX_MESSAGE_LEN);
             strncpy(input.message, array[g].msg, chunck_size);
+            input.message[chunck_size] = '\0';
             input.messageLength = chunck_size;
             circuit_payment_send_OR(circ, &input);
         }
         initialize_array(input.message, MAX_MESSAGE_LEN);
         strncpy(input.message, array[part_size].msg, oddment);
+        input.message[oddment] = '\0';
         input.messageLength = oddment;
         input.is_last = 1;
         circuit_payment_send_OR(circ, &input);
