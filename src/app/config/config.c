@@ -3458,7 +3458,7 @@ options_validate(or_options_t *old_options, or_options_t *options,
 //      options->StellarAddress = tor_strdup("");
 //    }
 //  }
-  
+
   if (server_mode(options) && !options->ContactInfo)
     log_notice(LD_CONFIG, "Your ContactInfo config option is not set. "
         "Please consider setting it, so we can contact you if your server is "
