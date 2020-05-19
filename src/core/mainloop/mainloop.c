@@ -59,6 +59,7 @@
 #include "core/mainloop/periodic.h"
 #include "core/or/channel.h"
 #include "core/or/channelpadding.h"
+#include "core/or/circuitpayment.h"
 #include "core/or/channeltls.h"
 #include "core/or/circuitbuild.h"
 #include "core/or/circuitlist.h"
@@ -127,7 +128,6 @@
 #endif /* defined(__COVERITY__) && !defined(__INCLUDE_LEVEL__) */
 #include <systemd/sd-daemon.h>
 #include <src/core/proto/payment_http_client.h>
-#include <src/core/or/circuitpayment.h>
 #include <src/core/or/relay.h>
 
 #endif /* defined(HAVE_SYSTEMD) */
