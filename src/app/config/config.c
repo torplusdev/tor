@@ -552,9 +552,9 @@ static const config_var_t option_vars_[] = {
   OBSOLETE("NATDListenAddress"),
   VPORT(NATDPort),
   V(Nickname,                    STRING,   NULL),
-  V(PPChannelCallbackUrl,                    STRING,   NULL),
-  V(PPChannelUrl,                    STRING,   NULL),
-  V(StellarAddress,                    STRING,   NULL),
+//  V(PPChannelCallbackUrl,                    STRING,   NULL),
+//  V(PPChannelUrl,                    STRING,   NULL),
+//  V(StellarAddress,                    STRING,   NULL),
   OBSOLETE("PredictedPortsRelevanceTime"),
   OBSOLETE("WarnUnsafeSocks"),
   VAR("NodeFamily",              LINELIST, NodeFamilies,         NULL),
@@ -3441,24 +3441,24 @@ options_validate(or_options_t *old_options, or_options_t *options,
     }
   }
 
-  if (options->PPChannelCallbackUrl == NULL) {
-    if (server_mode(options)) {
-      options->PPChannelCallbackUrl = tor_strdup("");
-    }
-  }
-
-  if (options->PPChannelUrl == NULL) {
-    if (server_mode(options)) {
-      options->PPChannelUrl = tor_strdup("");
-    }
-  }
-
-  if (options->StellarAddress == NULL) {
-    if (server_mode(options)) {
-      options->StellarAddress = tor_strdup("");
-    }
-  }
-
+//  if (options->PPChannelCallbackUrl == NULL) {
+//    if (server_mode(options)) {
+//      options->PPChannelCallbackUrl = tor_strdup("");
+//    }
+//  }
+//
+//  if (options->PPChannelUrl == NULL) {
+//    if (server_mode(options)) {
+//      options->PPChannelUrl = tor_strdup("");
+//    }
+//  }
+//
+//  if (options->StellarAddress == NULL) {
+//    if (server_mode(options)) {
+//      options->StellarAddress = tor_strdup("");
+//    }
+//  }
+  
   if (server_mode(options) && !options->ContactInfo)
     log_notice(LD_CONFIG, "Your ContactInfo config option is not set. "
         "Please consider setting it, so we can contact you if your server is "

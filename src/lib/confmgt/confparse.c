@@ -653,9 +653,9 @@ config_mark_lists_fragile(const config_mgr_t *mgr, void *options)
   tor_assert(options);
 
   SMARTLIST_FOREACH_BEGIN(mgr->all_vars, const managed_var_t *, mv) {
-              if(mv_sl_idx == 244){
-                  int a = 0;
-              }
+//              if(mv_sl_idx == 244){
+//                  int a = 0;
+//              }
     void *object = config_mgr_get_obj_mutable(mgr, options, mv->object_idx);
     struct_var_mark_fragile(object, &mv->cvar->member);
   } SMARTLIST_FOREACH_END(mv);
