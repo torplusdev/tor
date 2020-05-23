@@ -2211,7 +2211,6 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         int port = get_options()->PPChannelPort;
         char* url = (char*)tor_calloc_(1, 100*sizeof(char));
         url[0] = "\0";
-        sprintf(url, "%s|%d", "http://localhost", port);
         sprintf(url, "%s/%s", url, "api/utility/createPaymentInfo");
 
         payment_response_t* response = create_payment_info(url, &request);
