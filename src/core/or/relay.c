@@ -1690,7 +1690,7 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     callback_url[0] = "\0";
     url[0] = "\0";
     sprintf(callback_url, "%s:%d", "http://127.0.0.1", callback_port);
-    sprintf(url, "%s|%d", "http://localhost", port);
+    sprintf(url, "%s:%d", "http://localhost", port);
    ;
 
     char* key = (char*)tor_calloc_(1, 100*sizeof(char));
@@ -1733,7 +1733,7 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
         request.command_id = payment_request_payload->command_id;
         request.node_id = node_id;
         request.response_body = origin->value;
-        process_response("http://localhost:5888/api/gateway/processResponse", &request);
+        process_response(url, &request);
     }
 
    // ht_set(hashtable, key, "");
@@ -1764,7 +1764,7 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
     url[0] = "\0";
 
     sprintf(callback_url, "%s:%d", "http://127.0.0.1", callback_port);
-    sprintf(url, "%s|%d", "http://localhost", port);
+    sprintf(url, "%s:%d", "http://localhost", port);
 
 
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
@@ -1783,9 +1783,9 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
     request.command_type = payment_request_payload->command_type;
     request.command_body = origin->value;
     request.node_id = node_id;
-    request.callback_url = "http://127.0.0.1:5816/api/response";
+    request.callback_url = callback_url;
     request.command_id = payment_request_payload->command_id;
-    process_command("http://localhost:5889/api/utility/processCommand", &request);
+    process_command(url, &request);
 
 
     //ht_set(hashtable, key, "");
