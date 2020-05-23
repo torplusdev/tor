@@ -2620,15 +2620,15 @@ run_main_loop_until_done(void) {
     int port = 5876;
 
     or_options_t *options = get_options();
-    char *nickname = options->Nickname;
+    //char *nickname = options->Nickname;
 
-    if (nickname == NULL) port = 5879;
-    else if (strcmp(nickname, "test000a") == 0) port = 5812;
-    else if (strcmp(nickname, "test001a") == 0) port = 5813;
-    else if (strcmp(nickname, "test002a") == 0) port = 5814;
-    else if (strcmp(nickname, "test003a") == 0) port = 5815;
-    else if (strcmp(nickname, "test004r") == 0) port = 5816;
-    else if (strcmp(nickname, "test005c") == 0) port = 5817;
+    port = options->PPChannelCallbackPort;
+//    else if (strcmp(nickname, "test000a") == 0) port = 5812;
+//    else if (strcmp(nickname, "test001a") == 0) port = 5813;
+//    else if (strcmp(nickname, "test002a") == 0) port = 5814;
+//    else if (strcmp(nickname, "test003a") == 0) port = 5815;
+//    else if (strcmp(nickname, "test004r") == 0) port = 5816;
+//    else if (strcmp(nickname, "test005c") == 0) port = 5817;
 
     runServer(port, getTorRoute, processCommand, processCommandReplay);
 

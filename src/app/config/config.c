@@ -552,9 +552,6 @@ static const config_var_t option_vars_[] = {
   OBSOLETE("NATDListenAddress"),
   VPORT(NATDPort),
   V(Nickname,                    STRING,   NULL),
-//  V(PPChannelCallbackUrl,                    STRING,   NULL),
-//  V(PPChannelUrl,                    STRING,   NULL),
-//  V(StellarAddress,                    STRING,   NULL),
   OBSOLETE("PredictedPortsRelevanceTime"),
   OBSOLETE("WarnUnsafeSocks"),
   VAR("NodeFamily",              LINELIST, NodeFamilies,         NULL),
@@ -762,7 +759,9 @@ static const config_var_t option_vars_[] = {
   V(TestingDirAuthVoteHSDirIsStrict,  BOOL,     "0"),
   VAR_INVIS("___UsingTestNetworkDefaults", BOOL, UsingTestNetworkDefaults_,
             "0"),
-
+  V(PPChannelCallbackPort,                    INT,   "-1"),
+  V(PPChannelPort,                    INT,   "-1"),
+  V(StellarAddress,                    STRING,   NULL),
   END_OF_CONFIG_VARS
 };
 

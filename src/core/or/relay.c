@@ -1683,8 +1683,20 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     initialize_array(node_id, 300);
     node_id[0] = "\0";
 
+    int callback_port = get_options()->PPChannelCallbackPort;
+    int port = get_options()->PPChannelPort;
+    char* callback_url = (char*)tor_calloc_(1, 100*sizeof(char));
+    char* url = (char*)tor_calloc_(1, 100*sizeof(char));
+    callback_url[0] = "\0";
+    url[0] = "\0";
+    sprintf(callback_url, "%s:%d", "http://127.0.0.1", callback_port);
+    sprintf(url, "%s|%d", "http://localhost", port);
+   ;
+
     char* key = (char*)tor_calloc_(1, 100*sizeof(char));
     char* nickname = (char*)tor_calloc_(1, 45*sizeof(char));
+
+
 
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
     sprintf(key, "%s|%d", payment_request_payload->nickname, cell->circ_id);
@@ -1706,15 +1718,17 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
 //        nodes[0].address = "";
 //        next = next->next;
 //    }
+        sprintf(callback_url, "%s/%s", callback_url, "api/command");
+        sprintf(url, "%s/%s", url, "api/gateway/processPayment");
         process_payment_request_t request;
         request.payment_request = origin->value;
         request.node_id = node_id;
         request.routing_node = nodes;
-        request.call_back_url = "http://127.0.0.1:5817/api/command";
-        process_payment("http://localhost:5888/api/gateway/processPayment", &request);
+        request.call_back_url = callback_url;
+        process_payment(url, &request);
     }
     if(payment_request_payload->message_type == 4) {  //payment creation request method
-
+        sprintf(url, "%s/%s", url, "api/gateway/processResponse");
         utility_response_t request;
         request.command_id = payment_request_payload->command_id;
         request.node_id = node_id;
@@ -1724,38 +1738,10 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
 
    // ht_set(hashtable, key, "");
     tor_free_(payment_request_payload);
+    tor_free_(url);
+    tor_free_(callback_url);
     smartlist_remove(global_payment_list, origin);
     return 0;
-//    OR_OP_request_t input;
-//    input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-//    strncpy(input.nickname, nickname, strlen(nickname));
-//    input.nickname[strlen(nickname)] = '\0';
-//    input.message_type = 1;
-//    input.nicknameLength = strlen(nickname);
-//    input.version = 0;
-//    input.is_last = 0;
-//    input.command_type = payment_request_payload->command_type;
-//    int chunck_size = MAX_MESSAGE_LEN - 1;
-//
-//    int part_size = payment_request_payload->messageTotalLength / chunck_size;
-//    int oddment = payment_request_payload->messageTotalLength % chunck_size;
-//    List_of_str_t array[part_size + 1];
-//
-//    divideString(array, value, payment_request_payload->messageTotalLength, chunck_size);
-//    for(int g = 0 ; g < part_size ;g++){
-//        strncpy(input.message, array[g].msg, chunck_size);
-//        input.message[chunck_size] = '\0';
-//        input.messageLength = chunck_size;
-//        circuit_payment_send_OP(circ, hop_num, &input);
-//    }
-//    strncpy(input.message, array[part_size].msg, oddment);
-//    input.message[oddment] = '\0';
-//    input.messageLength = 296;
-//    input.is_last = 1;
-//    circuit_payment_send_OP(circ, hop_num, &input);
-//    circ->total_package_received = 0;
-
-
 }
 
 static int
@@ -1770,6 +1756,15 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
     char* key = (char*)tor_calloc_(1, 100*sizeof(char));
     char* nickname = (char*)tor_calloc_(1, 45*sizeof(char));
 
+    int callback_port = get_options()->PPChannelCallbackPort;
+    int port = get_options()->PPChannelPort;
+    char* callback_url = (char*)tor_calloc_(1, 100*sizeof(char));
+    char* url = (char*)tor_calloc_(1, 100*sizeof(char));
+    callback_url[0] = "\0";
+    url[0] = "\0";
+
+    sprintf(callback_url, "%s:%d", "http://127.0.0.1", callback_port);
+    sprintf(url, "%s|%d", "http://localhost", port);
 
 
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
@@ -1782,6 +1777,8 @@ process_payment_cell(const relay_header_t *rh, const cell_t *cell,
     sprintf(node_id, "%s|%d", nickname, cell->circ_id);
     sprintf(node_id, "%s|%d", node_id, TO_OR_CIRCUIT(circ)->p_chan->global_identifier);
 
+    sprintf(callback_url, "%s/%s", callback_url, "api/response");
+    sprintf(url, "%s/%s", url, "api/utility/processCommand");
     utility_command_t request;
     request.command_type = payment_request_payload->command_type;
     request.command_body = origin->value;
@@ -2211,7 +2208,13 @@ void send_payment_request_to_client(circuit_t *circ, int message_number) {
         request.commodity_type = "data";
         request.amount = 50;
 
-        payment_response_t* response = create_payment_info("http://localhost:5889/api/utility/createPaymentInfo", &request);
+        int port = get_options()->PPChannelPort;
+        char* url = (char*)tor_calloc_(1, 100*sizeof(char));
+        url[0] = "\0";
+        sprintf(url, "%s|%d", "http://localhost", port);
+        sprintf(url, "%s/%s", url, "api/utility/createPaymentInfo");
+
+        payment_response_t* response = create_payment_info(url, &request);
 
         OR_OP_request_t input;
         input.version = 0;
