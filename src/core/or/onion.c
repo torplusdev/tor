@@ -709,25 +709,20 @@ extended_cell_format(uint8_t *command_out, uint16_t *len_out,
   case RELAY_COMMAND_EXTENDED:
     {
       *command_out = RELAY_COMMAND_EXTENDED;
-      *len_out = TAP_ONIONSKIN_REPLY_LEN+STELLAR_NAME_LEN;
-
-
-        memcpy(payload_out, cell_in->created_cell.reply,
+      *len_out = TAP_ONIONSKIN_REPLY_LEN;
+      memcpy(payload_out, cell_in->created_cell.reply,
                TAP_ONIONSKIN_REPLY_LEN);
     }
     break;
   case RELAY_COMMAND_EXTENDED2:
     {
       *command_out = RELAY_COMMAND_EXTENDED2;
-      *len_out = 2 + cell_in->created_cell.handshake_len+STELLAR_NAME_LEN;
+      *len_out = 2 + cell_in->created_cell.handshake_len;
       set_uint16(payload_out, htons(cell_in->created_cell.handshake_len));
       if (2+cell_in->created_cell.handshake_len > RELAY_PAYLOAD_SIZE)
         return -1;
-
-
-        memcpy(payload_out+2, cell_in->created_cell.reply,
+      memcpy(payload_out+2, cell_in->created_cell.reply,
                cell_in->created_cell.handshake_len);
-
     }
     break;
   default:
