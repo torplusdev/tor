@@ -129,6 +129,7 @@
 #include <systemd/sd-daemon.h>
 #include <src/core/proto/payment_http_client.h>
 #include <src/core/or/relay.h>
+#include <src/core/or/or_circuit_st.h>
 
 #endif /* defined(HAVE_SYSTEMD) */
 
@@ -2533,6 +2534,7 @@ processCommand(tor_command* command)
     channel_t * chan = channel_find_by_global_id(res->channel_global_id);
     /* Get the circuit */
     circid_t* circ = circuit_get_by_circid_channel_even_if_marked(res->circuit_id, chan);
+    origin_circuit_t* origin_circuit = TO_ORIGIN_CIRCUIT(circ);
     tor_assert(circ);
 
 
@@ -2547,7 +2549,7 @@ processCommand(tor_command* command)
     input.is_last = 0;
     strcpy(input.command_id, command->commandId);
     input.command_id_length = strlen(res->nickname);
-    int hop_num = circuit_get_num_by_nickname(circ, res->nickname);
+    int hop_num = circuit_get_num_by_nickname(origin_circuit, res->nickname);
     int chunck_size = MAX_MESSAGE_LEN - 1;
 
     int part_size = strlen(command->commandBody) / chunck_size;

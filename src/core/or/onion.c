@@ -214,21 +214,29 @@ created_cell_parse(created_cell_t *cell_out, const cell_t *cell_in)
   case CELL_CREATED:
     cell_out->cell_type = CELL_CREATED;
     cell_out->handshake_len = TAP_ONIONSKIN_REPLY_LEN;
-    memcpy(cell_out->reply, cell_in->payload, TAP_ONIONSKIN_REPLY_LEN);
+    memcpy(cell_out->nickname, cell_in->payload, NICKNAME_NAME_LEN);
+    memcpy(cell_out->stellar_name, cell_in->payload + NICKNAME_NAME_LEN, STELLAR_NAME_LEN);
+    memcpy(cell_out->reply, cell_in->payload + NICKNAME_NAME_LEN + STELLAR_NAME_LEN, TAP_ONIONSKIN_REPLY_LEN);
     break;
   case CELL_CREATED_FAST:
     cell_out->cell_type = CELL_CREATED_FAST;
     cell_out->handshake_len = CREATED_FAST_LEN;
-    memcpy(cell_out->reply, cell_in->payload, CREATED_FAST_LEN);
+
+    memcpy(cell_out->nickname, cell_in->payload, NICKNAME_NAME_LEN);
+    memcpy(cell_out->stellar_name, cell_in->payload + NICKNAME_NAME_LEN , STELLAR_NAME_LEN);
+    memcpy(cell_out->reply, cell_in->payload + NICKNAME_NAME_LEN + STELLAR_NAME_LEN, CREATED_FAST_LEN);
     break;
   case CELL_CREATED2:
     {
       const uint8_t *p = cell_in->payload;
       cell_out->cell_type = CELL_CREATED2;
       cell_out->handshake_len = ntohs(get_uint16(p));
-      if (cell_out->handshake_len > CELL_PAYLOAD_SIZE - 2)
+      if (cell_out->handshake_len > CELL_PAYLOAD_SIZE - 2 - STELLAR_NAME_LEN - NICKNAME_NAME_LEN)
         return -1;
-      memcpy(cell_out->reply, p+2, cell_out->handshake_len);
+
+      memcpy(cell_out->nickname, p+2, NICKNAME_NAME_LEN);
+      memcpy(cell_out->stellar_name, p+2 + NICKNAME_NAME_LEN, STELLAR_NAME_LEN);
+      memcpy(cell_out->reply, p+2 + NICKNAME_NAME_LEN+STELLAR_NAME_LEN, cell_out->handshake_len);
       break;
     }
   }
@@ -252,7 +260,8 @@ check_extend_cell(const extend_cell_t *cell)
     if (cell->cell_type != RELAY_COMMAND_EXTEND2 &&
         cell->cell_type != RELAY_COMMAND_EXTEND)
       return -1;
-  } else {
+  }
+  else {
     /* In particular, no CREATE_FAST cells are allowed */
     return -1;
   }
@@ -555,12 +564,16 @@ created_cell_format(cell_t *cell_out, const created_cell_t *cell_in)
   case CELL_CREATED:
   case CELL_CREATED_FAST:
     tor_assert(cell_in->handshake_len <= sizeof(cell_out->payload));
-    memcpy(cell_out->payload, cell_in->reply, cell_in->handshake_len);
+    memcpy(cell_out->payload, cell_in->nickname, NICKNAME_NAME_LEN);
+    memcpy(cell_out->payload+NICKNAME_NAME_LEN, cell_in->stellar_name, STELLAR_NAME_LEN);
+    memcpy(cell_out->payload+NICKNAME_NAME_LEN+STELLAR_NAME_LEN, cell_in->reply, cell_in->handshake_len);
     break;
   case CELL_CREATED2:
     tor_assert(cell_in->handshake_len <= sizeof(cell_out->payload)-2);
     set_uint16(cell_out->payload, htons(cell_in->handshake_len));
-    memcpy(cell_out->payload + 2, cell_in->reply, cell_in->handshake_len);
+    memcpy(cell_out->payload+2, cell_in->nickname, NICKNAME_NAME_LEN);
+    memcpy(cell_out->payload+2+NICKNAME_NAME_LEN, cell_in->stellar_name, STELLAR_NAME_LEN);
+    memcpy(cell_out->payload+2+NICKNAME_NAME_LEN+STELLAR_NAME_LEN, cell_in->reply, cell_in->handshake_len);
     break;
   default:
     return -1;
@@ -696,20 +709,25 @@ extended_cell_format(uint8_t *command_out, uint16_t *len_out,
   case RELAY_COMMAND_EXTENDED:
     {
       *command_out = RELAY_COMMAND_EXTENDED;
-      *len_out = TAP_ONIONSKIN_REPLY_LEN;
-      memcpy(payload_out, cell_in->created_cell.reply,
-             TAP_ONIONSKIN_REPLY_LEN);
+      *len_out = TAP_ONIONSKIN_REPLY_LEN+STELLAR_NAME_LEN;
+
+
+        memcpy(payload_out, cell_in->created_cell.reply,
+               TAP_ONIONSKIN_REPLY_LEN);
     }
     break;
   case RELAY_COMMAND_EXTENDED2:
     {
       *command_out = RELAY_COMMAND_EXTENDED2;
-      *len_out = 2 + cell_in->created_cell.handshake_len;
+      *len_out = 2 + cell_in->created_cell.handshake_len+STELLAR_NAME_LEN;
       set_uint16(payload_out, htons(cell_in->created_cell.handshake_len));
       if (2+cell_in->created_cell.handshake_len > RELAY_PAYLOAD_SIZE)
         return -1;
-      memcpy(payload_out+2, cell_in->created_cell.reply,
-             cell_in->created_cell.handshake_len);
+
+
+        memcpy(payload_out+2, cell_in->created_cell.reply,
+               cell_in->created_cell.handshake_len);
+
     }
     break;
   default:

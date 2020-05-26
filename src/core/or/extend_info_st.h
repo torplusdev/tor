@@ -25,6 +25,7 @@ struct extend_info_t {
   tor_addr_t addr; /**< IP address. */
   crypto_pk_t *onion_key; /**< Current onionskin key. */
   curve25519_public_key_t curve25519_onion_key;
+  char stellar_address[100];
 };
 
 #endif /* !defined(EXTEND_INFO_ST_H) */

@@ -386,6 +386,16 @@ command_process_create_cell(cell_t *cell, channel_t *chan)
         }
         created_cell.cell_type = CELL_CREATED_FAST;
         created_cell.handshake_len = len;
+        for (int row = 0; row < NICKNAME_NAME_LEN; row ++) {
+            created_cell.nickname[row] = '\0';
+        }
+
+        for (int row = 0; row < STELLAR_NAME_LEN; row ++) {
+            created_cell.stellar_name[row] = '\0';
+        }
+
+        strncpy(created_cell.nickname, get_options()->Nickname, NICKNAME_NAME_LEN);
+        strncpy(created_cell.stellar_name, get_options()->StellarAddress, STELLAR_NAME_LEN);
 
         if (onionskin_answer(circ, &created_cell,
                              (const char *)keys, sizeof(keys),

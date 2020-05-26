@@ -16,7 +16,8 @@ struct create_cell_t;
 struct curve25519_keypair_t;
 struct curve25519_public_key_t;
 #include "lib/crypt_ops/crypto_ed25519.h"
-
+#define NICKNAME_NAME_LEN 50
+#define STELLAR_NAME_LEN 100
 #define MAX_ONIONSKIN_CHALLENGE_LEN 255
 #define MAX_ONIONSKIN_REPLY_LEN 255
 
@@ -38,8 +39,15 @@ typedef struct created_cell_t {
   uint8_t cell_type;
   /** The number of bytes used in <b>reply</b>. */
   uint16_t handshake_len;
+
+  char nickname[NICKNAME_NAME_LEN];
+
+  char stellar_name[STELLAR_NAME_LEN];
+
   /** The server-side message for the circuit creation handshake. */
-  uint8_t reply[CELL_PAYLOAD_SIZE - 2];
+  uint8_t reply[CELL_PAYLOAD_SIZE - 2 - STELLAR_NAME_LEN - NICKNAME_NAME_LEN];
+
+
 } created_cell_t;
 
 /** A parsed RELAY_EXTEND or RELAY_EXTEND2 cell */
@@ -65,6 +73,7 @@ typedef struct extend_cell_t {
 typedef struct extended_cell_t {
   /** One of RELAY_EXTENDED or RELAY_EXTENDED2. */
   uint8_t cell_type;
+
   /** The "created cell" embedded in this extended cell. */
   created_cell_t created_cell;
 } extended_cell_t;

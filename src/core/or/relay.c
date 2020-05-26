@@ -584,7 +584,7 @@ relay_command_to_string(uint8_t command)
       return "RENDEZVOUS_ESTABLISHED";
     case RELAY_COMMAND_INTRODUCE_ACK: return "INTRODUCE_ACK";
     case RELAY_COMMAND_EXTEND2: return "EXTEND2";
-    case RELAY_COMMAND_EXTENDED2: return "EXTENDED2";
+    case RELAY_COMMAND_EXTENDED2: return "EXTENDED2";;
     case RELAY_COMMAND_PADDING_NEGOTIATE: return "PADDING_NEGOTIATE";
     case RELAY_COMMAND_PADDING_NEGOTIATED: return "PADDING_NEGOTIATED";
     default:
@@ -739,7 +739,7 @@ relay_send_command_from_edge_,(streamid_t stream_id, circuit_t *circ,
       origin_circ->relay_early_commands[
           origin_circ->relay_early_cells_sent++] = relay_command;
     } else if (relay_command == RELAY_COMMAND_EXTEND ||
-               relay_command == RELAY_COMMAND_EXTEND2) {
+               relay_command == RELAY_COMMAND_EXTEND2 ) {
       /* If no RELAY_EARLY cells can be sent over this circuit, log which
        * commands have been sent as RELAY_EARLY cells before; helps debug
        * task 878. */
@@ -1985,7 +1985,7 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
       }
       return 0;
     case RELAY_COMMAND_EXTEND:
-    case RELAY_COMMAND_EXTEND2: {
+    case RELAY_COMMAND_EXTEND2:{
       static uint64_t total_n_extend=0, total_nonearly=0;
       total_n_extend++;
       if (rh->stream_id) {
@@ -2036,7 +2036,10 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
                    "Can't parse EXTENDED cell; killing circuit.");
           return -END_CIRC_REASON_TORPROTOCOL;
         }
-        if ((reason = circuit_finish_handshake(TO_ORIGIN_CIRCUIT(circ),
+        origin_circuit_t* origin_circuit =  TO_ORIGIN_CIRCUIT(circ);
+          extend_info_t* extended =  circuit_get_extended_data_by_nickname(origin_circuit, extended_cell.created_cell.nickname);
+        strcpy(extended->stellar_address, extended_cell.created_cell.stellar_name);
+        if ((reason = circuit_finish_handshake(origin_circuit,
                                          &extended_cell.created_cell)) < 0) {
           circuit_mark_for_close(circ, -reason);
           return 0; /* We don't want to cause a warning, so we mark the circuit

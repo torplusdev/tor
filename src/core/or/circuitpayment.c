@@ -441,3 +441,26 @@ circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname)
     return 0;
 }
 
+extend_info_t*
+circuit_get_extended_data_by_nickname(origin_circuit_t * circ, char* nickname)
+{
+    char nickname_array[MAX_HEX_NICKNAME_LEN+1] = {NULL};
+    memcpy(nickname_array, nickname, sizeof(nickname));
+    int n = 1;
+    if(strcmp(circ->cpath->extend_info->nickname, nickname) == 0)
+        return circ->cpath->extend_info;
+    if (circ != NULL && circ->cpath != NULL) {
+        crypt_path_t *cpath, *cpath_next = NULL;
+        for (cpath = circ->cpath;
+             cpath->state == CPATH_STATE_OPEN
+             && cpath_next != circ->cpath;
+             cpath = cpath_next) {
+            cpath_next = cpath->next;
+            ++n;
+            if(strcmp(cpath_next->extend_info->nickname, nickname_array) == 0)
+                return cpath_next->extend_info;
+        }
+    }
+    return NULL;
+}
+
