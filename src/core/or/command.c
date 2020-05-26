@@ -49,6 +49,9 @@
 #include "core/or/dos.h"
 #include "core/or/onion.h"
 #include "core/or/relay.h"
+#include "core/or/crypt_path_st.h"
+#include "core/or/or.h"
+#include "core/or/extend_info_st.h"
 #include "feature/control/control_events.h"
 #include "feature/hibernate/hibernate.h"
 #include "feature/nodelist/describe.h"
@@ -446,6 +449,7 @@ command_process_created_cell(cell_t *cell, channel_t *chan)
 
     if (CIRCUIT_IS_ORIGIN(circ)) { /* we're the OP. Handshake this. */
         origin_circuit_t *origin_circ = TO_ORIGIN_CIRCUIT(circ);
+        strcpy(origin_circ->cpath->extend_info->stellar_address, extended_cell.created_cell.stellar_name);
         int err_reason = 0;
         log_debug(LD_OR,"at OP. Finishing handshake.");
         if ((err_reason = circuit_finish_handshake(origin_circ,

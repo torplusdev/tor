@@ -1710,14 +1710,18 @@ process_payment_command_cell_to_node(const relay_header_t *rh, const cell_t *cel
     sprintf(node_id, "%s|%d", node_id, circ->n_chan->global_identifier);
 
     if(payment_request_payload->message_type == 1) {  //payment creation request method
-        routing_node_t nodes[0];
-//    routing_node_t nodes[hop_num];
-//    crypt_path_t * next = orig_circ->cpath;
-//    for (int i = 0; i < hop_num; ++i) {
-//        nodes[0].node_id = next->extend_info->nickname;
-//        nodes[0].address = "";
-//        next = next->next;
-//    }
+       // routing_node_t nodes[0];
+        origin_circuit_t* origin_circuit = TO_ORIGIN_CIRCUIT(circ);
+        int hop_num = circuit_get_num_by_nickname(origin_circuit, payment_request_payload->nickname);
+        routing_node_t nodes[hop_num-1];
+        crypt_path_t * next = origin_circuit->cpath;
+        for (int i = 0; i < hop_num-1; ++i) {
+            nodes[i].node_id = (char*)tor_calloc_(1, (MAX_HEX_NICKNAME_LEN+1)*sizeof(char));
+            strcpy(nodes[i].node_id,next->extend_info->nickname);
+            nodes[i].address = (char*)tor_calloc_(1, (STELLAR_NAME_LEN)*sizeof(char));
+            strcpy(nodes[i].address,next->extend_info->stellar_address);
+            next = next->next;
+        }
         sprintf(callback_url, "%s/%s", callback_url, "api/command");
         sprintf(url, "%s/%s", url, "api/gateway/processPayment");
         process_payment_request_t request;

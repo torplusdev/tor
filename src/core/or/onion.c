@@ -472,7 +472,9 @@ extended_cell_parse(extended_cell_t *cell_out,
     cell_out->cell_type = RELAY_COMMAND_EXTENDED;
     cell_out->created_cell.cell_type = CELL_CREATED;
     cell_out->created_cell.handshake_len = TAP_ONIONSKIN_REPLY_LEN;
-    memcpy(cell_out->created_cell.reply, payload, TAP_ONIONSKIN_REPLY_LEN);
+    memcpy(cell_out->created_cell.nickname, payload, NICKNAME_NAME_LEN);
+    memcpy(cell_out->created_cell.stellar_name, payload+NICKNAME_NAME_LEN, STELLAR_NAME_LEN);
+    memcpy(cell_out->created_cell.reply, payload+NICKNAME_NAME_LEN+STELLAR_NAME_LEN, TAP_ONIONSKIN_REPLY_LEN);
     break;
   case RELAY_COMMAND_EXTENDED2:
     {
@@ -482,7 +484,11 @@ extended_cell_parse(extended_cell_t *cell_out,
       if (cell_out->created_cell.handshake_len > RELAY_PAYLOAD_SIZE - 2 ||
           cell_out->created_cell.handshake_len > payload_len - 2)
         return -1;
-      memcpy(cell_out->created_cell.reply, payload+2,
+      memcpy(cell_out->created_cell.nickname, payload+2,
+             NICKNAME_NAME_LEN);
+      memcpy(cell_out->created_cell.stellar_name, payload+2+NICKNAME_NAME_LEN,
+             STELLAR_NAME_LEN);
+      memcpy(cell_out->created_cell.reply, payload+2+NICKNAME_NAME_LEN+STELLAR_NAME_LEN,
              cell_out->created_cell.handshake_len);
     }
     break;
@@ -709,19 +715,27 @@ extended_cell_format(uint8_t *command_out, uint16_t *len_out,
   case RELAY_COMMAND_EXTENDED:
     {
       *command_out = RELAY_COMMAND_EXTENDED;
-      *len_out = TAP_ONIONSKIN_REPLY_LEN;
-      memcpy(payload_out, cell_in->created_cell.reply,
+      *len_out = TAP_ONIONSKIN_REPLY_LEN+NICKNAME_NAME_LEN+STELLAR_NAME_LEN;
+      memcpy(payload_out, cell_in->created_cell.nickname,
+               NICKNAME_NAME_LEN);
+      memcpy(payload_out+NICKNAME_NAME_LEN, cell_in->created_cell.stellar_name,
+               STELLAR_NAME_LEN);
+      memcpy(payload_out+NICKNAME_NAME_LEN+STELLAR_NAME_LEN, cell_in->created_cell.reply,
                TAP_ONIONSKIN_REPLY_LEN);
     }
     break;
   case RELAY_COMMAND_EXTENDED2:
     {
       *command_out = RELAY_COMMAND_EXTENDED2;
-      *len_out = 2 + cell_in->created_cell.handshake_len;
+      *len_out = 2 + cell_in->created_cell.handshake_len+NICKNAME_NAME_LEN+STELLAR_NAME_LEN;
       set_uint16(payload_out, htons(cell_in->created_cell.handshake_len));
       if (2+cell_in->created_cell.handshake_len > RELAY_PAYLOAD_SIZE)
         return -1;
-      memcpy(payload_out+2, cell_in->created_cell.reply,
+      memcpy(payload_out+2, cell_in->created_cell.nickname,
+             NICKNAME_NAME_LEN);
+      memcpy(payload_out+2+NICKNAME_NAME_LEN, cell_in->created_cell.stellar_name,
+             STELLAR_NAME_LEN);
+      memcpy(payload_out+2+NICKNAME_NAME_LEN+STELLAR_NAME_LEN, cell_in->created_cell.reply,
                cell_in->created_cell.handshake_len);
     }
     break;
