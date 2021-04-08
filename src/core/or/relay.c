@@ -46,6 +46,9 @@
  **/
 
 #define RELAY_PRIVATE
+
+#include <src/core/proto/payment_http_client.h>
+#include <zconf.h>
 #include "core/or/or.h"
 #include "feature/client/addressmap.h"
 #include "lib/err/backtrace.h"
@@ -81,7 +84,6 @@
 #include "feature/nodelist/describe.h"
 #include "feature/nodelist/routerlist.h"
 #include "core/or/scheduler.h"
-
 #include "core/or/cell_st.h"
 #include "core/or/cell_queue_st.h"
 #include "core/or/cpath_build_state_st.h"
@@ -89,11 +91,13 @@
 #include "core/or/destroy_cell_queue_st.h"
 #include "core/or/entry_connection_st.h"
 #include "core/or/extend_info_st.h"
+#include "core/or/rate_limiter.h"
 #include "core/or/or_circuit_st.h"
 #include "core/or/origin_circuit_st.h"
 #include "feature/nodelist/routerinfo_st.h"
 #include "core/or/socks_request_st.h"
 #include "core/or/sendme.h"
+#include <pthread.h>
 
 static edge_connection_t *relay_lookup_conn(circuit_t *circ, cell_t *cell,
                                             cell_direction_t cell_direction,
@@ -119,6 +123,8 @@ static void adjust_exit_policy_from_exitpolicy_failure(origin_circuit_t *circ,
  * cells. */
 #define CELL_QUEUE_LOWWATER_SIZE 64
 
+static pthread_rwlock_t rwlock;
+
 /** Stats: how many relay cells have originated at this hop, or have
  * been relayed onward (not recognized at this hop)?
  */
@@ -130,6 +136,8 @@ uint64_t stats_n_relay_cells_delivered = 0;
 /** Stats: how many circuits have we closed due to the cell queue limit being
  * reached (see append_cell_to_circuit_queue()) */
 uint64_t stats_n_circ_max_cell_reached = 0;
+
+
 
 /**
  * Update channel usage state based on the type of relay cell and
@@ -244,56 +252,80 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
 
   circuit_update_channel_usage(circ, cell);
 
+  if (CIRCUIT_IS_ORIGIN(circ)) {
+      tor_assert(layer_hint);
+      if (cell_direction == CELL_DIRECTION_IN) ++layer_hint->total_package_received;
+      else ++layer_hint->total_package_sent;
+  } else {
+//      tor_assert(!layer_hint);
+//      if (cell_direction == CELL_DIRECTION_IN) ;
+//      else ++circ->total_package_sent;
+  }
+
   if (recognized) {
-    edge_connection_t *conn = NULL;
+      edge_connection_t *conn = NULL;
 
-    /* Recognized cell, the cell digest has been updated, we'll record it for
-     * the SENDME if need be. */
-    sendme_record_received_cell_digest(circ, layer_hint);
+      /* Recognized cell, the cell digest has been updated, we'll record it for
+       * the SENDME if need be. */
+      sendme_record_received_cell_digest(circ, layer_hint);
 
-    if (circ->purpose == CIRCUIT_PURPOSE_PATH_BIAS_TESTING) {
-      if (pathbias_check_probe_response(circ, cell) == -1) {
-        pathbias_count_valid_cells(circ, cell);
+      if (circ->purpose == CIRCUIT_PURPOSE_PATH_BIAS_TESTING) {
+          if (pathbias_check_probe_response(circ, cell) == -1) {
+              pathbias_count_valid_cells(circ, cell);
+          }
+
+          /* We need to drop this cell no matter what to avoid code that expects
+           * a certain purpose (such as the hidserv code). */
+          return 0;
       }
 
-      /* We need to drop this cell no matter what to avoid code that expects
-       * a certain purpose (such as the hidserv code). */
+      conn = relay_lookup_conn(circ, cell, cell_direction, layer_hint);
+      if (cell_direction == CELL_DIRECTION_OUT) {
+          ++stats_n_relay_cells_delivered;
+          if(cell->command == RELAY_COMMAND_DATA) ++circ->total_package_received;
+          log_debug(LD_OR, "Sending away from origin.");
+          reason = connection_edge_process_relay_cell(cell, circ, conn, NULL);
+          if (reason < 0) {
+              log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
+                     "connection_edge_process_relay_cell (away from origin) "
+                     "failed.");
+              return reason;
+          }
+      }
+      if (cell_direction == CELL_DIRECTION_IN) {
+          ++stats_n_relay_cells_delivered;
+          if(cell->command == RELAY_COMMAND_DATA) ++circ->total_package_received;
+          log_debug(LD_OR, "Sending to origin.");
+          reason = connection_edge_process_relay_cell(cell, circ, conn,
+                                                      layer_hint);
+          if (reason < 0) {
+              /* If a client is trying to connect to unknown hidden service port,
+               * END_CIRC_AT_ORIGIN is sent back so we can then close the circuit.
+               * Do not log warn as this is an expected behavior for a service. */
+              if (reason != END_CIRC_AT_ORIGIN) {
+                  log_warn(LD_OR,
+                           "connection_edge_process_relay_cell (at origin) failed.");
+              }
+              return reason;
+          }
+      }
+
+      if (!CIRCUIT_IS_ORIGIN(circ) && cell->command == RELAY_COMMAND_DATA) {
+          if(circ->total_package_sent+circ->total_package_received > MAX_EXIT_MESSAGES) {
+              send_payment_request_to_client_async(circ, MAX_EXIT_MESSAGES);
+          }
+      }
       return 0;
-    }
-
-    conn = relay_lookup_conn(circ, cell, cell_direction, layer_hint);
-    if (cell_direction == CELL_DIRECTION_OUT) {
-      ++stats_n_relay_cells_delivered;
-      log_debug(LD_OR,"Sending away from origin.");
-      reason = connection_edge_process_relay_cell(cell, circ, conn, NULL);
-      if (reason < 0) {
-        log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
-               "connection_edge_process_relay_cell (away from origin) "
-               "failed.");
-        return reason;
-      }
-    }
-    if (cell_direction == CELL_DIRECTION_IN) {
-      ++stats_n_relay_cells_delivered;
-      log_debug(LD_OR,"Sending to origin.");
-      reason = connection_edge_process_relay_cell(cell, circ, conn,
-                                                  layer_hint);
-      if (reason < 0) {
-        /* If a client is trying to connect to unknown hidden service port,
-         * END_CIRC_AT_ORIGIN is sent back so we can then close the circuit.
-         * Do not log warn as this is an expected behavior for a service. */
-        if (reason != END_CIRC_AT_ORIGIN) {
-          log_warn(LD_OR,
-                   "connection_edge_process_relay_cell (at origin) failed.");
-        }
-        return reason;
-      }
-    }
-    return 0;
   }
 
   /* not recognized. inform circpad and pass it on. */
   circpad_deliver_unrecognized_cell_events(circ, cell_direction);
+
+  payment_info_context_t* context =  get_circuit_payment_info(cell->circ_id);
+  if(context != NULL && context->delay_payments_counter > 70) {
+      circuit_mark_for_close(circ, END_CIRC_REASON_NO_PAYMENT);
+        // usleep(10000);
+  }
 
   if (cell_direction == CELL_DIRECTION_OUT) {
     cell->circ_id = circ->n_circ_id; /* switch it */
@@ -345,8 +377,16 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
   ++stats_n_relay_cells_relayed; /* XXXX no longer quite accurate {cells}
                                   * we might kill the circ before we relay
                                   * the cells. */
+  ++circ->total_package_received;
 
   append_cell_to_circuit_queue(circ, chan, cell, cell_direction, 0);
+
+  if (!CIRCUIT_IS_ORIGIN(circ)) {
+      if(circ->total_package_received > MAX_RELAY_MESSAGES) {
+          send_payment_request_to_client_async(circ, MAX_RELAY_MESSAGES);
+      }
+  }
+
   return 0;
 }
 
@@ -392,6 +432,7 @@ circuit_package_relay_cell, (cell_t *cell, circuit_t *circ,
 
     relay_encrypt_cell_outbound(cell, TO_ORIGIN_CIRCUIT(circ), layer_hint);
 
+
     /* Update circ written totals for control port */
     origin_circuit_t *ocirc = TO_ORIGIN_CIRCUIT(circ);
     ocirc->n_written_circ_bw = tor_add_u32_nowrap(ocirc->n_written_circ_bw,
@@ -408,10 +449,19 @@ circuit_package_relay_cell, (cell_t *cell, circuit_t *circ,
     or_circuit_t *or_circ = TO_OR_CIRCUIT(circ);
     relay_encrypt_cell_inbound(cell, or_circ);
     chan = or_circ->p_chan;
+    ++circ->total_package_sent;
+    if (!CIRCUIT_IS_ORIGIN(circ)) {
+        if(circ->total_package_sent+circ->total_package_received > MAX_EXIT_MESSAGES) {
+            send_payment_request_to_client_async(circ, MAX_EXIT_MESSAGES);
+        }
+    }
   }
   ++stats_n_relay_cells_relayed;
 
   append_cell_to_circuit_queue(circ, chan, cell, cell_direction, on_stream);
+
+
+
   return 0;
 }
 
@@ -607,6 +657,7 @@ relay_send_command_from_edge_,(streamid_t stream_id, circuit_t *circ,
                                size_t payload_len, crypt_path_t *cpath_layer,
                                const char *filename, int lineno))
 {
+
   cell_t cell;
   relay_header_t rh;
   cell_direction_t cell_direction;
@@ -703,6 +754,7 @@ relay_send_command_from_edge_,(streamid_t stream_id, circuit_t *circ,
                                  stream_id, filename, lineno) < 0) {
     log_warn(LD_BUG,"circuit_package_relay_cell failed. Closing.");
     circuit_mark_for_close(circ, END_CIRC_REASON_INTERNAL);
+
     return -1;
   }
 
@@ -712,7 +764,6 @@ relay_send_command_from_edge_,(streamid_t stream_id, circuit_t *circ,
   if (relay_command == RELAY_COMMAND_DATA) {
     sendme_record_cell_digest_on_circ(circ, cpath_layer);
   }
-
   return 0;
 }
 
@@ -1707,6 +1758,9 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
          */
         sendme_connection_edge_consider_sending(conn);
       }
+//      if (!CIRCUIT_IS_ORIGIN(circ)) {
+//          send_payment_request_to_client_async(circ, MAX_EXIT_MESSAGES);
+//      }
 
       return 0;
     case RELAY_COMMAND_END:
@@ -1811,11 +1865,13 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
                    "Can't parse EXTENDED cell; killing circuit.");
           return -END_CIRC_REASON_TORPROTOCOL;
         }
-        if ((reason = circuit_finish_handshake(TO_ORIGIN_CIRCUIT(circ),
-                                         &extended_cell.created_cell)) < 0) {
+        origin_circuit_t* origin_circ =  TO_ORIGIN_CIRCUIT(circ);
+
+        if ((reason = circuit_finish_handshake(origin_circ,
+                  &extended_cell.created_cell)) < 0) {
           circuit_mark_for_close(circ, -reason);
           return 0; /* We don't want to cause a warning, so we mark the circuit
-                     * here. */
+          * here. */
         }
       }
       if ((reason=circuit_send_next_onion_skin(TO_ORIGIN_CIRCUIT(circ)))<0) {
@@ -1899,6 +1955,10 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
       return 0;
     case RELAY_COMMAND_SENDME:
       return process_sendme_cell(rh, cell, circ, conn, layer_hint, domain);
+    case RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN:
+      return process_payment_command_cell_to_node_async(cell, circ);
+    case RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE:
+      return process_payment_cell_async(cell, circ);
     case RELAY_COMMAND_RESOLVE:
       if (layer_hint) {
         log_fn(LOG_PROTOCOL_WARN, LD_APP,
@@ -2251,6 +2311,8 @@ connection_edge_package_raw_inbuf(edge_connection_t *conn, int package_partial,
     conn->end_reason = END_STREAM_REASON_TORPROTOCOL;
     return -1;
   }
+
+
 
   /* Handle the stream-level SENDME package window. */
   if (sendme_note_stream_data_packaged(conn) < 0) {
@@ -3104,12 +3166,16 @@ append_cell_to_circuit_queue(circuit_t *circ, channel_t *chan,
                              cell_t *cell, cell_direction_t direction,
                              streamid_t fromstream)
 {
+ // wait_semaphore();
   or_circuit_t *orcirc = NULL;
   cell_queue_t *queue;
   int streams_blocked;
   int exitward;
   if (circ->marked_for_close)
-    return;
+  {
+     // post_semaphore();
+      return;
+  }
 
   exitward = (direction == CELL_DIRECTION_OUT);
   if (exitward) {
@@ -3129,6 +3195,7 @@ append_cell_to_circuit_queue(circuit_t *circ, channel_t *chan,
            max_circuit_cell_queue_size);
     circuit_mark_for_close(circ, END_CIRC_REASON_RESOURCELIMIT);
     stats_n_circ_max_cell_reached++;
+    //post_semaphore();
     return;
   }
 
@@ -3141,7 +3208,10 @@ append_cell_to_circuit_queue(circuit_t *circ, channel_t *chan,
   if (PREDICT_UNLIKELY(cell_queues_check_size())) {
     /* We ran the OOM handler which might have closed this circuit. */
     if (circ->marked_for_close)
-      return;
+    {
+     //   post_semaphore();
+        return;
+    }
   }
 
   /* If we have too many cells on the circuit, we should stop reading from
@@ -3163,6 +3233,7 @@ append_cell_to_circuit_queue(circuit_t *circ, channel_t *chan,
 
   /* New way: mark this as having waiting cells for the scheduler */
   scheduler_channel_has_waiting_cells(chan);
+//  post_semaphore();
 }
 
 /** Append an encoded value of <b>addr</b> to <b>payload_out</b>, which must
@@ -3261,4 +3332,55 @@ circuit_queue_streams_are_blocked(circuit_t *circ)
   } else {
     return circ->streams_blocked_on_p_chan;
   }
+}
+
+static int process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ) {
+
+    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
+
+    args->circ = circ;
+
+    args->step_type = 1;
+    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
+    args->payment_request_payload = payment_request_payload;
+//    pthread_t tid;
+//    pthread_create(&tid, NULL, process_payment_command_cell_to_node, (void *)args);
+//    pthread_join(tid, NULL);
+    add_payment_curl_request(args);
+    return 0;
+}
+
+static int process_payment_cell_async(const cell_t *cell, circuit_t *circ){
+
+    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
+
+    args->circ = circ;
+
+    args->step_type = 2;
+    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
+    args->payment_request_payload = payment_request_payload;
+//    pthread_t tid;
+//    pthread_create(&tid, NULL, process_payment_cell, (void *)args);
+//    pthread_join(tid, NULL);
+    add_payment_curl_request(args);
+    return 0;
+}
+
+void send_payment_request_to_client_async(circuit_t *circ, int message_number) {
+    pthread_rwlock_wrlock(&rwlock);
+    circ->total_package_received = 0;
+    circ->total_package_sent = 0;
+    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
+
+    args->circ = circ;
+    args->relay_type = message_number;
+    args->step_type = 3;
+
+//    pthread_t tid;
+//    pthread_create(&tid, NULL, send_payment_request_to_client, (void *)args);
+//    pthread_join(tid, NULL);
+    add_payment_curl_request(args);
+
+    return;
+    pthread_rwlock_unlock(&rwlock);
 }

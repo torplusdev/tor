@@ -121,6 +121,7 @@ struct curve25519_public_key_t;
  * of an HTTP request or response. */
 #define MAX_HEADERS_SIZE 50000
 
+#define STELLAR_ADDRESS_LEN 100
 /** Maximum size, in bytes, of a single router descriptor uploaded to us
  * as a directory authority. Caches and clients fetch whatever descriptors
  * the authorities tell them to fetch, and don't care about size. */
@@ -209,6 +210,9 @@ struct curve25519_public_key_t;
 
 #define RELAY_COMMAND_PADDING_NEGOTIATE 41
 #define RELAY_COMMAND_PADDING_NEGOTIATED 42
+
+#define RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN 51
+#define RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE 52
 
 /* Reasons why an OR connection is closed. */
 #define END_OR_CONN_REASON_DONE           1
@@ -321,6 +325,7 @@ struct curve25519_public_key_t;
 #define END_CIRC_REASON_DESTROYED       11
 #define END_CIRC_REASON_NOSUCHSERVICE   12
 #define END_CIRC_REASON_MAX_            12
+#define END_CIRC_REASON_NO_PAYMENT      13
 
 /** Bitwise-OR this with the argument to circuit_mark_for_close() or
  * control_event_circuit_status() to indicate that the reason was
@@ -537,7 +542,7 @@ typedef enum {
 #define CELL_CREATE2 10
 #define CELL_CREATED2 11
 #define CELL_PADDING_NEGOTIATE 12
-
+#define CELL_PAYMENT 69
 #define CELL_VPADDING 128
 #define CELL_CERTS 129
 #define CELL_AUTH_CHALLENGE 130

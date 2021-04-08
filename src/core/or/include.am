@@ -10,6 +10,7 @@ LIBTOR_APP_A_SOURCES += 				\
 	src/core/or/circuitmux.c		\
 	src/core/or/circuitmux_ewma.c		\
 	src/core/or/circuitpadding.c		\
+	src/core/or/circuit_payment.c		\
 	src/core/or/circuitpadding_machines.c	\
 	src/core/or/circuitstats.c		\
 	src/core/or/circuituse.c		\
@@ -33,7 +34,8 @@ LIBTOR_APP_A_SOURCES += 				\
 	src/core/or/scheduler_vanilla.c		\
 	src/core/or/sendme.c			\
 	src/core/or/status.c			\
-	src/core/or/versions.c
+	src/core/or/versions.c           \
+	src/core/or/rate_limiter.c
 
 # ADD_C_FILE: INSERT HEADERS HERE.
 noinst_HEADERS +=					\
@@ -59,6 +61,7 @@ noinst_HEADERS +=					\
 	src/core/or/connection_st.h			\
 	src/core/or/crypt_path.h			\
 	src/core/or/cpath_build_state_st.h		\
+	src/core/or/circuit_payment.h		\
 	src/core/or/crypt_path_reference_st.h		\
 	src/core/or/crypt_path_st.h			\
 	src/core/or/destroy_cell_queue_st.h		\
@@ -95,4 +98,5 @@ noinst_HEADERS +=					\
 	src/core/or/status.h				\
 	src/core/or/tor_version_st.h			\
 	src/core/or/var_cell_st.h			\
-	src/core/or/versions.h
+	src/core/or/versions.h              \
+	src/core/or/rate_limiter.h

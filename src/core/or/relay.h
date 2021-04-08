@@ -12,6 +12,17 @@
 #ifndef TOR_RELAY_H
 #define TOR_RELAY_H
 
+
+
+
+static int process_payment_command_cell_to_node(void* args);
+static int process_payment_cell(void* args);
+void send_payment_request_to_client(void* args);
+
+static int process_payment_cell_async(const cell_t *cell, circuit_t *circ);
+void send_payment_request_to_client_async(circuit_t *circ, int message_number);
+static int process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ);
+
 extern uint64_t stats_n_relay_cells_relayed;
 extern uint64_t stats_n_relay_cells_delivered;
 extern uint64_t stats_n_circ_max_cell_reached;

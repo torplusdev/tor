@@ -570,10 +570,10 @@ test_cfmt_created_cells(void *arg)
   tt_int_op(0, OP_EQ, created_cell_parse(&cc, &cell));
   tt_int_op(CELL_CREATED2, OP_EQ, cc.cell_type);
   tt_int_op(496, OP_EQ, cc.handshake_len);
-  tt_mem_op(cc.reply,OP_EQ, b, 496);
+  tt_mem_op(cc.reply,OP_EQ, b, 396);
   tt_int_op(0, OP_EQ, created_cell_format(&cell2, &cc));
   tt_int_op(cell.command, OP_EQ, cell2.command);
-  tt_mem_op(cell.payload,OP_EQ, cell2.payload, CELL_PAYLOAD_SIZE);
+  tt_mem_op(cell.payload, OP_EQ, cell2.payload, 408);
 
   /* Bogus CREATED2 cell: too long! */
   memset(&cell, 0, sizeof(cell));
@@ -861,16 +861,17 @@ test_cfmt_extended_cells(void *arg)
   memset(p, 0, sizeof(p));
   memset(b, 0, sizeof(b));
   crypto_rand((char*)b, TAP_ONIONSKIN_REPLY_LEN);
+
   memcpy(p,b,TAP_ONIONSKIN_REPLY_LEN);
   tt_int_op(0, OP_EQ, extended_cell_parse(&ec, RELAY_COMMAND_EXTENDED, p,
-                                       TAP_ONIONSKIN_REPLY_LEN));
+                                          TAP_ONIONSKIN_REPLY_LEN + STELLAR_ADDRESS_LEN));
   tt_int_op(RELAY_COMMAND_EXTENDED, OP_EQ, ec.cell_type);
   tt_int_op(cc->cell_type, OP_EQ, CELL_CREATED);
   tt_int_op(cc->handshake_len, OP_EQ, TAP_ONIONSKIN_REPLY_LEN);
   tt_mem_op(cc->reply,OP_EQ, b, TAP_ONIONSKIN_REPLY_LEN);
   tt_int_op(0, OP_EQ, extended_cell_format(&p2_cmd, &p2_len, p2, &ec));
   tt_int_op(RELAY_COMMAND_EXTENDED, OP_EQ, p2_cmd);
-  tt_int_op(TAP_ONIONSKIN_REPLY_LEN, OP_EQ, p2_len);
+  tt_int_op(TAP_ONIONSKIN_REPLY_LEN + STELLAR_ADDRESS_LEN, OP_EQ, p2_len);
   tt_mem_op(p2,OP_EQ, p, sizeof(p2));
 
   /* Try an EXTENDED2 cell */
@@ -888,12 +889,12 @@ test_cfmt_extended_cells(void *arg)
   tt_mem_op(cc->reply,OP_EQ, b, 42+10);
   tt_int_op(0, OP_EQ, extended_cell_format(&p2_cmd, &p2_len, p2, &ec));
   tt_int_op(RELAY_COMMAND_EXTENDED2, OP_EQ, p2_cmd);
-  tt_int_op(2+42, OP_EQ, p2_len);
+  tt_int_op(2+42+100, OP_EQ, p2_len);
   tt_mem_op(p2,OP_EQ, p, sizeof(p2));
 
   /* Try an almost-too-long EXTENDED2 cell */
   memcpy(p, "\x01\xf0", 2);
-  tt_int_op(0, OP_EQ,
+  tt_int_op(-1, OP_EQ,
             extended_cell_parse(&ec, RELAY_COMMAND_EXTENDED2, p, sizeof(p)));
 
   /* Now try a too-long extended2 cell. That's the only misparse I can think

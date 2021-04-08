@@ -12,6 +12,56 @@
 #ifndef TOR_MAINLOOP_H
 #define TOR_MAINLOOP_H
 
+#include <src/app/main/rest_lib.h>
+#include <src/core/or/circuit_payment.h>
+
+typedef struct payment_chunks_st {
+    char key[PAYMENT_HASH_KEY_LEN];
+    char value[MAX_REAL_MESSAGE_LEN];
+} payment_chunks_t;
+
+
+struct entry_s {
+    char *key;
+    char *value;
+    struct entry_t *next;
+};
+
+
+typedef struct thread_args_st {
+    OR_OP_request_t *payment_request_payload;
+    circuit_t *circ;
+    int relay_type;
+    int step_type;
+} thread_args_t;
+
+typedef struct entry_s entry_t;
+
+void initialize_array(char* array, int len);
+
+
+
+
+typedef struct node_id_item_ts {
+    const char nickname[MAX_HEX_NICKNAME_LEN+1];
+    uint32_t circuit_id;
+    uint64_t channel_global_id;
+} node_id_item_t;
+
+typedef struct thread_main_args_st {
+    tor_command* tor_command;
+    tor_command_replay* tor_command_replay;
+} thread_args_main_t;
+
+typedef struct payment_message_for_sending_st {
+    char * sessionId;
+    char * nodeId;
+    OR_OP_request_t * message;
+} payment_message_for_sending_t;
+
+int add_payment_curl_request(thread_args_t* args);
+void parse_node_id(node_id_item_t* output, char* string);
+
 int have_completed_a_circuit(void);
 void note_that_we_completed_a_circuit(void);
 void note_that_we_maybe_cant_complete_circuits(void);

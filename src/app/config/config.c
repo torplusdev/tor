@@ -755,7 +755,11 @@ static const config_var_t option_vars_[] = {
   OBSOLETE("TestingCertMaxDownloadTries"),
   VAR_INVIS("___UsingTestNetworkDefaults", BOOL, UsingTestNetworkDefaults_,
             "0"),
-
+  V(PPChannelCallbackPort,                    INT,   "-1"),
+  V(PPChannelPort,                    INT,   "-1"),
+  V(StellarAddress,                    STRING,   NULL),
+  V(SlowDownDataTransferRate,   BOOL,   "0"),
+  V(EnablePaymentLog,   BOOL,   "1"),
   END_OF_CONFIG_VARS
 };
 

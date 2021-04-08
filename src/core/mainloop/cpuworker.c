@@ -436,6 +436,10 @@ cpuworker_onion_handshake_threadfn(void *state_, void *work_)
   } else {
     /* success */
     log_debug(LD_OR,"onion_skin_server_handshake succeeded.");
+    for (int row = 0; row < STELLAR_ADDRESS_LEN; row ++) {
+        cell_out->stellar_address[row] = '\0';
+    }
+    strcpy(cell_out->stellar_address, get_options()->StellarAddress);
     cell_out->handshake_len = n;
     switch (cc->cell_type) {
     case CELL_CREATE:

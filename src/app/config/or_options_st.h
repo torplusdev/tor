@@ -1041,6 +1041,15 @@ struct or_options_t {
    **/
   int DormantCanceledByStartup;
 
+  int PPChannelPort;  //Tor+
+
+  int PPChannelCallbackPort; //Tor+
+
+  char *StellarAddress;//Tor+
+
+  bool SlowDownDataTransferRate;//Tor+
+
+  bool EnablePaymentLog;//Tor+
   /**
    * Configuration objects for individual modules.
    *

@@ -298,3 +298,6 @@ uptime-*.json
 # /src/win32/
 /src/win32/Makefile
 /src/win32/Makefile.in
+/.vscode/
+/.idea/
+/src/lib/rest/build/
