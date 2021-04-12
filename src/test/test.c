@@ -674,6 +674,7 @@ struct testgroup_t testgroups[] = {
   { "buffer/", buffer_tests },
   { "bwmgt/", bwmgt_tests },
   { "cellfmt/", cell_format_tests },
+  { "payments/", test_paymets },
   { "cellqueue/", cell_queue_tests },
   { "channel/", channel_tests },
   { "channelpadding/", channelpadding_tests },

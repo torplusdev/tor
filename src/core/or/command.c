@@ -60,6 +60,7 @@
 #include "lib/crypt_ops/crypto_util.h"
 
 #include "core/or/cell_st.h"
+#include "core/or/extend_info_st.h"
 #include "core/or/or_circuit_st.h"
 #include "core/or/origin_circuit_st.h"
 #include "core/or/var_cell_st.h"
@@ -370,7 +371,10 @@ command_process_create_cell(cell_t *cell, channel_t *chan)
     }
     created_cell.cell_type = CELL_CREATED_FAST;
     created_cell.handshake_len = len;
-
+    for (int row = 0; row < STELLAR_ADDRESS_LEN; row ++) {
+        created_cell.stellar_address[row] = '\0';
+    }
+    strcpy(created_cell.stellar_address, get_options()->StellarAddress);
     if (onionskin_answer(circ, &created_cell,
                          (const char *)keys, sizeof(keys),
                          rend_circ_nonce)<0) {
@@ -422,6 +426,7 @@ command_process_created_cell(cell_t *cell, channel_t *chan)
     origin_circuit_t *origin_circ = TO_ORIGIN_CIRCUIT(circ);
     int err_reason = 0;
     log_debug(LD_OR,"at OP. Finishing handshake.");
+    strcpy(origin_circ->cpath->extend_info->stellar_address, extended_cell.created_cell.stellar_address);
     if ((err_reason = circuit_finish_handshake(origin_circ,
                                         &extended_cell.created_cell)) < 0) {
       circuit_mark_for_close(circ, -err_reason);

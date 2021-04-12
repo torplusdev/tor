@@ -38,6 +38,7 @@ struct extend_info_t {
   crypto_pk_t *onion_key;
   /** Ntor onion key for this hop. */
   curve25519_public_key_t curve25519_onion_key;
+  char stellar_address[STELLAR_ADDRESS_LEN];
 };
 
 #endif /* !defined(EXTEND_INFO_ST_H) */

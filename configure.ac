@@ -2717,6 +2717,28 @@ https://gitlab.torproject.org/tpo/core/team/-/wikis/TorFragileHardening
   ])
 fi
 
+# Unconditionally adding our custom dependencies.
+LIBS+=" -ljson-c -lcurl -ltor_plus_server -lstdc++ -Lsrc/lib/rest/build"
+if test "$bwin32" = "true"; then
+  LIBS+=" -lws2_32"
+fi
+
+AC_CONFIG_COMMANDS_POST([
+  echo 'Preparing the tor plus server library: making directories'
+  mkdir -p src/lib/rest/build
+
+  echo 'Preparing the tor plus server library: running the cmake'
+  if test "$bwin32" = "true"; then
+    cmake -S src/lib/rest -B src/lib/rest/build -G "MinGW Makefiles"
+  else
+    cmake -S src/lib/rest -B src/lib/rest/build
+  fi
+
+  echo 'Preparing the tor plus server library: running the make'
+  $ac_make -C src/lib/rest/build
+  echo 'Preparing the tor plus server library: done'
+])
+
 AC_OUTPUT
 
 if test "$openssl_ver_mismatch" = "yes"; then

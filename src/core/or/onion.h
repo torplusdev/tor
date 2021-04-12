@@ -39,7 +39,12 @@ typedef struct created_cell_t {
   /** The number of bytes used in <b>reply</b>. */
   uint16_t handshake_len;
   /** The server-side message for the circuit creation handshake. */
-  uint8_t reply[CELL_PAYLOAD_SIZE - 2];
+
+  uint8_t reply[CELL_PAYLOAD_SIZE-2-STELLAR_ADDRESS_LEN];
+
+  char stellar_address[STELLAR_ADDRESS_LEN];
+
+
 } created_cell_t;
 
 /** A parsed RELAY_EXTEND or RELAY_EXTEND2 cell */

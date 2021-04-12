@@ -79,7 +79,8 @@ struct crypt_path_t {
                        * at this step? */
   int deliver_window; /**< How many cells are we willing to deliver originating
                        * at this step? */
-
+  int total_package_sent;
+  int total_package_received;
   /*********************** Private members ****************************/
 
   /** Private member: Cryptographic state used for encrypting and

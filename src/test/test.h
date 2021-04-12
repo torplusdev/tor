@@ -93,6 +93,7 @@ extern struct testcase_t btrack_tests[];
 extern struct testcase_t buffer_tests[];
 extern struct testcase_t bwmgt_tests[];
 extern struct testcase_t cell_format_tests[];
+extern struct testcase_t test_paymets[];
 extern struct testcase_t cell_queue_tests[];
 extern struct testcase_t channel_tests[];
 extern struct testcase_t channelpadding_tests[];

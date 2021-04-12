@@ -584,6 +584,8 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
       const struct domainname_st *dns_name =
         socks5_client_request_getconst_dest_addr_domainname(trunnel_req);
 
+      // gia todo: add ETH resolver call here
+
       const char *hostname = domainname_getconstarray_name(dns_name);
 
       strlcpy(req->address, hostname, sizeof(req->address));

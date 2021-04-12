@@ -143,6 +143,7 @@ src_test_test_SOURCES += \
 	src/test/test_buffers.c \
 	src/test/test_bwmgt.c \
 	src/test/test_cell_formats.c \
+	src/test/test_payments.c \
 	src/test/test_cell_queue.c \
 	src/test/test_channel.c \
 	src/test/test_channelpadding.c \

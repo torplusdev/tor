@@ -1082,6 +1082,15 @@ struct or_options_t {
   /** List of policy allowed to query the Metrics port. */
   struct config_line_t *MetricsPortPolicy;
 
+  int PPChannelPort;  //Tor+
+
+  int PPChannelCallbackPort; //Tor+
+
+  char *StellarAddress;//Tor+
+
+  bool SlowDownDataTransferRate;//Tor+
+
+  bool EnablePaymentLog;//Tor+
   /**
    * Configuration objects for individual modules.
    *

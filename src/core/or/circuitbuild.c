@@ -1248,7 +1248,7 @@ circuit_finish_handshake(origin_circuit_t *circ,
   }
 
   onion_handshake_state_release(&hop->handshake_state);
-
+   strcpy(hop->extend_info->stellar_address, reply->stellar_address);
   if (cpath_init_circuit_crypto(hop, keys, sizeof(keys), 0, 0)<0) {
     return -END_CIRC_REASON_TORPROTOCOL;
   }
