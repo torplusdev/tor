@@ -43,9 +43,11 @@ std::string* tor_rest_service::route2json(tor_route *route)
 	json_builder json;
 
 	json.object();
-	json.key("node1").value(route->node1);
-	json.key("node2").value(route->node2);
-	json.key("node3").value(route->node3);
+	if (nullptr != route->nodes && route->nodes_len >= 3) {
+		json.key("node1").value(route->nodes[0].node_id);
+		json.key("node2").value(route->nodes[1].node_id);
+		json.key("node3").value(route->nodes[1].node_id);
+	}
     json.finish();
 
 

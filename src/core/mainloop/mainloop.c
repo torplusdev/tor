@@ -2884,8 +2884,8 @@ run_main_loop_once(void)
 void getTorRoute(const char* sessionId, tor_route *route) {
     route->call_back_url = (char*)tor_calloc_(1, PAYMENT_URL_LEN*sizeof(char));
     route->status_call_back_url = (char*)tor_calloc_(1, PAYMENT_URL_LEN*sizeof(char));
-    route->call_back_url[0] = "\0";
-    route->status_call_back_url[0] = "\0";
+    route->call_back_url[0] = '\0';
+    route->status_call_back_url[0] = '\0';
 
     int callback_port = get_options()->PPChannelCallbackPort;
     int port = get_options()->PPChannelPort;
@@ -2947,8 +2947,8 @@ void getTorRoute(const char* sessionId, tor_route *route) {
                                         log_input->responseBody = "";
 
                                         snprintf(log_input->requestBody, 500, "[%s:%s],[%s:%s],[%s:%s]", route->nodes[0].node_id, route->nodes[0].address,
-                                        log_input->requestBody, route->nodes[1].node_id, route->nodes[1].address,
-                                        log_input->requestBody, route->nodes[2].node_id, route->nodes[2].address);
+                                        /*log_input->requestBody,*/ route->nodes[1].node_id, route->nodes[1].address,
+                                        /*log_input->requestBody,*/ route->nodes[2].node_id, route->nodes[2].address);
 
                                         log_input->url = "/api/paymentRoute";
                                         ship_log(log_input);
@@ -2962,7 +2962,7 @@ void getTorRoute(const char* sessionId, tor_route *route) {
     }
 }
 
-void payment_chain_completed(payment_completed* command)
+int payment_chain_completed(payment_completed* command)
 {
     payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
     message->nodeId = "-1";
@@ -2981,6 +2981,7 @@ void payment_chain_completed(payment_completed* command)
 
     log_input.url = "/api/paymentComplete";
     ship_log(&log_input);
+    return 0;
 }
 
 int
