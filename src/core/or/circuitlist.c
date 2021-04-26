@@ -1004,6 +1004,8 @@ init_circuit_base(circuit_t *circ)
 
   smartlist_add(circuit_get_global_list(), circ);
   circ->global_circuitlist_idx = smartlist_len(circuit_get_global_list()) - 1;
+  circ->total_package_sent = 0;
+  circ->total_package_received = 0;
 }
 
 /** If we haven't yet decided on a good timeout value for circuit
