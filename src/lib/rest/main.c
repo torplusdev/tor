@@ -15,9 +15,11 @@ void getTorRoute(const char* targetNode,tor_route *route)
 	int err;
 
 	//TODO: Add error-handling
-	err = strcpy(route->node1, "GDRQ2GFDIXSPOBOICRJUEVQ3JIZJOWW7BXV2VSIN4AR6H6SD32YER4LN");
-	err = strcpy(route->node2, "GD523N6LHPRQS3JMCXJDEF3ZENTSJLRUDUF2CU6GZTNGFWJXSF3VNDJJ");
-	err = strcpy(route->node3, "GB3IKDN72HFZSLY3SYE5YWULA5HG32AAKEDJTG6J6X2YKITHBDDT2PIW");	
+	route->nodes = (rest_node_t *) malloc(3 * sizeof(rest_node_t));
+
+	err = strcpy(route->nodes[0].node_id, "GDRQ2GFDIXSPOBOICRJUEVQ3JIZJOWW7BXV2VSIN4AR6H6SD32YER4LN");
+	err = strcpy(route->nodes[1].node_id, "GD523N6LHPRQS3JMCXJDEF3ZENTSJLRUDUF2CU6GZTNGFWJXSF3VNDJJ");
+	err = strcpy(route->nodes[2].node_id, "GB3IKDN72HFZSLY3SYE5YWULA5HG32AAKEDJTG6J6X2YKITHBDDT2PIW");	
 }
 
 int processCommand(tor_command* command)

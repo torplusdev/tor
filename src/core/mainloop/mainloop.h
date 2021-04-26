@@ -12,7 +12,7 @@
 #ifndef TOR_MAINLOOP_H
 #define TOR_MAINLOOP_H
 
-#include <src/app/main/rest_lib.h>
+#include <src/lib/rest/tor_rest/rest_lib.h>
 #include <src/core/or/circuit_payment.h>
 
 typedef struct payment_chunks_st {

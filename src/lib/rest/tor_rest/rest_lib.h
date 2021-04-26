@@ -2,13 +2,17 @@
 
 #define CONST_ROUTE_NODE_ID_LENGTH 100
 
+typedef struct rest_node_t {
+    char* node_id;
+    char* address;
+} rest_node_t;
 
 typedef struct tor_route {
-    char node1[CONST_ROUTE_NODE_ID_LENGTH];
-    char node2[CONST_ROUTE_NODE_ID_LENGTH];
-    char node3[CONST_ROUTE_NODE_ID_LENGTH];
+    rest_node_t* nodes;
+    int nodes_len;
+    char* call_back_url; 		        // process command url
+    char* status_call_back_url; 		// process command url
 } tor_route;
-
 
 typedef struct tor_command {
     char * commandBody;
@@ -16,11 +20,13 @@ typedef struct tor_command {
     char * commandType;
     char * nodeId;
     char * sessionId;
+    char * json_body;
 } tor_command;
 
 typedef struct payment_completed {
     char * sessionId;
     int status;
+    char * json_body;
 } payment_completed;
 
 
@@ -29,6 +35,7 @@ typedef struct tor_command_replay {
     char * commandId;
     char * nodeId;
     char * sessionId;
+    char * json_body;
 } tor_command_replay;
 
 #ifdef __cplusplus
