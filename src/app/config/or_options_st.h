@@ -1091,6 +1091,9 @@ struct or_options_t {
   bool SlowDownDataTransferRate;//Tor+
 
   bool EnablePaymentLog;//Tor+
+
+  struct smartlist_t * PPResolvDomains;//Tor+
+
   /**
    * Configuration objects for individual modules.
    *

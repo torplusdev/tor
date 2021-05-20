@@ -19,10 +19,14 @@
 #include "feature/relay/ext_orport.h"
 #include "core/proto/proto_socks.h"
 #include "core/or/reasons.h"
+#include <json-c/json.h>
+#include "core/proto/payment_http_client.h"
 
 #include "core/or/socks_request_st.h"
 
 #include "trunnel/socks5.h"
+
+#define RESOLV_URL_LEN 1000
 
 #define SOCKS_VER_5 0x05 /* First octet of non-auth SOCKS5 messages */
 #define SOCKS_VER_4 0x04 /*                SOCKS4 messages */
@@ -529,6 +533,23 @@ process_socks5_userpass_auth(socks_request_t *req)
   return res;
 }
 
+/*
+ * Check predefined domains like "torplus.eth" (default)
+ */
+static int check_known_domains_list(const char *domain)
+{
+  tor_assert(domain);
+  smartlist_t *known_domains = get_options()->PPResolvDomains;
+  if (!known_domains)
+    return -1;
+  SMARTLIST_FOREACH(known_domains, const char *, next_domain,
+  {
+    if(strcmp(domain, next_domain) == 0)
+      return 0;
+  });
+  return -1;
+}
+
 /**
  * Parse a single SOCKS5 client request (RFC 1928 section 4) from buffer
  * <b>raw_data</b> of length <b>datalen</b> and update relevant field of
@@ -583,12 +604,48 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
     case 3: {
       const struct domainname_st *dns_name =
         socks5_client_request_getconst_dest_addr_domainname(trunnel_req);
-
-      // gia todo: add ETH resolver call here
-
       const char *hostname = domainname_getconstarray_name(dns_name);
-
+      const struct json_object* response = NULL;
+      do {
+        if (0 != check_known_domains_list(hostname))
+          break;
+        log_warn(LD_APP, "resolving: %s\n", hostname);
+        static char resolv_request_url[RESOLV_URL_LEN];
+        static int s_url_formated = 0;
+        if (!s_url_formated) {
+          snprintf(resolv_request_url, RESOLV_URL_LEN,
+            "http://localhost:%d/api/resolver/resolve",
+              get_options()->PPChannelPort
+            );
+            s_url_formated = 1;
+          }
+        json_object* json_request = json_object_new_object();
+        if (NULL == json_request)
+          break;
+        json_object_object_add(json_request, "hostname", json_object_new_string(hostname));
+        char* request_string = (char *)json_object_to_json_string(json_request);
+        char* json_response = send_http_post_request(resolv_request_url, request_string);
+        if (NULL == json_response || 0 == strlen(json_response))
+          break;
+        log_warn(LD_APP, "resolve response: %s\n", json_response);
+        // Response is a json field, parse it and process
+        response = json_tokener_parse(json_response);
+        if (NULL == response || json_type_object != json_object_get_type(response))
+          break;
+        struct json_object_iterator it = json_object_iter_begin(response);
+        const char* fieldName = json_object_iter_peek_name(&it);
+        if (NULL == fieldName)
+          break;
+        if (0 != strcmp(fieldName, "hostname")) {
+          const char* domain = json_object_get_string(json_object_iter_peek_value(&it));
+          if(domain)
+            hostname = domain;
+        }
+      } while(false);
       strlcpy(req->address, hostname, sizeof(req->address));
+      if (NULL != response)
+        json_object_put(response);
+      // if (json_response) free ?????
     } break;
     case 4: {
       const uint8_t *ipv6 =
