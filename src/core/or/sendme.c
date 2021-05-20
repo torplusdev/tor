@@ -563,7 +563,7 @@ sendme_circuit_data_received(circuit_t *circ, crypt_path_t *layer_hint)
   if (CIRCUIT_IS_ORIGIN(circ)) {
     tor_assert(layer_hint);
     --layer_hint->deliver_window;
-    ++layer_hint->total_package_received;
+    ++circ->total_package_received;
     deliver_window = layer_hint->deliver_window;
     domain = LD_APP;
   } else {
@@ -601,7 +601,7 @@ sendme_note_circuit_data_packaged(circuit_t *circ, crypt_path_t *layer_hint)
     /* Client side. */
     tor_assert(layer_hint);
     --layer_hint->package_window;
-    ++layer_hint->total_package_sent;
+    ++circ->total_package_sent;
     package_window = layer_hint->package_window;
     domain = LD_APP;
   } else {

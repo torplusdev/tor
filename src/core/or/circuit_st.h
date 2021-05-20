@@ -119,8 +119,8 @@ struct circuit_t {
    * circuit-level sendme cells to indicate that we're willing to accept
    * more. */
   int deliver_window;
-  int total_package_sent;
-  int total_package_received;
+  uint32_t total_package_sent;
+  uint32_t total_package_received;
   /**
    * How many cells do we have until we need to send one that contains
    * sufficient randomness?  Used to ensure that authenticated SENDME cells
