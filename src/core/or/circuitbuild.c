@@ -352,7 +352,7 @@ void
 circuit_log_path(int severity, unsigned int domain, origin_circuit_t *circ)
 {
   char *s = circuit_list_path(circ,1);
-  tor_log(severity,domain,"%s",s);
+  tor_log(severity,domain,"cpath glob_id=%u %s", circ->global_identifier, s);
   tor_free(s);
 }
 
@@ -492,6 +492,7 @@ circuit_establish_circuit(uint8_t purpose, extend_info_t *exit_ei, int flags)
     circuit_mark_for_close(TO_CIRCUIT(circ), END_CIRC_REASON_NOPATH);
     return NULL;
   }
+  circuit_log_path(LOG_NOTICE,LD_CIRC,circ);
 
   circuit_event_status(circ, CIRC_EVENT_LAUNCHED, 0);
 
