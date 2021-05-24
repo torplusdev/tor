@@ -352,7 +352,8 @@ void
 circuit_log_path(int severity, unsigned int domain, origin_circuit_t *circ)
 {
   char *s = circuit_list_path(circ,1);
-  tor_log(severity,domain,"cpath glob_id=%u %s", circ->global_identifier, s);
+  const char *purpose_str = circuit_purpose_to_string(circ->base_.purpose);
+  tor_log(severity,domain,"cpath glob_id=%u, purpose=>\"%s\", %s", circ->global_identifier, purpose_str, s);
   tor_free(s);
 }
 
