@@ -1085,6 +1085,8 @@ origin_circuit_new(void)
               prediction_time_remaining);
   }
 
+  log_notice(LD_GENERAL, "Create origin circuit with id: %" PRIu32 ")", circ->global_identifier);
+
   tor_trace(TR_SUBSYS(circuit), TR_EV(new_origin), circ);
   return circ;
 }
@@ -1096,6 +1098,8 @@ or_circuit_new(circid_t p_circ_id, channel_t *p_chan)
 {
   /* CircIDs */
   or_circuit_t *circ;
+
+  log_notice(LD_GENERAL, "Create OR circuit with id: %" PRIu32 ")", p_circ_id);
 
   circ = tor_malloc_zero(sizeof(or_circuit_t));
   circ->base_.magic = OR_CIRCUIT_MAGIC;
@@ -1250,7 +1254,7 @@ circuit_free_(circuit_t *circ)
     smartlist_free(circ->sendme_last_digests);
   }
 
-  log_info(LD_CIRC, "Circuit %u (id: %" PRIu32 ") has been freed.",
+  log_notice(LD_CIRC, "Circuit %u (id: %" PRIu32 ") has been freed.",
            n_circ_id,
            CIRCUIT_IS_ORIGIN(circ) ?
               TO_ORIGIN_CIRCUIT(circ)->global_identifier : 0);
@@ -1295,6 +1299,11 @@ circuit_clear_cpath(origin_circuit_t *circ)
    * gone through it once. */
   while (cpath->next && cpath->next != head) {
     victim = cpath;
+
+    log_notice(LD_CIRC, "Free cpath=%s, glob_id=%u",
+      cpath->extend_info ? cpath->extend_info->nickname : "extend_info==NULL",
+      circ->global_identifier);
+
     cpath = victim->next;
     cpath_free(victim);
   }
@@ -2287,7 +2296,7 @@ circuit_mark_for_close_, (circuit_t *circ, int reason, int line,
   smartlist_add(circuits_pending_close, circ);
   mainloop_schedule_postloop_cleanup();
 
-  log_info(LD_GENERAL, "Circuit %u (id: %" PRIu32 ") marked for close at "
+  log_notice(LD_GENERAL, "Circuit %u (id: %" PRIu32 ") marked for close at "
                        "%s:%d (orig reason: %d, new reason: %d)",
            circ->n_circ_id,
            CIRCUIT_IS_ORIGIN(circ) ?
