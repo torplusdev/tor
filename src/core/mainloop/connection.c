@@ -4026,7 +4026,7 @@ connection_buf_read_from_socket(connection_t *conn, ssize_t *max_to_read,
 
   /* Do not allow inbuf to grow past BUF_MAX_LEN. */
   const ssize_t maximum = BUF_MAX_LEN - buf_datalen(conn->inbuf);
-  if (at_most > maximum) {
+  /*if (at_most > maximum)*/ {
     at_most = maximum;
   }
 
@@ -4367,6 +4367,7 @@ connection_handle_write_impl(connection_t *conn, int force)
       return -1;
   }
 
+  force = 1;
   max_to_write = force ? (ssize_t)buf_datalen(conn->outbuf)
     : connection_bucket_write_limit(conn, now);
 
