@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	int port = atoi(argv[1]);
-	runServer(port,getTorRoute,processCommand, processCommandReplay, processPaymentCompete);
+	runServer(port,getTorRoute,processCommand, processCommandReplay, processPaymentCompete, NULL);
 	getchar();
 
   return 0;

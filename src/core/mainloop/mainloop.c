@@ -102,6 +102,7 @@
 #include "lib/crypt_ops/crypto_rand.h"
 #include "lib/err/backtrace.h"
 #include "lib/tls/buffers_tls.h"
+#include "lib/version/torversion.h"
 
 #include "lib/net/buffers_net.h"
 #include "lib/evloop/compat_libevent.h"
@@ -3162,7 +3163,10 @@ run_main_loop_until_done(void)
   int port = options->PPChannelCallbackPort;
   payment_messsages_for_sending = smartlist_new();
   payment_curl_request = smartlist_new();
-  if(port != -1) runServer(port, getTorRoute, processCommand, processCommandReplay, payment_chain_completed);
+  if ( port != -1 ) {
+    const char *server_version_string = get_version();
+    runServer(port, getTorRoute, processCommand, processCommandReplay, payment_chain_completed, server_version_string);
+  }
   int loop_result = 1;
   main_loop_should_exit = 0;
   main_loop_exit_value = 0;

@@ -45,7 +45,8 @@ extern "C" {
 int runServer(int port, void (*routeFunction)(const char* targetNode, tor_route *route),
               int (*commandProcessingFunction)(tor_command *command),
               int (*commandProcessingReplayFunction)(tor_command_replay *command),
-              int (*commandProcessingCompletedFunction)(payment_completed *command));
+              int (*commandProcessingCompletedFunction)(payment_completed *command),
+              const char *appVersionString /*= NULL*/);
 
 #ifdef __cplusplus
 }

@@ -16,6 +16,7 @@ private:
 	int       (*m_commandProcessor) (tor_command* command);
 	int       (*m_commandProcessorReplay) (tor_command_replay * command);
 	int       (*commandProcessingCompleted) (payment_completed * command);
+	std::string app_version = "undefined";
 
 	std::string* route2json(tor_route *route);
 	jsmn_parser m_jsonParser;
@@ -25,7 +26,8 @@ private:
         void (*routeFunction)(const char* targetNode, tor_route *route),
         int (*commandProcessingFunction)(tor_command* command),
         int (*commandProcessingReplayFunction)(tor_command_replay * command),
-        int (*commandProcessingCompletedFunction)(payment_completed *command));
+        int (*commandProcessingCompletedFunction)(payment_completed *command),
+		const char *app_version_string = NULL);
 
 	virtual bool handle(ufal::microrestd::rest_request& req) override;
 	

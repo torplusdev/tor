@@ -58,14 +58,16 @@ std::string* tor_rest_service::route2json(tor_route *route)
 
 tor_rest_service::tor_rest_service(void (* routeFunction)(const char* targetNode, tor_route *route),
         int (* commandProcessingFunction)(tor_command* command),
-                                   int (* commandProcessingReplayFunction)(tor_command_replay* command),
-                                   int (*commandProcessingCompletedFunction)(payment_completed *command))
+		int (* commandProcessingReplayFunction)(tor_command_replay* command),
+		int (*commandProcessingCompletedFunction)(payment_completed *command),
+		const char *app_version_string /*= NULL*/)
 {
 	m_routeCreator = routeFunction;
 	m_commandProcessor = commandProcessingFunction;
 	m_commandProcessorReplay = commandProcessingReplayFunction;
     commandProcessingCompleted = commandProcessingCompletedFunction;
-
+	if(NULL != app_version_string)
+		app_version = app_version_string;
 	jsmn_init(&m_jsonParser);
 }
 
@@ -77,10 +79,8 @@ bool tor_rest_service::handle(rest_request& req)
     if (req.method != "HEAD" && req.method != "GET" && req.method != "POST") 
         return req.respond_method_not_allowed("HEAD, GET, POST");
 
-	auto strRoutePrefix = string("/api/paymentRoute");
-	auto strCommandPrefix = string("/api/command");
-	
     if (!req.url.empty()) {
+		auto strRoutePrefix = string("/api/paymentRoute");
 	    if (req.url.rfind(strRoutePrefix,0) == 0)
 	    {
 	    	auto index = strRoutePrefix.length();
@@ -216,6 +216,10 @@ bool tor_rest_service::handle(rest_request& req)
 
 	    	return req.respond("application/json", "OK");
 	    }
+	    else if (req.url.rfind("/api/version",0) == 0) {
+
+	    	return req.respond("text/plain", app_version);
+		}
         else
         {
         	return req.respond_not_found();

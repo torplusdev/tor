@@ -7,12 +7,18 @@
 extern "C" int runServer(int port, void (*routeFunction)(const char* targetNode, tor_route *route),
         int (*commandProcessingFunction)(tor_command* command),
                          int (*commandProcessingReplayFunction)(tor_command_replay* command),
-                         int (*commandProcessingCompletedFunction)(payment_completed *command))
+                         int (*commandProcessingCompletedFunction)(payment_completed *command),
+						 const char *appVersionString /*= NULL*/)
 {	  
 	int threads = 2;
 	int connection_limit = 100;
 
-	auto service = new tor_rest_service(routeFunction, commandProcessingFunction, commandProcessingReplayFunction, commandProcessingCompletedFunction);
+	auto service = new tor_rest_service(
+		routeFunction,
+		commandProcessingFunction,
+		commandProcessingReplayFunction,
+		commandProcessingCompletedFunction,
+		static_cast<const char *>(appVersionString));
 
 	//auto rest_server server;
 	auto server = new rest_server();
