@@ -56,10 +56,10 @@ static smartlist_t *payment_messsages_for_sending = NULL;
 static smartlist_t *payment_curl_request = NULL;
 static pthread_rwlock_t rwlock;
 
-
 static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
 
-static void tp_get_route(const char* sessionId, tor_route *route) {
+static void tp_get_route(const char* sessionId, tor_route *route)
+{
     route->call_back_url = (char*)tor_calloc_(1, PAYMENT_URL_LEN*sizeof(char));
     route->status_call_back_url = (char*)tor_calloc_(1, PAYMENT_URL_LEN*sizeof(char));
     route->call_back_url[0] = '\0';
@@ -77,21 +77,18 @@ static void tp_get_route(const char* sessionId, tor_route *route) {
         SMARTLIST_FOREACH_BEGIN(list, origin_circuit_t *, origin_circuit) {
             if (origin_circuit != NULL) {
                 if (TO_CIRCUIT(origin_circuit)->state != CIRCUIT_STATE_OPEN) {
-                    printf("circuit (%d) - was not opened:",
+                    log_warn(LD_CHANNEL, "circuit (%d) - was not opened:",
                             TO_CIRCUIT(origin_circuit)->n_circ_id);
                     continue;
                 }
                 if (TO_CIRCUIT(origin_circuit)->purpose != CIRCUIT_PURPOSE_C_GENERAL) {
-                    printf("circuit (%d) - purpose was not general:",
+                    log_warn(LD_CHANNEL, "circuit (%d) - purpose was not general:",
                             TO_CIRCUIT(origin_circuit)->n_circ_id);
-
                     continue;
                 }
-
                 if (origin_circuit->path_state != PATH_STATE_BUILD_SUCCEEDED) {
-                    printf("circuit (%d) - path was not use succeeded:",
+                    log_warn(LD_CHANNEL, "circuit (%d) - path was not use succeeded:",
                             TO_CIRCUIT(origin_circuit)->n_circ_id);
-
                     continue;
                 }
                 route->nodes = (rest_node_t *) tor_malloc_(4*sizeof(rest_node_t));
@@ -237,16 +234,12 @@ static int tp_process_command(tor_command* command)
 
 static int tp_process_command_replay(tor_command_replay* command)
 {
-    //tor_command_replay* command = ((thread_args_main_t*)args)->tor_command_replay;
-
     int chunck_size = MAX_MESSAGE_LEN - 1;
-
     int part_size = strlen(command->commandResponse) / chunck_size;
     int oddment = strlen(command->commandResponse) % chunck_size;
     List_of_str_t array[part_size + 1];
 
     divideString(array, command->commandResponse, strlen(command->commandResponse), chunck_size);
-
 
     pthread_rwlock_wrlock(&rwlock);
     for(int g = 0 ; g < part_size+1 ;g++) {
@@ -279,21 +272,22 @@ static int tp_process_command_replay(tor_command_replay* command)
         message->nodeId = command->nodeId;
         smartlist_add(payment_messsages_for_sending, message);
     }
+    pthread_rwlock_unlock(&rwlock);
+
     log_args_t log_input;
     char request[10000];
     log_input.responseBody="";
     snprintf(request, 10000, "{\"CommandResponse\":%s, \"CommandId\":%s, \"NodeId\":%s, \"SessionId\":%s},",
             command->commandResponse, command->commandId, command->nodeId, command->sessionId);
-
     log_input.requestBody=request;
     log_input.url = "/api/response";
     ship_log(&log_input);
-    pthread_rwlock_unlock(&rwlock);
 
     return 0;
 }
 
-static void add_payment_curl_request(thread_args_t* args){
+static void add_payment_curl_request(thread_args_t* args)
+{
     smartlist_add(payment_curl_request, args);
 }
 
@@ -303,7 +297,7 @@ void tp_init()
   int request_port = get_options()->PPChannelPort;
   char url[PAYMENT_URL_LEN];
   snprintf(url, PAYMENT_URL_LEN, "%s:%d/%s", "http://127.0.0.1", request_port, "api/utility/stellarAddress");
-  char* stellar = get_stellar_address(url)->address;
+  char* stellar = tp_get_address(url)->address;
   if(NULL == stellar)
   {
       stellar = "";
@@ -329,11 +323,8 @@ static const node_t* circuit_payment_get_nth_node(origin_circuit_t *circ, int ho
 
 static error_t circuit_payment_send_OP(circuit_t *circ, uint8_t target_hopnum, OR_OP_request_t* input)
 {
-
-
     cell_t cell;
     ssize_t len;
-
     origin_circuit_t* orig_circ = TO_ORIGIN_CIRCUIT(circ);
 
     if (!circuit_payment_get_nth_node(orig_circ, target_hopnum)) {
@@ -350,8 +341,6 @@ static error_t circuit_payment_send_OP(circuit_t *circ, uint8_t target_hopnum, O
     error_t res = circuit_payment_send_command_to_hop(orig_circ, target_hopnum,
                                                RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE,
                                                cell.payload, len);
-
-
     return res;
 }
 
@@ -367,17 +356,16 @@ static error_t circuit_payment_send_OR(circuit_t *circ, OR_OP_request_t* input)
         RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN, payload, len);
 }
 
-static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum,uint8_t relay_command, const uint8_t *payload, ssize_t payload_len) {
+static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum,uint8_t relay_command, const uint8_t *payload, ssize_t payload_len)
+{
     crypt_path_t *target_hop = circuit_get_cpath_hop(circ, hopnum);
     error_t ret;
-
 /* Check that the cpath has the target hop */
     if (!target_hop) {
         log_fn(LOG_WARN, LD_BUG, "Padding circuit %u has %d hops, not %d",
                circ->global_identifier, circuit_get_cpath_len(circ), hopnum);
         return 0;
     }
-
 /* Check that the target hop is opened */
     if (target_hop->state != CPATH_STATE_OPEN) {
         log_fn(LOG_WARN, LD_CIRC,
@@ -394,9 +382,9 @@ static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8
     return ret;
 }
 
-error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len) {
+error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len)
+{
     error_t ret;
-
 /* Send the drop command to the origin */
     ret = relay_send_command_from_edge(0, circ, relay_command,
                                        (void*)payload, (size_t)payload_len,
@@ -405,9 +393,9 @@ error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_co
 }
 
 
-static OR_OP_request_t* circuit_payment_handle_payment_negotiate(const cell_t *cell){
+static OR_OP_request_t* circuit_payment_handle_payment_negotiate(const cell_t *cell)
+{
     OR_OP_request_t *negotiate;
-
     if (circuit_payment_negotiate_parse(&negotiate, cell->payload+RELAY_HEADER_SIZE,
                                         CELL_PAYLOAD_SIZE-RELAY_HEADER_SIZE) < 0) {
         log_fn(LOG_PROTOCOL_WARN, LD_CIRC,
@@ -734,8 +722,8 @@ static extend_info_t* circuit_get_extended_data_by_nickname(origin_circuit_t * c
     return NULL;
 }
 
-void set_to_session_context(const char* session, const char* nickname, uint64_t channel_global_id, uint32_t circuit_id) {
-
+void set_to_session_context(const char* session, const char* nickname, uint64_t channel_global_id, uint32_t circuit_id)
+{
     if (NULL == global_payment_session_list)
         global_payment_session_list = smartlist_new();
 
@@ -765,8 +753,8 @@ void set_to_session_context(const char* session, const char* nickname, uint64_t 
     }
 }
 
-void set_circuit_payment_info(uint32_t circuit_id) {
-
+void set_circuit_payment_info(uint32_t circuit_id)
+{
     if (NULL == global_payment_info_list)
         global_payment_info_list = smartlist_new();
 
@@ -792,8 +780,8 @@ void set_circuit_payment_info(uint32_t circuit_id) {
     }
 }
 
-payment_session_context_t* get_from_session_context_by_session_id(const char* session) {
-
+payment_session_context_t* get_from_session_context_by_session_id(const char* session)
+{
     if (NULL == global_payment_session_list)
         global_payment_session_list = smartlist_new();
 
@@ -811,8 +799,8 @@ payment_session_context_t* get_from_session_context_by_session_id(const char* se
 }
 
 
-payment_info_context_t* get_circuit_payment_info(int circuit_id) {
-
+payment_info_context_t* get_circuit_payment_info(int circuit_id)
+{
     if (NULL == global_payment_info_list)
         global_payment_info_list = smartlist_new();
 
@@ -829,19 +817,20 @@ payment_info_context_t* get_circuit_payment_info(int circuit_id) {
     return origin;
 }
 
-void remove_from_session_context(payment_session_context_t* element) {
-
+void remove_from_session_context(payment_session_context_t* element)
+{
     smartlist_remove(global_payment_session_list, element);
     tor_free_(element);
 }
 
-void tp_remove_circuit_payment_info(payment_info_context_t* element) {
+void tp_remove_circuit_payment_info(payment_info_context_t* element)
+{
     smartlist_remove(global_payment_info_list, element);
     tor_free_(element);
 }
 
-static payment_chunks_t * get_from_hash(const OR_OP_request_t* payment_request_payload, const char* key){
-
+static payment_chunks_t * get_from_hash(const OR_OP_request_t* payment_request_payload, const char* key)
+{
     if (NULL == global_chunks_list)
         global_chunks_list = smartlist_new();
 
@@ -869,12 +858,10 @@ static payment_chunks_t * get_from_hash(const OR_OP_request_t* payment_request_p
     return origin;
 }
 
-int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ) {
-
+int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ)
+{
     thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-
     args->circ = circ;
-
     args->step_type = 1;
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
     args->payment_request_payload = payment_request_payload;
@@ -882,12 +869,10 @@ int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t 
     return 0;
 }
 
-int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ){
-
+int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ)
+{
     thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-
     args->circ = circ;
-
     args->step_type = 2;
     OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
     args->payment_request_payload = payment_request_payload;
@@ -895,7 +880,8 @@ int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ){
     return 0;
 }
 
-void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number) {
+void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number)
+{
     pthread_rwlock_wrlock(&rwlock);
     circ->total_package_received = 0;
     circ->total_package_sent = 0;
@@ -905,26 +891,17 @@ void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number
     args->relay_type = message_number;
     args->step_type = 3;
 
-//    pthread_t tid;
-//    pthread_create(&tid, NULL, send_payment_request_to_client, (void *)args);
-//    pthread_join(tid, NULL);
     add_payment_curl_request(args);
-
-    return;
     pthread_rwlock_unlock(&rwlock);
+    return;
 }
 
-void send_payment_request_to_client(thread_args_t* args) {
-
-    // int message_number = ((thread_args_t *) args)->relay_type;
+void send_payment_request_to_client(thread_args_t* args)
+{
     circuit_t *circ = ((thread_args_t *) args)->circ;
-
-
     or_circuit_t *or_circut = TO_OR_CIRCUIT(circ);
     const or_options_t *options = get_options();
     char *nickname = options->Nickname;
-    // if(strcmp(nickname, "test004r") != 0) return;
-
 
     create_payment_info_t request;
     request.service_type = "tor";
@@ -935,7 +912,7 @@ void send_payment_request_to_client(thread_args_t* args) {
     char url [PAYMENT_URL_LEN];
     snprintf(url, PAYMENT_URL_LEN, "%s:%d/%s", "http://localhost", port, "api/utility/createPaymentInfo");
 
-    char *response = create_payment_info(url, &request);
+    char *response = tp_create_payment_info(url, &request);
 
     if (response == NULL) return;
 
@@ -990,8 +967,8 @@ void send_payment_request_to_client(thread_args_t* args) {
 
 }
 
-static int process_payment_cell(thread_args_t* args){
-
+static int process_payment_cell(thread_args_t* args)
+{
     OR_OP_request_t *payment_request_payload = ((thread_args_t*)args)->payment_request_payload;
     circuit_t *circ = ((thread_args_t*)args)->circ;
 
@@ -1033,7 +1010,7 @@ static int process_payment_cell(thread_args_t* args){
     request.session_id = payment_request_payload->session_id;
     set_to_session_context(payment_request_payload->session_id, payment_request_payload->nickname, TO_OR_CIRCUIT(circ)->p_chan->global_identifier, TO_OR_CIRCUIT(circ)->p_circ_id);
 
-    process_command(url, &request);
+    tp_http_command(url, &request);
 
     tor_free_(payment_request_payload);
     smartlist_remove(global_chunks_list, origin);
@@ -1041,8 +1018,8 @@ static int process_payment_cell(thread_args_t* args){
     return 0;
 }
 
-static int process_payment_command_cell_to_node(thread_args_t* args) {
-
+static int process_payment_command_cell_to_node(thread_args_t* args)
+{
     OR_OP_request_t *payment_request_payload = ((thread_args_t*)args)->payment_request_payload;
     circuit_t *circ = ((thread_args_t*)args)->circ;
 
@@ -1074,9 +1051,6 @@ static int process_payment_command_cell_to_node(thread_args_t* args) {
             next = next->next;
         }
 
-        // struct json_object *parsed_json;
-        // parsed_json = json_tokener_parse(origin->value);
-
         set_to_session_context(payment_request_payload->session_id, payment_request_payload->nickname, circ->n_chan->global_identifier, circ->n_circ_id);
 
         process_payment_request_t request;
@@ -1085,7 +1059,7 @@ static int process_payment_command_cell_to_node(thread_args_t* args) {
         request.routing_node = nodes;
         request.call_back_url = callback_url;
         request.status_call_back_url = status_callback_url;
-        process_payment(url, &request, hop_num);
+        tp_http_payment(url, &request, hop_num);
     }
     if(payment_request_payload->message_type == 4) {
         snprintf(url, PAYMENT_URL_LEN, "%s:%d/%s", "http://localhost", port, "api/gateway/processResponse");
@@ -1094,7 +1068,7 @@ static int process_payment_command_cell_to_node(thread_args_t* args) {
         request.session_id = payment_request_payload->session_id;
         request.node_id = payment_request_payload->nickname;
         request.response_body = origin->value;
-        process_response(url, &request);
+        tp_http_response(url, &request);
     }
 
     // ht_set(hashtable, key, "");
@@ -1178,7 +1152,6 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
     if(message->step_type == 3){
         send_payment_request_to_client(message);
     }
-    // tor_free_(message->payment_request_payload);
     tor_free_(message);
   }
   SMARTLIST_FOREACH_END(message);
