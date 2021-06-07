@@ -1088,9 +1088,9 @@ struct or_options_t {
 
   char *StellarAddress;//Tor+
 
-  bool SlowDownDataTransferRate;//Tor+
+  int SlowDownDataTransferRate;//Tor+
 
-  bool EnablePaymentLog;//Tor+
+  int EnablePaymentLog;//Tor+
 
   struct smartlist_t * PPResolvDomains;//Tor+
 

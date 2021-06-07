@@ -30,11 +30,7 @@
 
 static void test_payment_cell(void *arg)
 {
-    relay_header_t rh;
     cell_t cell;
-    tor_addr_t addr;
-    int ttl, r;
-    char *mem_op_hex_tmp = NULL;
     (void)arg;
     ssize_t len;
 
@@ -54,10 +50,10 @@ static void test_payment_cell(void *arg)
     input->command_id_length = strlen(input->command_id);
 
     input->command_type = 101;
-    input->command = 303;
-    input->version = 505;
+    input->command = 201;
+    input->version = 203;
     input->is_last = 1;
-    input->message_type = 606;
+    input->message_type = 206;
 
 
     len = circuit_payment_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE, input);
@@ -136,11 +132,8 @@ static void test_payment_payment_info(void *arg){
 
     remove_circuit_payment_info(context);
 
-    context = get_from_session_context_by_session_id(circuit_idl);
-
-    if(context != NULL){
-        tt_int_op(1, OP_EQ, 0);
-    }
+    payment_session_context_t *sess_paym_context = get_from_session_context_by_session_id((const char *)circuit_idl); // wrong argument type, what is meaning???
+    tt_ptr_op(sess_paym_context, OP_EQ, NULL);
 
     done:
     return;

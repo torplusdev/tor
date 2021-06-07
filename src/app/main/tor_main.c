@@ -29,8 +29,8 @@ int tor_main(int argc, char *argv[]);
 int
 main(int argc, char *argv[])
 {
-  bool deallocConsole = false;
   #ifdef _WIN32
+    bool deallocConsole = false;
     const char * TOR_PLUS_CMD = getenv("TOR_PLUS_CMD");
     bool console = false;
     if (TOR_PLUS_CMD != NULL) {

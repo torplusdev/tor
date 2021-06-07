@@ -193,16 +193,10 @@ void circuit_payment__free(OR_OP_request_t *obj)
 {
     if (obj == NULL)
         return;
-    circuit_payment_negotiate_clear(obj);
     trunnel_memwipe(obj, sizeof(circpad_negotiate_t));
     trunnel_free_(obj);
 }
 
-static void
-circuit_payment_negotiate_clear(OR_OP_request_t *obj)
-{
-    (void) obj;
-}
 
 
 OR_OP_request_t * payment_payload_new(void)
@@ -427,7 +421,6 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
     truncated:
     result = -2;
     goto fail;
-    check_failed:
     result = -1;
     goto fail;
     fail:

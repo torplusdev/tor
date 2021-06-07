@@ -96,7 +96,6 @@ ssize_t circuit_payment_negotiate_parse(OR_OP_request_t **output, const uint8_t 
 
 error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
 void circuit_payment__free(OR_OP_request_t *obj);
-static void circuit_payment_negotiate_clear(OR_OP_request_t *obj);
 ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const OR_OP_request_t *obj);
 void divideString(List_of_str_t* output, char *str, int len, int n);
 // public API
