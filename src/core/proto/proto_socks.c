@@ -605,7 +605,7 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
       const struct domainname_st *dns_name =
         socks5_client_request_getconst_dest_addr_domainname(trunnel_req);
       const char *hostname = domainname_getconstarray_name(dns_name);
-      const struct json_object* response = NULL;
+      struct json_object* response = NULL;
       do {
         if (0 != check_known_domains_list(hostname))
           break;

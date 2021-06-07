@@ -1632,6 +1632,32 @@ process_sendme_cell(const relay_header_t *rh, const cell_t *cell,
   return 0;
 }
 
+static int process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ) {
+
+    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
+
+    args->circ = circ;
+
+    args->step_type = 1;
+    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
+    args->payment_request_payload = payment_request_payload;
+    add_payment_curl_request(args);
+    return 0;
+}
+
+static int process_payment_cell_async(const cell_t *cell, circuit_t *circ){
+
+    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
+
+    args->circ = circ;
+
+    args->step_type = 2;
+    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
+    args->payment_request_payload = payment_request_payload;
+    add_payment_curl_request(args);
+    return 0;
+}
+
 /** A helper for connection_edge_process_relay_cell(): Actually handles the
  *  cell that we received on the connection.
  *
@@ -3177,16 +3203,12 @@ append_cell_to_circuit_queue(circuit_t *circ, channel_t *chan,
                              cell_t *cell, cell_direction_t direction,
                              streamid_t fromstream)
 {
- // wait_semaphore();
   or_circuit_t *orcirc = NULL;
   cell_queue_t *queue;
   int streams_blocked;
   int exitward;
   if (circ->marked_for_close)
-  {
-     // post_semaphore();
-      return;
-  }
+    return;
 
   exitward = (direction == CELL_DIRECTION_OUT);
   if (exitward) {
@@ -3206,7 +3228,6 @@ append_cell_to_circuit_queue(circuit_t *circ, channel_t *chan,
            max_circuit_cell_queue_size);
     circuit_mark_for_close(circ, END_CIRC_REASON_RESOURCELIMIT);
     stats_n_circ_max_cell_reached++;
-    //post_semaphore();
     return;
   }
 
@@ -3219,10 +3240,7 @@ append_cell_to_circuit_queue(circuit_t *circ, channel_t *chan,
   if (PREDICT_UNLIKELY(cell_queues_check_size())) {
     /* We ran the OOM handler which might have closed this circuit. */
     if (circ->marked_for_close)
-    {
-     //   post_semaphore();
-        return;
-    }
+      return;
   }
 
   /* If we have too many cells on the circuit, we should stop reading from
@@ -3244,7 +3262,6 @@ append_cell_to_circuit_queue(circuit_t *circ, channel_t *chan,
 
   /* New way: mark this as having waiting cells for the scheduler */
   scheduler_channel_has_waiting_cells(chan);
-//  post_semaphore();
 }
 
 /** Append an encoded value of <b>addr</b> to <b>payload_out</b>, which must
@@ -3345,37 +3362,6 @@ circuit_queue_streams_are_blocked(circuit_t *circ)
   }
 }
 
-static int process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ) {
-
-    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-
-    args->circ = circ;
-
-    args->step_type = 1;
-    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
-    args->payment_request_payload = payment_request_payload;
-//    pthread_t tid;
-//    pthread_create(&tid, NULL, process_payment_command_cell_to_node, (void *)args);
-//    pthread_join(tid, NULL);
-    add_payment_curl_request(args);
-    return 0;
-}
-
-static int process_payment_cell_async(const cell_t *cell, circuit_t *circ){
-
-    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-
-    args->circ = circ;
-
-    args->step_type = 2;
-    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
-    args->payment_request_payload = payment_request_payload;
-//    pthread_t tid;
-//    pthread_create(&tid, NULL, process_payment_cell, (void *)args);
-//    pthread_join(tid, NULL);
-    add_payment_curl_request(args);
-    return 0;
-}
 
 void send_payment_request_to_client_async(circuit_t *circ, int message_number) {
     pthread_rwlock_wrlock(&rwlock);

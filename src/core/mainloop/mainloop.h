@@ -59,7 +59,7 @@ typedef struct payment_message_for_sending_st {
     OR_OP_request_t * message;
 } payment_message_for_sending_t;
 
-int add_payment_curl_request(thread_args_t* args);
+void add_payment_curl_request(thread_args_t* args);
 void parse_node_id(node_id_item_t* output, char* string);
 
 int have_completed_a_circuit(void);

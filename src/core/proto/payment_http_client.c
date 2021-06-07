@@ -28,7 +28,7 @@ void ship_log(log_args_t* args) {
     if(!options->EnablePaymentLog) return;
 
     char *url = args->url;
-    char *requestBody = args->requestBody;
+    const char *requestBody = args->requestBody;
     char *responseBody = args->responseBody;
     json_object *json_request = json_object_new_object();
 
@@ -63,7 +63,7 @@ char* create_payment_info(char *url, create_payment_info_t* body) {
     json_object_object_add(json_request, "Amount", json_object_new_int(body->amount));
 
     const char* request_string = json_object_to_json_string(json_request);
-    args.requestBody = request_string;
+    args.requestBody = (char *)request_string;
     args.responseBody = "";
     ship_log(&args);
 
@@ -98,11 +98,11 @@ payment_response_t* process_payment(char *url, process_payment_request_t* body, 
     json_object_object_add(json_request, "PaymentRequest", json_object_new_string(body->payment_request));
 
     const char* request_string = json_object_to_json_string(json_request);
-    args.requestBody = request_string;
-    args.responseBody = "";
+    args.requestBody = (char *)request_string;
+    args.responseBody = (char *)"";
     ship_log(&args);
 
-    char* json_response = send_http_post_request(url, request_string);
+    /*char* json_response =*/ send_http_post_request(url, request_string);
     return NULL;
 }
 
@@ -121,9 +121,9 @@ payment_response_t* process_command(char *url, utility_command_t* body) {
 
 
     const char* request_string = json_object_to_json_string(json_request);
-    args.requestBody= request_string;
+    args.requestBody = (char *)request_string;
 
-    char* json_response = send_http_post_request(url, request_string);
+    /*char* json_response =*/ send_http_post_request(url, request_string);
 
   //  if(json_response == NULL)
         args.responseBody = "";
@@ -146,11 +146,11 @@ payment_response_t* process_response(char *url, utility_response_t* body) {
     json_object_object_add(json_request, "SessionId", json_object_new_string(body->session_id));
 
     const char* request_string = json_object_to_json_string(json_request);
-    args.requestBody = request_string;
+    args.requestBody = (char *)request_string;
     args.responseBody = "";
     ship_log(&args);
 
-    char* json_response = send_http_post_request(url, request_string);
+    /*char* json_response =*/ send_http_post_request(url, request_string);
 
     return NULL;
 }
@@ -160,9 +160,7 @@ stellar_address_response_t* get_stellar_address(char *url) {
     json_object *address_obj = json_object_object_get(json_response, "Address");
     const char *address = json_object_get_string(address_obj);
     struct stellar_address_response_t *response = tor_malloc_zero(sizeof(stellar_address_response_t));
-
-    response->address = address;
-
+    response->address = (char *)address;
     return response;
 }
 
