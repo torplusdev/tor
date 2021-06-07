@@ -130,9 +130,9 @@ static void test_payment_payment_info(void *arg){
 
     tt_int_op(context->circuit_id, OP_EQ, circuit_idl);
 
-    remove_circuit_payment_info(context);
+    tp_remove_circuit_payment_info(context);
 
-    payment_session_context_t *sess_paym_context = get_from_session_context_by_session_id((const char *)circuit_idl); // wrong argument type, what is meaning???
+    payment_session_context_t *sess_paym_context = get_from_session_context_by_session_id(NULL); // wrong argument type, what is meaning???
     tt_ptr_op(sess_paym_context, OP_EQ, NULL);
 
     done:

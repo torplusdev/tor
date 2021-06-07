@@ -27,20 +27,7 @@ struct entry_s {
     struct entry_t *next;
 };
 
-
-typedef struct thread_args_st {
-    OR_OP_request_t *payment_request_payload;
-    circuit_t *circ;
-    int relay_type;
-    int step_type;
-} thread_args_t;
-
 typedef struct entry_s entry_t;
-
-void initialize_array(char* array, int len);
-
-
-
 
 typedef struct node_id_item_ts {
     const char nickname[MAX_HEX_NICKNAME_LEN+1];
@@ -59,7 +46,6 @@ typedef struct payment_message_for_sending_st {
     OR_OP_request_t * message;
 } payment_message_for_sending_t;
 
-void add_payment_curl_request(thread_args_t* args);
 void parse_node_id(node_id_item_t* output, char* string);
 
 int have_completed_a_circuit(void);
