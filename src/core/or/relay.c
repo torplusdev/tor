@@ -47,7 +47,6 @@
 
 #define RELAY_PRIVATE
 
-#include <src/core/proto/payment_http_client.h>
 #include <zconf.h>
 #include "core/or/or.h"
 #include "feature/client/addressmap.h"
@@ -127,7 +126,6 @@ static void adjust_exit_policy_from_exitpolicy_failure(origin_circuit_t *circ,
  * cells. */
 #define CELL_QUEUE_LOWWATER_SIZE 64
 
-static pthread_rwlock_t rwlock;
 
 /** Stats: how many relay cells have originated at this hop, or have
  * been relayed onward (not recognized at this hop)?
@@ -316,7 +314,7 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
 
       if (!CIRCUIT_IS_ORIGIN(circ) && cell->command == RELAY_COMMAND_DATA) {
           if(circ->total_package_sent+circ->total_package_received > MAX_EXIT_MESSAGES) {
-              send_payment_request_to_client_async(circ, MAX_EXIT_MESSAGES);
+              tp_send_payment_request_to_client_async(circ, MAX_EXIT_MESSAGES);
           }
       }
       return 0;
@@ -387,7 +385,7 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
 
   if (!CIRCUIT_IS_ORIGIN(circ)) {
       if(circ->total_package_received > MAX_RELAY_MESSAGES) {
-          send_payment_request_to_client_async(circ, MAX_RELAY_MESSAGES);
+          tp_send_payment_request_to_client_async(circ, MAX_RELAY_MESSAGES);
       }
   }
 
@@ -456,7 +454,7 @@ circuit_package_relay_cell, (cell_t *cell, circuit_t *circ,
     ++circ->total_package_sent;
     if (!CIRCUIT_IS_ORIGIN(circ)) {
         if(circ->total_package_sent+circ->total_package_received > MAX_EXIT_MESSAGES) {
-            send_payment_request_to_client_async(circ, MAX_EXIT_MESSAGES);
+            tp_send_payment_request_to_client_async(circ, MAX_EXIT_MESSAGES);
         }
     }
   }
@@ -1632,32 +1630,6 @@ process_sendme_cell(const relay_header_t *rh, const cell_t *cell,
   return 0;
 }
 
-static int process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ) {
-
-    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-
-    args->circ = circ;
-
-    args->step_type = 1;
-    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
-    args->payment_request_payload = payment_request_payload;
-    add_payment_curl_request(args);
-    return 0;
-}
-
-static int process_payment_cell_async(const cell_t *cell, circuit_t *circ){
-
-    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-
-    args->circ = circ;
-
-    args->step_type = 2;
-    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
-    args->payment_request_payload = payment_request_payload;
-    add_payment_curl_request(args);
-    return 0;
-}
-
 /** A helper for connection_edge_process_relay_cell(): Actually handles the
  *  cell that we received on the connection.
  *
@@ -1795,10 +1767,6 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
          */
         sendme_connection_edge_consider_sending(conn);
       }
-//      if (!CIRCUIT_IS_ORIGIN(circ)) {
-//          send_payment_request_to_client_async(circ, MAX_EXIT_MESSAGES);
-//      }
-
       return 0;
     case RELAY_COMMAND_END:
       reason = rh->length > 0 ?
@@ -1993,9 +1961,9 @@ handle_relay_cell_command(cell_t *cell, circuit_t *circ,
     case RELAY_COMMAND_SENDME:
       return process_sendme_cell(rh, cell, circ, conn, layer_hint, domain);
     case RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN:
-      return process_payment_command_cell_to_node_async(cell, circ);
+      return tp_process_payment_command_cell_to_node_async(cell, circ);
     case RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE:
-      return process_payment_cell_async(cell, circ);
+      return tp_process_payment_cell_async(cell, circ);
     case RELAY_COMMAND_RESOLVE:
       if (layer_hint) {
         log_fn(LOG_PROTOCOL_WARN, LD_APP,
@@ -3360,24 +3328,4 @@ circuit_queue_streams_are_blocked(circuit_t *circ)
   } else {
     return circ->streams_blocked_on_p_chan;
   }
-}
-
-
-void send_payment_request_to_client_async(circuit_t *circ, int message_number) {
-    pthread_rwlock_wrlock(&rwlock);
-    circ->total_package_received = 0;
-    circ->total_package_sent = 0;
-    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-
-    args->circ = circ;
-    args->relay_type = message_number;
-    args->step_type = 3;
-
-//    pthread_t tid;
-//    pthread_create(&tid, NULL, send_payment_request_to_client, (void *)args);
-//    pthread_join(tid, NULL);
-    add_payment_curl_request(args);
-
-    return;
-    pthread_rwlock_unlock(&rwlock);
 }

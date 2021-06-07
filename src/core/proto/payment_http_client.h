@@ -1,3 +1,6 @@
+#ifndef __PAYMENT_HTTP_CLIENT_H__INCLUDED__
+#define __PAYMENT_HTTP_CLIENT_H__INCLUDED__
+
 #include "trunnel/circpad_negotiation.h"
 #include "lib/evloop/timers.h"
 #include <json-c/json.h>
@@ -57,8 +60,6 @@ typedef struct stellar_address_response_t {
 
 } stellar_address_response_t;
 
-//public API
-
 int
 circuit_get_num_by_nickname(origin_circuit_t *circ, char* nickname);
 
@@ -74,3 +75,5 @@ stellar_address_response_t* get_stellar_address(char *url);
 void ship_log(log_args_t* args);
 char* send_http_post_request(const char* url_input, const char* json);
 json_object* send_http_get_request(const char* url_input);
+
+#endif // __PAYMENT_HTTP_CLIENT_H__INCLUDED__

@@ -12,9 +12,6 @@
 #ifndef TOR_RELAY_H
 #define TOR_RELAY_H
 
-void send_payment_request_to_client(void* args);
-void send_payment_request_to_client_async(circuit_t *circ, int message_number);
-
 extern uint64_t stats_n_relay_cells_relayed;
 extern uint64_t stats_n_relay_cells_delivered;
 extern uint64_t stats_n_circ_max_cell_reached;
