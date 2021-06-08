@@ -91,11 +91,11 @@ static void test_payment_cell(void *arg)
 }
 
 
-static void test_payment_session_context(void *arg){
-
-
-    char* session_id = "sdfgjkhsdfjkh";
-    char* nickname = "nickname";
+static void test_payment_session_context(void *arg)
+{
+    (void)arg;
+    const char* session_id = "sdfgjkhsdfjkh";
+    const char* nickname = "nickname";
     uint64_t channel_global_id =101;
     uint32_t circuit_idl = 202;
     set_to_session_context(session_id, nickname, channel_global_id, circuit_idl);
@@ -120,8 +120,9 @@ static void test_payment_session_context(void *arg){
     return;
 }
 
-static void test_payment_payment_info(void *arg){
-
+static void test_payment_payment_info(void *arg)
+{
+    (void)arg;
     uint32_t circuit_idl = 202;
 
     set_circuit_payment_info(circuit_idl);

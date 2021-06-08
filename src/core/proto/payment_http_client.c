@@ -25,12 +25,12 @@ void ship_log(log_args_t* args)
     if( !options->EnablePaymentLog )
         return;
 
-    char *url = args->url;
+    const char *url = args->url;
     const char *requestBody = args->requestBody;
-    char *responseBody = args->responseBody;
+    const char *responseBody = args->responseBody;
     /* build post data */
     json_object *json_request = json_object_new_object();
-    char *nickname = options->Nickname;
+    const char *nickname = options->Nickname;
     json_object_object_add(json_request, "NodeNickname", json_object_new_string(nickname));
     json_object_object_add(json_request, "RequestUrl", json_object_new_string(url));
     json_object_object_add(json_request, "RequestBody", json_object_new_string(requestBody));
@@ -138,7 +138,7 @@ payment_response_t* tp_http_response(char *url, utility_response_t* body) {
 }
 
 /* callback for curl fetch */
-size_t curl_callback (void *contents, size_t size, size_t nmemb, void *userp) {
+static size_t curl_callback (void *contents, size_t size, size_t nmemb, void *userp) {
     size_t realsize = size * nmemb;                             /* calculate buffer size */
     struct curl_fetch_st *p = (struct curl_fetch_st *) userp;   /* cast pointer to fetch struct */
 
@@ -169,7 +169,7 @@ size_t curl_callback (void *contents, size_t size, size_t nmemb, void *userp) {
 }
 
 /* fetch and return url body via curl */
-CURLcode curl_fetch_url(CURL *ch, const char *url, struct curl_fetch_st *fetch) {
+static CURLcode curl_fetch_url(CURL *ch, const char *url, struct curl_fetch_st *fetch) {
     CURLcode rcode;                   /* curl result code */
 
     /* init payload */
@@ -295,7 +295,7 @@ char* tp_http_post_request(const char* url_input, const char* request_json)
     return NULL;
 }
 
-static json_object* tp_http_get_request(const char* url_input)
+json_object* tp_http_get_request(const char* url_input)
 {
     CURL *ch;                                               /* curl handle */
     CURLcode rcode;                                         /* curl result code */
@@ -305,12 +305,6 @@ static json_object* tp_http_get_request(const char* url_input)
     struct curl_fetch_st curl_fetch;                        /* curl fetch struct */
     struct curl_fetch_st *cf = &curl_fetch;                 /* pointer to fetch struct */
     struct curl_slist *headers = NULL;                      /* http headers to send with request */
-
-
-//    request_response_t* response;
-//    response = malloc(sizeof(request_response_t));
-//    response->error_code = 1;
-//    response->json_response = NULL;
 
     /* url to test site */
 
@@ -325,13 +319,6 @@ static json_object* tp_http_get_request(const char* url_input)
     /* set content type */
     headers = curl_slist_append(headers, "Accept: application/json");
     headers = curl_slist_append(headers, "Content-Type: application/json");
-
-//   json = json_object_new_object();
-//
-//    /* build post data */
-//    json_object_object_add(json, "title", json_object_new_string(body->prm_1));
-//    json_object_object_add(json, "body", json_object_new_string(body->prm_2));
-//    json_object_object_add(json, "userId", json_object_new_int(133));
 
     /* set curl options */
     curl_easy_setopt(ch, CURLOPT_CUSTOMREQUEST, "GET");
@@ -386,13 +373,4 @@ static json_object* tp_http_get_request(const char* url_input)
 
     /* exit */
     return NULL;
-}
-
-stellar_address_response_t* tp_get_address(char *url) {
-    json_object* json_response = tp_http_get_request(url);
-    json_object *address_obj = json_object_object_get(json_response, "Address");
-    const char *address = json_object_get_string(address_obj);
-    struct stellar_address_response_t *response = tor_malloc_zero(sizeof(stellar_address_response_t));
-    response->address = (char *)address;
-    return response;
 }

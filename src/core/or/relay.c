@@ -94,7 +94,6 @@
 #include "core/or/destroy_cell_queue_st.h"
 #include "core/or/entry_connection_st.h"
 #include "core/or/extend_info_st.h"
-#include "core/or/rate_limiter.h"
 #include "core/or/or_circuit_st.h"
 #include "core/or/origin_circuit_st.h"
 #include "feature/nodelist/routerinfo_st.h"

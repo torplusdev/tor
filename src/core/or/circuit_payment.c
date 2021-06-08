@@ -27,8 +27,6 @@
 #include <src/core/or/or_circuit_st.h>
 #include "lib/version/torversion.h"
 
-#define tm_zero_mem(buf, len) memset((buf), 0, (len))
-
 #define TRUNNEL_SET_ERROR_CODE(obj) \
   do {                              \
     (obj)->trunnel_error_code_ = 1; \
@@ -49,6 +47,14 @@ int sendmecell_deadcode_dummy__ = 0;
     }                                                            \
   } while (0)
 
+const int chunck_size = MAX_MESSAGE_LEN - 1;
+typedef struct thread_args_st {
+    OR_OP_request_t *payment_request_payload;
+    circuit_t *circ;
+    int relay_type;
+    int step_type;
+} thread_args_t;
+
 static smartlist_t *global_payment_session_list = NULL;
 static smartlist_t *global_payment_info_list = NULL;
 static smartlist_t *global_chunks_list = NULL;
@@ -57,6 +63,7 @@ static smartlist_t *payment_curl_request = NULL;
 static pthread_rwlock_t rwlock;
 
 static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
+static error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
 
 static void tp_get_route(const char* sessionId, tor_route *route)
 {
@@ -101,10 +108,8 @@ static void tp_get_route(const char* sessionId, tor_route *route)
                         route->nodes = NULL;
                         continue;
                     }
-                    route->nodes[i].node_id = (char *) tor_calloc_(1, (MAX_HEX_NICKNAME_LEN+1) * sizeof(char));
-                    strncpy(route->nodes[i].node_id, next->extend_info->nickname, MAX_HEX_NICKNAME_LEN+1);
-                    route->nodes[i].address = (char *) tor_calloc_(1, (STELLAR_ADDRESS_LEN) * sizeof(char));
-                    strncpy(route->nodes[i].address, next->extend_info->stellar_address,STELLAR_ADDRESS_LEN);
+                    route->nodes[i].node_id = tor_strdup(next->extend_info->nickname);
+                    route->nodes[i].address = tor_strdup(next->extend_info->stellar_address);
                     next = next->next;
                 }
                 route->nodes_len = 3;
@@ -114,10 +119,10 @@ static void tp_get_route(const char* sessionId, tor_route *route)
                     TO_CIRCUIT(origin_circuit)->n_circ_id);
 
                 log_args_t* log_input = tor_malloc_(sizeof(log_args_t));
-                log_input->requestBody = (char*) tor_calloc_(1, 500);
+                log_input->requestBody = (const char*) tor_calloc_(1, 500);
                 log_input->responseBody = "";
 
-                snprintf(log_input->requestBody, 500, "[%s:%s],[%s:%s],[%s:%s]", route->nodes[0].node_id, route->nodes[0].address,
+                snprintf((char *)log_input->requestBody, 500, "[%s:%s],[%s:%s],[%s:%s]", route->nodes[0].node_id, route->nodes[0].address,
                 /*log_input->requestBody,*/ route->nodes[1].node_id, route->nodes[1].address,
                 /*log_input->requestBody,*/ route->nodes[2].node_id, route->nodes[2].address);
 
@@ -149,47 +154,26 @@ static int tp_payment_chain_completed(payment_completed* command)
     return 0;
 }
 
-static void divideString(List_of_str_t* output, char *str, int len, int n)
+static const char* tp_get_buffer_part_number(const char * buffer, size_t buffer_size, size_t part_size, size_t part_number, size_t *real_part_size)
 {
-    int str_size = len;
-    int i;
-    int part_size;
-    part_size = str_size / n;
-    int oddment = str_size % n;
+    const size_t part_offset = part_number * part_size;
+    const char *buf_ptr = &buffer[part_offset];
+    if ((part_offset + part_size) > buffer_size)
+        *real_part_size = buffer_size - part_offset;
+    else
+        *real_part_size = part_offset;
 
-
-// Check if string can be divided in
-// n equal parts
-    if (str_size / n == 0)
-    {
-        tm_zero_mem(output[0].msg, MAX_MESSAGE_LEN);
-        strncpy(output[0].msg, str, str_size);
-    }
-// Calculate the size of parts to
-// find the division points
-
-    for (i = 0; i < part_size; i++)
-    {
-        tm_zero_mem(output[i].msg, MAX_MESSAGE_LEN);
-        strncpy(output[i].msg, &str[i*n], n);
-    }
-
-    tm_zero_mem(output[part_size].msg, MAX_MESSAGE_LEN);
-    strncpy(output[part_size].msg, &str[part_size*n], oddment);
+    return buf_ptr;
 }
 
 static int tp_process_command(tor_command* command)
 {
-    const int chunck_size = MAX_MESSAGE_LEN - 1;
-    int part_size = strlen(command->commandBody) / chunck_size;
-    int oddment = strlen(command->commandBody) % chunck_size;
-    List_of_str_t array[part_size + 1];
-
-    divideString(array, command->commandBody, strlen(command->commandBody), chunck_size);
+    const size_t body_len = strlen(command->commandBody);
+    const int part_size = body_len / chunck_size;
 
     pthread_rwlock_wrlock(&rwlock);
 
-    for(int g = 0 ; g < part_size+1 ;g++) {
+    for(int g = 0 ; g <= part_size ;g++) {
         payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
         OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
@@ -201,17 +185,12 @@ static int tp_process_command(tor_command* command)
         input->session_id_length = strlen(command->sessionId);
         strcpy(input->command_id, command->commandId);
         input->command_id_length = strlen(command->commandId);
-        strncpy(input->message, array[g].msg, chunck_size);
-        if (g < part_size) {
-
-            input->message[chunck_size] = '\0';
-            input->messageLength = chunck_size;
-            input->is_last = 0;
-        } else {
-            input->message[oddment] = '\0';
-            input->messageLength = oddment;
-            input->is_last = 1;
-        }
+        size_t chunck_real_size = 0;
+        const char * buf_ptr = tp_get_buffer_part_number(command->commandBody, body_len, chunck_size, g, &chunck_real_size);
+        strncpy(input->message, buf_ptr, chunck_real_size);
+        input->message[chunck_real_size] = '\0';
+        input->messageLength = chunck_real_size;
+        input->is_last = (g < part_size) ? 0 : 1;
 
         message->message = input;
         message->nodeId = command->nodeId;
@@ -234,17 +213,14 @@ static int tp_process_command(tor_command* command)
 
 static int tp_process_command_replay(tor_command_replay* command)
 {
-    int chunck_size = MAX_MESSAGE_LEN - 1;
-    int part_size = strlen(command->commandResponse) / chunck_size;
-    int oddment = strlen(command->commandResponse) % chunck_size;
-    List_of_str_t array[part_size + 1];
-
-    divideString(array, command->commandResponse, strlen(command->commandResponse), chunck_size);
+    const size_t body_len = strlen(command->commandResponse);
+    const int part_size = body_len / chunck_size;
 
     pthread_rwlock_wrlock(&rwlock);
-    for(int g = 0 ; g < part_size+1 ;g++) {
+    for(int g = 0 ; g <= part_size ;g++) {
         payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
         OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
+        message->message = input;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
         strcpy(input->nickname, command->nodeId);
         input->command_type = 0;
@@ -256,18 +232,12 @@ static int tp_process_command_replay(tor_command_replay* command)
         input->session_id_length = strlen(command->sessionId);
         strcpy(input->command_id, command->commandId);
         input->command_id_length = strlen(command->commandId);
-        strncpy(input->message, array[g].msg, chunck_size);
-        if (g < part_size) {
-            input->is_last = 0;
-            input->message[chunck_size] = '\0';
-            input->messageLength = chunck_size;
-        }
-        else {
-            input->message[oddment] = '\0';
-            input->messageLength = oddment;
-            input->is_last = 1;
-        }
-        message->message = input;
+        size_t chunck_real_size = 0;
+        const char * buf_ptr = tp_get_buffer_part_number(command->commandResponse, body_len, chunck_size, g, &chunck_real_size);
+        strncpy(input->message, buf_ptr, chunck_real_size);
+        input->message[chunck_real_size] = '\0';
+        input->messageLength = chunck_real_size;
+        input->is_last = (g < part_size) ? 0 : 1;
         message->sessionId = command->sessionId;
         message->nodeId = command->nodeId;
         smartlist_add(payment_messsages_for_sending, message);
@@ -291,21 +261,39 @@ static void add_payment_curl_request(thread_args_t* args)
     smartlist_add(payment_curl_request, args);
 }
 
-void tp_init()
+void tp_fill_stellar_address(char *dst)
 {
-  or_options_t *options = get_options_mutable();
-  int request_port = get_options()->PPChannelPort;
-  char url[PAYMENT_URL_LEN];
-  snprintf(url, PAYMENT_URL_LEN, "%s:%d/%s", "http://127.0.0.1", request_port, "api/utility/stellarAddress");
-  char* stellar = tp_get_address(url)->address;
-  if(NULL == stellar)
-  {
-      stellar = "";
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+    strncpy(dst, get_options()->StellarAddress, STELLAR_ADDRESS_LEN);
+#pragma GCC diagnostic pop   
+}
+
+static const char* tp_get_address(void)
+{
+    int request_port = get_options()->PPChannelPort;
+    char url[PAYMENT_URL_LEN];
+    snprintf(url, PAYMENT_URL_LEN, "%s:%d/%s", "http://127.0.0.1", request_port, "api/utility/stellarAddress");
+    json_object* json_response = tp_http_get_request(url);
+    json_object *address_obj = json_object_object_get(json_response, "Address");
+    if (NULL == address_obj)
+        return NULL;
+    const char *address = json_object_get_string(address_obj);
+    if (NULL != address)
+        return tor_strdup(address);
+    return NULL;
+}
+
+void tp_init(void)
+{
+  const char* stellar = tp_get_address();
+  if(NULL != stellar) {
+    or_options_t *options = get_options_mutable();
+    options->StellarAddress = tor_strdup(stellar);
   }
-  options->StellarAddress = stellar;
-  int port = options->PPChannelCallbackPort;
   payment_messsages_for_sending = smartlist_new();
   payment_curl_request = smartlist_new();
+  const int port = get_options()->PPChannelCallbackPort;
   if ( port != -1 ) {
     const char *server_version_string = get_version();
     runServer(port, tp_get_route, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, server_version_string);
@@ -331,7 +319,7 @@ static error_t circuit_payment_send_OP(circuit_t *circ, uint8_t target_hopnum, O
         return 0;
     }
 
-    memset(&cell, 0, sizeof(cell_t));
+    tp_zero_mem(&cell, sizeof(cell_t));
 
     cell.command = CELL_RELAY;
 
@@ -382,7 +370,7 @@ static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8
     return ret;
 }
 
-error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len)
+static error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len)
 {
     error_t ret;
 /* Send the drop command to the origin */
@@ -414,21 +402,7 @@ static void circuit_payment__free(OR_OP_request_t *obj)
     trunnel_free_(obj);
 }
 
-ssize_t circuit_payment_negotiate_parse(OR_OP_request_t **output, const uint8_t *input, const size_t len_in)
-{
-    ssize_t result;
-    *output = payment_payload_new();
-    if (NULL == *output)
-        return -1;
-    result = payment_into(*output, input, len_in);
-    if (result < 0) {
-        circuit_payment__free(*output);
-        *output = NULL;
-    }
-    return result;
-}
-
-OR_OP_request_t * payment_payload_new(void)
+static OR_OP_request_t * payment_payload_new(void)
 {
     OR_OP_request_t *val = tor_malloc_(sizeof(OR_OP_request_t));
     if (NULL == val)
@@ -437,10 +411,7 @@ OR_OP_request_t * payment_payload_new(void)
     return val;
 }
 
-
-
-ssize_t
-payment_into(OR_OP_request_t *obj, const uint8_t *input, const size_t len_in)
+static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const size_t len_in)
 {
     const uint8_t *ptr = input;
     size_t remaining = len_in;
@@ -520,6 +491,20 @@ payment_into(OR_OP_request_t *obj, const uint8_t *input, const size_t len_in)
     return -2;
     fail:
     result = -1;
+    return result;
+}
+
+ssize_t circuit_payment_negotiate_parse(OR_OP_request_t **output, const uint8_t *input, const size_t len_in)
+{
+    ssize_t result;
+    *output = payment_payload_new();
+    if (NULL == *output)
+        return -1;
+    result = payment_into(*output, input, len_in);
+    if (result < 0) {
+        circuit_payment__free(*output);
+        *output = NULL;
+    }
     return result;
 }
 
@@ -658,12 +643,8 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
 }
 
 
-int
-circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname)
+static int circuit_get_num_by_nickname(origin_circuit_t * circ, const char* nickname)
 {
-    char nickname_array[USER_NAME_LEN];
-    strcpy(nickname_array, nickname);
-
     int n = 1;
     if(strcmp(circ->cpath->extend_info->nickname, nickname) == 0)
         return 1;
@@ -676,7 +657,7 @@ circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname)
             cpath_next = cpath->next;
             ++n;
             if(cpath_next->extend_info == NULL) return 0;
-            if(strcmp(cpath_next->extend_info->nickname, nickname_array) == 0)
+            if(strcmp(cpath_next->extend_info->nickname, nickname) == 0)
                 return n;
         }
     }
@@ -698,28 +679,6 @@ static int circuit_get_length(origin_circuit_t * circ)
         }
     }
     return n;
-}
-
-static extend_info_t* circuit_get_extended_data_by_nickname(origin_circuit_t * circ, char* nickname)
-{
-    char nickname_array[USER_NAME_LEN];
-    strcpy(nickname_array, nickname);
-    int n = 1;
-    if(strcmp(circ->cpath->extend_info->nickname, nickname) == 0)
-        return circ->cpath->extend_info;
-    if (circ != NULL && circ->cpath != NULL) {
-        crypt_path_t *cpath, *cpath_next = NULL;
-        for (cpath = circ->cpath;
-             cpath->state == CPATH_STATE_OPEN
-             && cpath_next != circ->cpath;
-             cpath = cpath_next) {
-            cpath_next = cpath->next;
-            ++n;
-            if(strcmp(cpath_next->extend_info->nickname, nickname_array) == 0)
-                return cpath_next->extend_info;
-        }
-    }
-    return NULL;
 }
 
 void set_to_session_context(const char* session, const char* nickname, uint64_t channel_global_id, uint32_t circuit_id)
@@ -799,7 +758,7 @@ payment_session_context_t* get_from_session_context_by_session_id(const char* se
 }
 
 
-payment_info_context_t* get_circuit_payment_info(int circuit_id)
+payment_info_context_t* get_circuit_payment_info(uint32_t circuit_id)
 {
     if (NULL == global_payment_info_list)
         global_payment_info_list = smartlist_new();
@@ -846,8 +805,8 @@ static payment_chunks_t * get_from_hash(const OR_OP_request_t* payment_request_p
 
     if(origin == NULL){
         payment_chunks_t* ent = (payment_chunks_t*)tor_malloc_(sizeof(payment_chunks_t));
-        strncpy(ent->key, key, PAYMENT_HASH_KEY_LEN);
-        strncpy(ent->value, payment_request_payload->message, MAX_MESSAGE_LEN);
+        memcpy(ent->key, key, PAYMENT_HASH_KEY_LEN);
+        memcpy(ent->value, payment_request_payload->message, MAX_MESSAGE_LEN);
         origin = ent;
         smartlist_add(global_chunks_list, ent);
     }
@@ -896,7 +855,7 @@ void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number
     return;
 }
 
-void send_payment_request_to_client(thread_args_t* args)
+static void send_payment_request_to_client(thread_args_t* args)
 {
     circuit_t *circ = ((thread_args_t *) args)->circ;
     or_circuit_t *or_circut = TO_OR_CIRCUIT(circ);
@@ -930,41 +889,33 @@ void send_payment_request_to_client(thread_args_t* args)
     OR_OP_request_t input;
     input.version = 0;
     input.message_type = 1;
-    tm_zero_mem(input.command_id, COMMAND_ID_LEN);
-    tm_zero_mem(input.session_id, SESSION_ID_LEN);
+    tp_zero_mem(input.command_id, COMMAND_ID_LEN);
+    tp_zero_mem(input.session_id, SESSION_ID_LEN);
     input.command_id_length = 0;
     input.session_id_length = strlen(session);
-    strncpy(input.session_id, session, SESSION_ID_LEN);
+    memcpy(input.session_id, session, SESSION_ID_LEN);
     input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
-    tm_zero_mem(input.nickname, USER_NAME_LEN);
-    strncpy(input.nickname, nickname, USER_NAME_LEN);
+    tp_zero_mem(input.nickname, USER_NAME_LEN);
+    memcpy(input.nickname, nickname, USER_NAME_LEN);
     input.nicknameLength = strlen(nickname);
     input.is_last = 0;
-    int chunck_size = MAX_MESSAGE_LEN - 1;
-    input.messageTotalLength = strlen(response);
-    int part_size = strlen(response) / chunck_size;
-    int oddment = strlen(response) % chunck_size;
-    List_of_str_t array[part_size + 1];
-    divideString(array, response, strlen(response), chunck_size);
-    for (int g = 0; g < part_size; g++) {
-        tm_zero_mem(input.message, MAX_MESSAGE_LEN);
-        strncpy(input.message, array[g].msg, chunck_size);
-        input.message[chunck_size] = '\0';
-        input.messageLength = chunck_size;
+    const size_t body_len = strlen(response);
+    input.messageTotalLength = body_len;
+    const int part_size =  body_len / chunck_size;
+    for (int g = 0; g <= part_size; g++) {
+        tp_zero_mem(input.message, MAX_MESSAGE_LEN);
+        size_t chunck_real_size = 0;
+        const char * buf_ptr = tp_get_buffer_part_number(response, body_len, chunck_size, g, &chunck_real_size);
+        memcpy(input.message, buf_ptr, chunck_real_size);
+        input.message[chunck_real_size] = 0;
+        input.messageLength = chunck_real_size;
+        input.is_last = (g < part_size) ? 0 : 1;
         circuit_payment_send_OR(circ, &input);
     }
-    tm_zero_mem(input.message, MAX_MESSAGE_LEN);
-    strncpy(input.message, array[part_size].msg, oddment);
-    input.message[oddment] = '\0';
-    input.messageLength = oddment;
-    input.is_last = 1;
-    circuit_payment_send_OR(circ, &input);
-
 
     tor_free_(response);
 
     return;
-
 }
 
 static int process_payment_cell(thread_args_t* args)
@@ -1042,8 +993,9 @@ static int process_payment_command_cell_to_node(thread_args_t* args)
         // routing_node_t nodes[0];
         origin_circuit_t* origin_circuit = TO_ORIGIN_CIRCUIT(circ);
         int hop_num = circuit_get_num_by_nickname(origin_circuit, payment_request_payload->nickname);
-        if(hop_num == 0) return 0;
-        routing_node_t nodes[hop_num-1];
+        if(hop_num == 0)
+            return 0;
+        routing_node_t *nodes = tor_calloc(sizeof(routing_node_t), hop_num);
         crypt_path_t * next = origin_circuit->cpath;
         for (int i = 0; i < hop_num-1; ++i) {
             nodes[i].node_id = next->extend_info->nickname;
@@ -1060,6 +1012,7 @@ static int process_payment_command_cell_to_node(thread_args_t* args)
         request.call_back_url = callback_url;
         request.status_call_back_url = status_callback_url;
         tp_http_payment(url, &request, hop_num);
+        tor_free(nodes);
     }
     if(payment_request_payload->message_type == 4) {
         snprintf(url, PAYMENT_URL_LEN, "%s:%d/%s", "http://localhost", port, "api/gateway/processResponse");
@@ -1080,8 +1033,9 @@ static int process_payment_command_cell_to_node(thread_args_t* args)
 
 int tp_payment_requests_callback(time_t now, const or_options_t *options)
 {
-  pthread_rwlock_wrlock(&rwlock);
-  SMARTLIST_FOREACH_BEGIN(payment_messsages_for_sending, payment_message_for_sending_t*, message) {
+    (void) now; (void) options;
+    pthread_rwlock_wrlock(&rwlock);
+    SMARTLIST_FOREACH_BEGIN(payment_messsages_for_sending, payment_message_for_sending_t*, message) {
     if(message->message == NULL) {
       payment_session_context_t *session_context = get_from_session_context_by_session_id(
               message->sessionId);
@@ -1089,7 +1043,7 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
         OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
         input->is_last = 1;
-        strncpy(input->session_id, message->sessionId, strlen(message->sessionId));
+        memcpy(input->session_id, message->sessionId, sizeof(input->session_id));
         input->session_id_length = strlen(message->sessionId);
         input->message_type = 100;
         input->command_type = 0;
