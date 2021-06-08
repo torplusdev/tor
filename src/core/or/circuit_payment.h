@@ -28,7 +28,9 @@ struct cell_t;
 #define PAYMENT_NODE_ID 300
 #define PAYMENT_HASH_KEY_LEN 150
 #define PAYMENT_URL_LEN 1000
-typedef int error_t;
+typedef int32_t error_t;
+
+#define tp_zero_mem(buf, len) memset((buf), 0, (len))
 
 struct OR_OP_request_st {
     uint8_t version;
@@ -46,10 +48,6 @@ struct OR_OP_request_st {
     char message[MAX_MESSAGE_LEN];
     uint16_t messageTotalLength;
 };
-struct List_of_str_st {
-    char msg[MAX_MESSAGE_LEN];
-};
-
 
 typedef struct payment_session_context_st {
     char session_id[PAYMENT_HASH_KEY_LEN];
@@ -79,35 +77,21 @@ typedef struct chunk_payment_st {
     list_of_chunks_t list[50];
 }chunk_payment_t;
 
-typedef struct List_of_str_st List_of_str_t;
-
 typedef struct OR_OP_request_st OR_OP_request_t;
 
-typedef struct thread_args_st {
-    OR_OP_request_t *payment_request_payload;
-    circuit_t *circ;
-    int relay_type;
-    int step_type;
-} thread_args_t;
-
-void tp_init();
-
-OR_OP_request_t * payment_payload_new(void);
-ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const size_t len_in);
-ssize_t circuit_payment_negotiate_parse(OR_OP_request_t **output, const uint8_t *input, const size_t len_in);
-
-error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
-ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const OR_OP_request_t *obj);
 // public API
+void tp_init(void);
+void tp_fill_stellar_address(char *dst);
 
-int circuit_get_num_by_nickname(origin_circuit_t * circ, char* nickname);
+ssize_t circuit_payment_negotiate_parse(OR_OP_request_t **output, const uint8_t *input, const size_t len_in);
+ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const OR_OP_request_t *obj);
 
 void set_to_session_context(const char* session, const char* nickname, uint64_t channel_global_id, uint32_t circuit_id);
 payment_session_context_t* get_from_session_context_by_session_id(const char* session);
 void remove_from_session_context(payment_session_context_t* element);
 
 void set_circuit_payment_info(uint32_t circuit_id);
-payment_info_context_t* get_circuit_payment_info(int circuit_id);
+payment_info_context_t* get_circuit_payment_info(uint32_t circuit_id);
 void tp_remove_circuit_payment_info(payment_info_context_t* element);
 int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ);
 void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number);

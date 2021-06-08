@@ -119,7 +119,6 @@
 #include "core/or/or_connection_st.h"
 #include "core/or/channel.h"
 
-#include "core/or/rate_limiter.h"
 #include "app/config/or_state_st.h"
 #include "feature/nodelist/routerinfo_st.h"
 #include "core/or/socks_request_st.h"
@@ -204,8 +203,6 @@ static int main_loop_exit_value = 0;
  * any longer (a big time jump happened, when we notice our directory is
  * heinously out-of-date, etc.
  */
-
-static pthread_rwlock_t rwlock;
 
 static int can_complete_circuits = 0;
 
@@ -2526,12 +2523,11 @@ run_main_loop_once(void)
 }
 
 #ifdef HAVE_SYS_RESOURCE_H 
-bool enable_core_dump(){
+static int enable_core_dump(void)
+{
     struct rlimit corelim;
-
     corelim.rlim_cur = RLIM_INFINITY;
     corelim.rlim_max = RLIM_INFINITY;
-
     return (0 == setrlimit(RLIMIT_CORE, &corelim));
 }
 #endif
@@ -2551,8 +2547,6 @@ run_main_loop_until_done(void)
   int loop_result = 1;
   main_loop_should_exit = 0;
   main_loop_exit_value = 0;
-
-  init_limiter();
 
   do {
     loop_result = run_main_loop_once();

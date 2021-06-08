@@ -632,15 +632,12 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
         response = json_tokener_parse(json_response);
         if (NULL == response || json_type_object != json_object_get_type(response))
           break;
-        struct json_object_iterator it = json_object_iter_begin(response);
-        const char* fieldName = json_object_iter_peek_name(&it);
-        if (NULL == fieldName)
+        json_object *hostname_obj = json_object_object_get(response, "hostname");
+        if (NULL == hostname_obj)
           break;
-        if (0 != strcmp(fieldName, "hostname")) {
-          const char* domain = json_object_get_string(json_object_iter_peek_value(&it));
-          if(domain)
-            hostname = domain;
-        }
+        const char *domain = json_object_get_string(hostname_obj);
+        if(domain)
+          hostname = domain;
       } while(false);
       strlcpy(req->address, hostname, sizeof(req->address));
       if (NULL != response)

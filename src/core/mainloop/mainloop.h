@@ -41,8 +41,8 @@ typedef struct thread_main_args_st {
 } thread_args_main_t;
 
 typedef struct payment_message_for_sending_st {
-    char * sessionId;
-    char * nodeId;
+    const char * sessionId;
+    const char * nodeId;
     OR_OP_request_t * message;
 } payment_message_for_sending_t;
 

@@ -64,6 +64,7 @@
 #include "core/or/or_circuit_st.h"
 #include "core/or/origin_circuit_st.h"
 #include "core/or/var_cell_st.h"
+#include "core/or/circuit_payment.h"
 
 /** How many CELL_CREATE cells have we received, ever? */
 uint64_t stats_n_create_cells_processed = 0;
@@ -371,9 +372,7 @@ command_process_create_cell(cell_t *cell, channel_t *chan)
     }
     created_cell.cell_type = CELL_CREATED_FAST;
     created_cell.handshake_len = len;
-    memset(created_cell.stellar_address, 0, sizeof (created_cell.stellar_address));
-    if (NULL != get_options()->StellarAddress)
-      strncpy(created_cell.stellar_address, get_options()->StellarAddress, sizeof(created_cell.stellar_address));
+    tp_fill_stellar_address(created_cell.stellar_address);
     if (onionskin_answer(circ, &created_cell,
                          (const char *)keys, sizeof(keys),
                          rend_circ_nonce)<0) {

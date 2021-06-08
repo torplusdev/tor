@@ -7,9 +7,9 @@
 #include <src/core/or/origin_circuit_st.h>
 
 typedef struct log_args_st {
-    char *url;
-    char* requestBody;
-    char* responseBody;
+    const char *url;
+    const char* requestBody;
+    const char* responseBody;
 } log_args_t;
 
 typedef struct  routing_node {
@@ -18,8 +18,8 @@ typedef struct  routing_node {
 } routing_node_t;
 
 typedef struct create_payment_info {
-    char* service_type;
-    char* commodity_type;
+    const char* service_type;
+    const char* commodity_type;
     int amount;
 } create_payment_info_t;
 
@@ -55,20 +55,12 @@ typedef struct payment_response_t {
 
 } payment_response_t;
 
-typedef struct stellar_address_response_t {
-    char* address;
-
-} stellar_address_response_t;
-
-int
-circuit_get_num_by_nickname(origin_circuit_t *circ, char* nickname);
-
 char* tp_create_payment_info(char *url, create_payment_info_t* request); //1
 payment_response_t* tp_http_payment(char *url, process_payment_request_t* request, int hup_num); //2
 payment_response_t* tp_http_command(char *url, utility_command_t* request); //4
 payment_response_t* tp_http_response(char *url, utility_response_t* request); //5
-stellar_address_response_t* tp_get_address(char *url);
 void ship_log(log_args_t* args);
+json_object* tp_http_get_request(const char* url_input);
 char* tp_http_post_request(const char* url_input, const char* json);
 
 #endif // __PAYMENT_HTTP_CLIENT_H__INCLUDED__

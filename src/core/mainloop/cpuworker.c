@@ -34,6 +34,7 @@
 #include "core/crypto/onion_crypto.h"
 
 #include "core/or/or_circuit_st.h"
+#include "core/or/circuit_payment.h"
 
 static void queue_pending_tasks(void);
 
@@ -436,9 +437,7 @@ cpuworker_onion_handshake_threadfn(void *state_, void *work_)
   } else {
     /* success */
     log_debug(LD_OR,"onion_skin_server_handshake succeeded.");
-    memset(cell_out->stellar_address, 0, sizeof(cell_out->stellar_address))
-    if (NULL != get_options()->StellarAddress)
-      strncpy(cell_out->stellar_address, get_options()->StellarAddress, sizeof(cell_out->stellar_address));
+    tp_fill_stellar_address(cell_out->stellar_address);
     cell_out->handshake_len = n;
     switch (cc->cell_type) {
     case CELL_CREATE:

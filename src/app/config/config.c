@@ -766,7 +766,7 @@ static const config_var_t option_vars_[] = {
             "0"),
   V(PPChannelCallbackPort,                    INT,   "-1"),
   V(PPChannelPort,                    INT,   "-1"),
-  V(StellarAddress,                    STRING,   NULL),
+  V(StellarAddress,                    STRING,   ""),
   V(PPResolvDomains, CSV, "torplus.eth"),
   V(SlowDownDataTransferRate,   BOOL,   "0"),
   V(EnablePaymentLog,   BOOL,   "1"),
