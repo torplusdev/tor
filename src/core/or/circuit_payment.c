@@ -47,7 +47,8 @@ int sendmecell_deadcode_dummy__ = 0;
     }                                                            \
   } while (0)
 
-const int chunck_size = MAX_MESSAGE_LEN - 1;
+#define CHUNK_SIZE (MAX_MESSAGE_LEN - 1)
+
 typedef struct thread_args_st {
     OR_OP_request_t *payment_request_payload;
     circuit_t *circ;
@@ -169,11 +170,11 @@ static const char* tp_get_buffer_part_number(const char * buffer, size_t buffer_
 static int tp_process_command(tor_command* command)
 {
     const size_t body_len = strlen(command->commandBody);
-    const int part_size = body_len / chunck_size;
+    const size_t part_size = body_len / CHUNK_SIZE;
 
     pthread_rwlock_wrlock(&rwlock);
 
-    for(int g = 0 ; g <= part_size ;g++) {
+    for(size_t g = 0 ; g <= part_size ;g++) {
         payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
         OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
@@ -186,7 +187,7 @@ static int tp_process_command(tor_command* command)
         strcpy(input->command_id, command->commandId);
         input->command_id_length = strlen(command->commandId);
         size_t chunck_real_size = 0;
-        const char * buf_ptr = tp_get_buffer_part_number(command->commandBody, body_len, chunck_size, g, &chunck_real_size);
+        const char * buf_ptr = tp_get_buffer_part_number(command->commandBody, body_len, CHUNK_SIZE, g, &chunck_real_size);
         strncpy(input->message, buf_ptr, chunck_real_size);
         input->message[chunck_real_size] = '\0';
         input->messageLength = chunck_real_size;
@@ -214,10 +215,10 @@ static int tp_process_command(tor_command* command)
 static int tp_process_command_replay(tor_command_replay* command)
 {
     const size_t body_len = strlen(command->commandResponse);
-    const int part_size = body_len / chunck_size;
+    const size_t part_size = body_len / CHUNK_SIZE;
 
     pthread_rwlock_wrlock(&rwlock);
-    for(int g = 0 ; g <= part_size ;g++) {
+    for(size_t g = 0 ; g <= part_size ;g++) {
         payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
         OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
         message->message = input;
@@ -233,7 +234,7 @@ static int tp_process_command_replay(tor_command_replay* command)
         strcpy(input->command_id, command->commandId);
         input->command_id_length = strlen(command->commandId);
         size_t chunck_real_size = 0;
-        const char * buf_ptr = tp_get_buffer_part_number(command->commandResponse, body_len, chunck_size, g, &chunck_real_size);
+        const char * buf_ptr = tp_get_buffer_part_number(command->commandResponse, body_len, CHUNK_SIZE, g, &chunck_real_size);
         strncpy(input->message, buf_ptr, chunck_real_size);
         input->message[chunck_real_size] = '\0';
         input->messageLength = chunck_real_size;
@@ -263,10 +264,11 @@ static void add_payment_curl_request(thread_args_t* args)
 
 void tp_fill_stellar_address(char *dst)
 {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstringop-truncation"
+DISABLE_GCC_WARNING("-Wunknown-warning-option")
+DISABLE_GCC_WARNING("-Wstringop-truncation")
     strncpy(dst, get_options()->StellarAddress, STELLAR_ADDRESS_LEN);
-#pragma GCC diagnostic pop   
+ENABLE_GCC_WARNING("-Wstringop-truncation")
+ENABLE_GCC_WARNING("-Wunknown-warning-option")
 }
 
 static const char* tp_get_address(void)
@@ -901,11 +903,11 @@ static void send_payment_request_to_client(thread_args_t* args)
     input.is_last = 0;
     const size_t body_len = strlen(response);
     input.messageTotalLength = body_len;
-    const int part_size =  body_len / chunck_size;
-    for (int g = 0; g <= part_size; g++) {
+    const size_t part_size =  body_len / CHUNK_SIZE;
+    for (size_t g = 0; g <= part_size; g++) {
         tp_zero_mem(input.message, MAX_MESSAGE_LEN);
         size_t chunck_real_size = 0;
-        const char * buf_ptr = tp_get_buffer_part_number(response, body_len, chunck_size, g, &chunck_real_size);
+        const char * buf_ptr = tp_get_buffer_part_number(response, body_len, CHUNK_SIZE, g, &chunck_real_size);
         memcpy(input.message, buf_ptr, chunck_real_size);
         input.message[chunck_real_size] = 0;
         input.messageLength = chunck_real_size;
