@@ -563,13 +563,13 @@ test_cfmt_created_cells(void *arg)
   /* A good CREATED2 cell with maximal reply */
   memset(&cell, 0, sizeof(cell));
   memset(b, 0, sizeof(b));
-  crypto_rand((char*)b, 496);
+  crypto_rand((char*)b, 396);
   cell.command = CELL_CREATED2;
-  memcpy(cell.payload, "\x01\xF0", 2);
-  memcpy(cell.payload+2, b, 496);
+  memcpy(cell.payload, "\x01\x8C", 2);
+  memcpy(cell.payload+2, b, 396);
   tt_int_op(0, OP_EQ, created_cell_parse(&cc, &cell));
   tt_int_op(CELL_CREATED2, OP_EQ, cc.cell_type);
-  tt_int_op(496, OP_EQ, cc.handshake_len);
+  tt_int_op(396, OP_EQ, cc.handshake_len);
   tt_mem_op(cc.reply,OP_EQ, b, 396);
   tt_int_op(0, OP_EQ, created_cell_format(&cell2, &cc));
   tt_int_op(cell.command, OP_EQ, cell2.command);

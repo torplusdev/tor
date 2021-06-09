@@ -31,8 +31,8 @@ char * my_strndup (const char *s, size_t n)
 	size_t len = strnlen (s, n);
 	char *newString = (char *) malloc (len + 1);
 
-	if (n == NULL)
-		return NULL;
+	if (0 == n)
+		return nullptr;
 
 	newString[len] = '\0';
 	return (char *) memcpy (newString, s, len);
