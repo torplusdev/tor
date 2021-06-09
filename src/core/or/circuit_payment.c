@@ -26,6 +26,7 @@
 #include "core/mainloop/mainloop.h"
 #include <src/core/or/or_circuit_st.h>
 #include "lib/version/torversion.h"
+#include <pthread.h>
 
 #define TRUNNEL_SET_ERROR_CODE(obj) \
   do {                              \
