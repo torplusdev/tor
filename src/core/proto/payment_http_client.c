@@ -35,7 +35,7 @@ void ship_log(log_args_t* args)
     json_object_object_add(json_request, "RequestUrl", json_object_new_string(url));
     json_object_object_add(json_request, "RequestBody", json_object_new_string(requestBody));
     json_object_object_add(json_request, "ResponseBody", json_object_new_string(responseBody));
-    log_notice(LD_GUARD, "%s: %s", "Payments Log", json_object_to_json_string(json_request));
+    log_notice(LD_GENERAL, "%s: %s", "Payments Log", json_object_to_json_string(json_request));
 }
 
 char* tp_create_payment_info(char *url, create_payment_info_t* body)

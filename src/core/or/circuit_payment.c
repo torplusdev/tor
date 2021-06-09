@@ -163,7 +163,7 @@ static const char* tp_get_buffer_part_number(const char * buffer, size_t buffer_
     if ((part_offset + part_size) > buffer_size)
         *real_part_size = buffer_size - part_offset;
     else
-        *real_part_size = part_offset;
+        *real_part_size = part_size;
 
     return buf_ptr;
 }
