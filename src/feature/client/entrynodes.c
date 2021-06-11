@@ -1758,10 +1758,15 @@ first_reachable_filtered_entry_guard(guard_selection_t *gs,
   if (exclude_primary && !gs->primary_guards_up_to_date && !no_update_primary)
     entry_guards_update_primary(gs);
 
+  const int enforce_reachability = get_options()->EnforceReachability;
   /* Build the set of reachable filtered guards. */
   smartlist_t *reachable_filtered_sample = smartlist_new();
   SMARTLIST_FOREACH_BEGIN(gs->sampled_entry_guards, entry_guard_t *, guard) {
     entry_guard_consider_retry(guard);// redundant, but cheap.
+    if (enforce_reachability) {
+      smartlist_add(reachable_filtered_sample, guard);
+      continue;
+    }
     if (! entry_guard_obeys_restriction(guard, rst))
       continue;
     if (! guard->is_usable_filtered_guard)
