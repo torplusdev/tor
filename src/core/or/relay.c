@@ -321,10 +321,13 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
   /* not recognized. inform circpad and pass it on. */
   circpad_deliver_unrecognized_cell_events(circ, cell_direction);
 
-  payment_info_context_t* context =  get_circuit_payment_info(cell->circ_id);
-  if(context != NULL && context->delay_payments_counter > 70) {
-      circuit_mark_for_close(circ, END_CIRC_REASON_NO_PAYMENT);
-        // usleep(10000);
+  const int payment_can_close = get_options()->EnableToCloseCircuitByTorPlus;
+  if (payment_can_close) {
+    payment_info_context_t* context =  get_circuit_payment_info(cell->circ_id);
+    if(context != NULL && context->delay_payments_counter > 70) {
+        circuit_mark_for_close(circ, END_CIRC_REASON_NO_PAYMENT);
+          // usleep(10000);
+    }
   }
 
   if (cell_direction == CELL_DIRECTION_OUT) {
