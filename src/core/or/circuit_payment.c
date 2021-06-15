@@ -691,13 +691,12 @@ void set_to_session_context(const char* session, const char* nickname, uint64_t 
 
     payment_session_context_t *origin = NULL;
 
-    SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element)
-                            {
-                                if (strcmp(element->session_id, session) == 0) {
-                                    origin = element;
-                                }
-                            }
-    SMARTLIST_FOREACH_END(element);
+    SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
+        if (strcmp(element->session_id, session) == 0) {
+            origin = element;
+            break;
+        }
+    } SMARTLIST_FOREACH_END(element);
 
     if (origin == NULL) {
         payment_session_context_t *ent = (payment_session_context_t *) tor_malloc_zero_(
@@ -722,13 +721,12 @@ void set_circuit_payment_info(uint32_t circuit_id)
 
     payment_info_context_t *origin = NULL;
 
-    SMARTLIST_FOREACH_BEGIN(global_payment_info_list, payment_info_context_t *, element)
-                            {
-                                if (element->circuit_id == circuit_id) {
-                                    origin = element;
-                                }
-                            }
-    SMARTLIST_FOREACH_END(element);
+    SMARTLIST_FOREACH_BEGIN(global_payment_info_list, payment_info_context_t *, element) {
+        if (element->circuit_id == circuit_id) {
+            origin = element;
+            break;
+        }
+    } SMARTLIST_FOREACH_END(element);
 
     if (origin == NULL) {
         payment_info_context_t *ent = (payment_info_context_t *) tor_malloc_zero_(
@@ -747,17 +745,13 @@ payment_session_context_t* get_from_session_context_by_session_id(const char* se
     if (NULL == global_payment_session_list)
         global_payment_session_list = smartlist_new();
 
-    payment_session_context_t *origin = NULL;
+    SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
+        if (strcmp(element->session_id, session) == 0) {
+            return element;
+        }
+    } SMARTLIST_FOREACH_END(element);
 
-    SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element)
-                            {
-                                if (strcmp(element->session_id, session) == 0) {
-                                    return element;
-                                }
-                            }
-    SMARTLIST_FOREACH_END(element);
-
-    return origin;
+    return NULL;
 }
 
 
@@ -766,17 +760,13 @@ payment_info_context_t* get_circuit_payment_info(uint32_t circuit_id)
     if (NULL == global_payment_info_list)
         global_payment_info_list = smartlist_new();
 
-    payment_info_context_t *origin = NULL;
+    SMARTLIST_FOREACH_BEGIN(global_payment_info_list, payment_info_context_t *, element) {
+        if (element->circuit_id == circuit_id) {
+            return element;
+        }
+    } SMARTLIST_FOREACH_END(element);
 
-    SMARTLIST_FOREACH_BEGIN(global_payment_info_list, payment_info_context_t *, element)
-                            {
-                                if (element->circuit_id == circuit_id) {
-                                    return element;
-                                }
-                            }
-    SMARTLIST_FOREACH_END(element);
-
-    return origin;
+    return NULL;
 }
 
 void remove_from_session_context(payment_session_context_t* element)
@@ -798,13 +788,12 @@ static payment_chunks_t * get_from_hash(const OR_OP_request_t* payment_request_p
 
     payment_chunks_t *origin=NULL;
 
-    SMARTLIST_FOREACH_BEGIN(global_chunks_list, payment_chunks_t *, element)
-                            {
-                                if(strcmp(element->key, key) == 0){
-                                    origin = element;
-                                }
-                            }
-            SMARTLIST_FOREACH_END(element);
+    SMARTLIST_FOREACH_BEGIN(global_chunks_list, payment_chunks_t *, element) {
+        if(strcmp(element->key, key) == 0){
+            origin = element;
+            break;
+        }
+    } SMARTLIST_FOREACH_END(element);
 
     if(origin == NULL){
         payment_chunks_t* ent = (payment_chunks_t*)tor_malloc_(sizeof(payment_chunks_t));
@@ -881,7 +870,7 @@ static void send_payment_request_to_client(thread_args_t* args)
     struct json_object *parsed_json;
     parsed_json = json_tokener_parse(response);
 
-    struct json_object *session_id;
+    struct json_object *session_id = NULL;
     json_object_object_get_ex(parsed_json, "ServiceSessionId", &session_id);
     const char *session = json_object_get_string(session_id);
 

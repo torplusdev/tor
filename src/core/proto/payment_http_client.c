@@ -40,7 +40,6 @@ void ship_log(log_args_t* args)
 
 char* tp_create_payment_info(char *url, create_payment_info_t* body)
 {
-
     /* build post data */
     json_object*  json_request = json_object_new_object();
     json_object_object_add(json_request, "ServiceType", json_object_new_string(body->service_type));
@@ -48,21 +47,17 @@ char* tp_create_payment_info(char *url, create_payment_info_t* body)
     json_object_object_add(json_request, "Amount", json_object_new_int(body->amount));
 
     const char* request_string = json_object_to_json_string(json_request);
+    char *response = tp_http_post_request(url, request_string);
     log_args_t args;
-    args.url = url;
-    args.requestBody = (char *)request_string;
-    args.responseBody = "";
+    args.url= url;
+    args.requestBody = request_string;
+    args.responseBody = (response == NULL) ? "" : response;
     ship_log(&args);
-
-    return tp_http_post_request(url, request_string);
+    return response;
 }
 
 payment_response_t* tp_http_payment(char *url, process_payment_request_t* body, int hop_num) {
     json_object*  json_request = json_object_new_object();
-    log_args_t args;
-
-    args.url =  url;
-
     json_object *jarray = json_object_new_array();
     for (int i = 0; i < hop_num - 1; ++i) {
         json_object* obj = json_object_new_object();
@@ -70,7 +65,6 @@ payment_response_t* tp_http_payment(char *url, process_payment_request_t* body, 
         json_object_object_add(obj, "Address", json_object_new_string(body->routing_node[i].address));
         json_object_array_add(jarray,obj);
     }
-
 
     /* build post data */
     json_object_object_add(json_request, "CallbackUrl", json_object_new_string(body->call_back_url));
@@ -80,19 +74,17 @@ payment_response_t* tp_http_payment(char *url, process_payment_request_t* body, 
     json_object_object_add(json_request, "PaymentRequest", json_object_new_string(body->payment_request));
 
     const char* request_string = json_object_to_json_string(json_request);
-    args.requestBody = (char *)request_string;
-    args.responseBody = (char *)"";
+    char* response = tp_http_post_request(url, request_string);
+    log_args_t args;
+    args.url= url;
+    args.requestBody = request_string;
+    args.responseBody = (response == NULL) ? "" : response;
     ship_log(&args);
-
-    /*char* json_response =*/ tp_http_post_request(url, request_string);
     return NULL;
 }
 
 payment_response_t* tp_http_command(char *url, utility_command_t* body) {
     json_object*  json_request = json_object_new_object();
-    log_args_t args;
-
-    args.url= url;
     /* build post data */
     json_object_object_add(json_request, "CommandType", json_object_new_int(body->command_type));
     json_object_object_add(json_request, "CommandBody", json_object_new_string(body->command_body));
@@ -101,26 +93,18 @@ payment_response_t* tp_http_command(char *url, utility_command_t* body) {
     json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
     json_object_object_add(json_request, "SessionId", json_object_new_string(body->session_id));
 
-
     const char* request_string = json_object_to_json_string(json_request);
-    args.requestBody = (char *)request_string;
-
-    /*char* json_response =*/ tp_http_post_request(url, request_string);
-
-  //  if(json_response == NULL)
-        args.responseBody = "";
-  //  else
- //       args.responseBody= json_response;
-
+    char* response = tp_http_post_request(url, request_string);
+    log_args_t args;
+    args.url= url;
+    args.requestBody = request_string;
+    args.responseBody = (response == NULL) ? "" : response;
     ship_log(&args);
     return NULL;
 }
 
 payment_response_t* tp_http_response(char *url, utility_response_t* body) {
     json_object*  json_request = json_object_new_object();
-    log_args_t args;
-
-    args.url = url;
     /* build post data */
     json_object_object_add(json_request, "ResponseBody", json_object_new_string(body->response_body));
     json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
@@ -128,12 +112,12 @@ payment_response_t* tp_http_response(char *url, utility_response_t* body) {
     json_object_object_add(json_request, "SessionId", json_object_new_string(body->session_id));
 
     const char* request_string = json_object_to_json_string(json_request);
-    args.requestBody = (char *)request_string;
-    args.responseBody = "";
+    char* response = tp_http_post_request(url, request_string);
+    log_args_t args;
+    args.url= url;
+    args.requestBody = request_string;
+    args.responseBody = (response == NULL) ? "" : response;
     ship_log(&args);
-
-    /*char* json_response =*/ tp_http_post_request(url, request_string);
-
     return NULL;
 }
 
