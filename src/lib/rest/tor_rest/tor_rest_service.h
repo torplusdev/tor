@@ -12,14 +12,13 @@ using namespace ufal::microrestd;
 class tor_rest_service : public rest_service
 {
 private:	
-	void (*m_routeCreator)     (const char* targetNode, tor_route *route);
-	int       (*m_commandProcessor) (tor_command* command);
-	int       (*m_commandProcessorReplay) (tor_command_replay * command);
-	int       (*commandProcessingCompleted) (payment_completed * command);
+	void (*m_routeCreator) (const char* targetNode, tor_route *route);
+	int  (*m_commandProcessor) (tor_command* command);
+	int  (*m_commandProcessorReplay) (tor_command_replay * command);
+	int  (*m_commandProcessingCompleted) (payment_completed * command);
 	std::string app_version = "undefined";
 
 	std::string* route2json(tor_route *route);
-	jsmn_parser m_jsonParser;
 	
  public:
 	tor_rest_service(

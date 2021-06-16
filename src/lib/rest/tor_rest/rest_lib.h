@@ -15,27 +15,26 @@ typedef struct tor_route {
 } tor_route;
 
 typedef struct tor_command {
-    char * commandBody;
-    char * commandId;
-    char * commandType;
-    char * nodeId;
-    char * sessionId;
-    char * json_body;
+    const char * commandBody;
+    const char * commandId;
+    const char * commandType;
+    const char * nodeId;
+    const char * sessionId;
+    const char * json_body;
 } tor_command;
 
 typedef struct payment_completed {
-    char * sessionId;
+    const char * sessionId;
     int status;
-    char * json_body;
+    const char * json_body;
 } payment_completed;
 
-
 typedef struct tor_command_replay {
-    char * commandResponse;
-    char * commandId;
-    char * nodeId;
-    char * sessionId;
-    char * json_body;
+    const char * commandResponse;
+    const char * commandId;
+    const char * nodeId;
+    const char * sessionId;
+    const char * json_body;
 } tor_command_replay;
 
 #ifdef __cplusplus

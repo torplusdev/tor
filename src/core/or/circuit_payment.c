@@ -141,6 +141,12 @@ static void tp_get_route(const char* sessionId, tor_route *route)
 
 static int tp_payment_chain_completed(payment_completed* command)
 {
+    if (NULL == command)
+        return -1;
+    if (NULL == command->sessionId ||
+        0 > command->status)
+        return -1;
+
     payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
     message->nodeId = "-1";
     message->sessionId = command->sessionId;
@@ -170,6 +176,15 @@ static const char* tp_get_buffer_part_number(const char * buffer, size_t buffer_
 
 static int tp_process_command(tor_command* command)
 {
+    if (NULL == command)
+        return -1;
+    if (NULL == command->nodeId ||
+        NULL == command->commandType ||
+        NULL == command->commandId ||
+        NULL == command->sessionId ||
+        NULL == command->commandBody)
+        return -1;
+
     const size_t body_len = strlen(command->commandBody);
     const size_t part_size = body_len / CHUNK_SIZE;
 
@@ -215,6 +230,14 @@ static int tp_process_command(tor_command* command)
 
 static int tp_process_command_replay(tor_command_replay* command)
 {
+    if (NULL == command)
+        return -1;
+    if (NULL == command->nodeId ||
+        NULL == command->sessionId ||
+        NULL == command->commandId ||
+        NULL == command->commandResponse)
+        return -1;
+
     const size_t body_len = strlen(command->commandResponse);
     const size_t part_size = body_len / CHUNK_SIZE;
 

@@ -15,27 +15,28 @@ void getTorRoute(const char* targetNode,tor_route *route)
 	int err;
 
 	//TODO: Add error-handling
-	route->nodes = (rest_node_t *) malloc(3 * sizeof(rest_node_t));
+	rest_node_t* nodes = (rest_node_t *) malloc(3 * sizeof(rest_node_t));
+	route->nodes = nodes;
 
-	err = strcpy(route->nodes[0].node_id, "GDRQ2GFDIXSPOBOICRJUEVQ3JIZJOWW7BXV2VSIN4AR6H6SD32YER4LN");
-	err = strcpy(route->nodes[1].node_id, "GD523N6LHPRQS3JMCXJDEF3ZENTSJLRUDUF2CU6GZTNGFWJXSF3VNDJJ");
-	err = strcpy(route->nodes[2].node_id, "GB3IKDN72HFZSLY3SYE5YWULA5HG32AAKEDJTG6J6X2YKITHBDDT2PIW");	
+	strcpy(nodes[0].node_id, "GDRQ2GFDIXSPOBOICRJUEVQ3JIZJOWW7BXV2VSIN4AR6H6SD32YER4LN");
+	strcpy(nodes[1].node_id, "GD523N6LHPRQS3JMCXJDEF3ZENTSJLRUDUF2CU6GZTNGFWJXSF3VNDJJ");
+	strcpy(nodes[2].node_id, "GB3IKDN72HFZSLY3SYE5YWULA5HG32AAKEDJTG6J6X2YKITHBDDT2PIW");	
 }
 
 int processCommand(tor_command* command)
 {
-		char *nodeId = command->nodeId;
+	const char *nodeId = command->nodeId;
 }
 
 int processCommandReplay(tor_command_replay* command)
 {
-		char *nodeId = command->nodeId;
+	const char *nodeId = command->nodeId;
 }
 
 int processPaymentCompete(payment_completed* command)
 {
-		char *session_id = command->sessionId;
-		int status = command->status;
+	const char *session_id = command->sessionId;
+	int status = command->status;
 }
 
 
