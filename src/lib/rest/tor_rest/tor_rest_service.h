@@ -19,7 +19,7 @@ private:
 	std::string app_version = "undefined";
 
 	std::string* route2json(tor_route *route);
-	
+	void dump_requests(const char *file_name_suffix, rest_request& req);
  public:
 	tor_rest_service(
         void (*routeFunction)(const char* targetNode, tor_route *route),

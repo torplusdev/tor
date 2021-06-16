@@ -12,6 +12,7 @@
 #include "jsmn.h"
 #include "tor_rest_service.h"
 #include "route_generator.h"
+#include <sstream>
 
 using namespace std;
 using namespace ufal::microrestd;
@@ -56,6 +57,30 @@ tor_rest_service::tor_rest_service(void (* routeFunction)(const char* targetNode
 		app_version = app_version_string;
 }
 
+void tor_rest_service::dump_requests(const char *file_name_suffix, rest_request& req)
+{
+	if (1) // TODO: set flag from client code
+		return;
+
+	std::stringstream file_name;
+	static int fn = 0;
+	file_name << "~/dump/" << std::this_thread::get_id() << "-" << fn++ << "-" << file_name_suffix;
+	// std::sprintf(file_name, "api_command.%i.log", fn++);
+	std::ofstream ostrm(file_name.str(), std::ios::binary);
+	if (ostrm.is_open())
+	{
+		ostrm << "method: " << req.method << std::endl;
+		ostrm << "url: " << req.url << std::endl;
+		ostrm << "content_type: " << req.content_type << std::endl;
+		ostrm << "body_len: " << req.body.size() << std::endl;
+		ostrm << "body: " << req.body << std::endl;
+	}
+	else {
+		std::cout << req.body;
+	}
+}
+
+
 bool tor_rest_service::handle(rest_request& req) 
 {
 	const int ConstMaxJsonTokens = 1280;
@@ -93,6 +118,7 @@ bool tor_rest_service::handle(rest_request& req)
 	    }
 	    else if (req.url.rfind("/api/command",0) == 0)
 		{
+			dump_requests("api_command", req);
 	    	const char* jsonRequest = req.body.c_str();
 	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
 
@@ -144,6 +170,7 @@ bool tor_rest_service::handle(rest_request& req)
 	    }
 	    else if (req.url.rfind("/api/response",0) == 0)
 		{
+			dump_requests("api_response", req);
 	    	const char* jsonRequest = req.body.c_str();
 	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
 
@@ -190,6 +217,7 @@ bool tor_rest_service::handle(rest_request& req)
 	    }
 	    else if (req.url.rfind("/api/paymentComplete",0) == 0)
 		{
+			dump_requests("api_paymentComplete", req);
 	    	const char* jsonRequest = req.body.c_str();
 	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
 
