@@ -143,22 +143,25 @@ static int tp_payment_chain_completed(payment_completed* command)
 {
     if (NULL == command)
         return -1;
-    if (NULL == command->sessionId ||
-        0 > command->status)
-        return -1;
+
+    {
+        log_args_t log_input;
+        log_input.responseBody = ""; // allways empty
+        log_input.requestBody = command->json_body ? command->json_body : "(NULL)";
+        log_input.url = "/api/paymentComplete";
+        ship_log(&log_input);
+    }
+
+    if (NULL == command->sessionId
+        /*|| 0 > command->status*/
+        )
+        return -2;
 
     payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
     message->nodeId = "-1";
     message->sessionId = command->sessionId;
     message->message = NULL;
     smartlist_add(payment_messsages_for_sending, message);
-    log_args_t log_input;
-    char request[200];
-    snprintf(request, 200, "{\"SessionId\":%s, \"Status\":%d}", command->sessionId, command->status);
-    log_input.responseBody="";
-    log_input.requestBody=request;
-    log_input.url = "/api/paymentComplete";
-    ship_log(&log_input);
     return 0;
 }
 
@@ -178,12 +181,21 @@ static int tp_process_command(tor_command* command)
 {
     if (NULL == command)
         return -1;
+
+    {
+        log_args_t log_input;
+        log_input.responseBody = ""; // allways empty
+        log_input.requestBody = command->json_body ? command->json_body : "(NULL)";
+        log_input.url = "/api/command";
+        ship_log(&log_input);
+    }
+
     if (NULL == command->nodeId ||
         NULL == command->commandType ||
         NULL == command->commandId ||
         NULL == command->sessionId ||
         NULL == command->commandBody)
-        return -1;
+        return -2;
 
     const size_t body_len = strlen(command->commandBody);
     const size_t part_size = body_len / CHUNK_SIZE;
@@ -214,16 +226,6 @@ static int tp_process_command(tor_command* command)
         message->sessionId = command->sessionId;
         smartlist_add(payment_messsages_for_sending, message);
     }
-    log_args_t log_input;
-    char request[10000];
-    snprintf(request, 10000,"{\"CommandBody\":%s, \"CommandId\":%s, \"CommandType\":%s, \"NodeId\":%s, \"SessionId\":%s},",
-            command->commandBody, command->commandId, command->commandType, command->nodeId, command->sessionId);
-    log_input.responseBody="";
-    log_input.requestBody=request;
-
-    log_input.url = "/api/command";
-    ship_log(&log_input);
-
     pthread_rwlock_unlock(&rwlock);
     return 0;
 }
@@ -232,11 +234,20 @@ static int tp_process_command_replay(tor_command_replay* command)
 {
     if (NULL == command)
         return -1;
+
+    {
+        log_args_t log_input;
+        log_input.responseBody = ""; // allways empty
+        log_input.requestBody = command->json_body ? command->json_body : "(NULL)";
+        log_input.url = "/api/response";
+        ship_log(&log_input);
+    }
+
     if (NULL == command->nodeId ||
         NULL == command->sessionId ||
         NULL == command->commandId ||
         NULL == command->commandResponse)
-        return -1;
+        return -2;
 
     const size_t body_len = strlen(command->commandResponse);
     const size_t part_size = body_len / CHUNK_SIZE;
@@ -268,16 +279,6 @@ static int tp_process_command_replay(tor_command_replay* command)
         smartlist_add(payment_messsages_for_sending, message);
     }
     pthread_rwlock_unlock(&rwlock);
-
-    log_args_t log_input;
-    char request[10000];
-    log_input.responseBody="";
-    snprintf(request, 10000, "{\"CommandResponse\":%s, \"CommandId\":%s, \"NodeId\":%s, \"SessionId\":%s},",
-            command->commandResponse, command->commandId, command->nodeId, command->sessionId);
-    log_input.requestBody=request;
-    log_input.url = "/api/response";
-    ship_log(&log_input);
-
     return 0;
 }
 

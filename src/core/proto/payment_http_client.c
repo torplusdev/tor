@@ -25,17 +25,13 @@ void ship_log(log_args_t* args)
     if( !options->EnablePaymentLog )
         return;
 
-    const char *url = args->url;
-    const char *requestBody = args->requestBody;
-    const char *responseBody = args->responseBody;
-    /* build post data */
-    json_object *json_request = json_object_new_object();
-    const char *nickname = options->Nickname;
-    json_object_object_add(json_request, "NodeNickname", json_object_new_string(nickname));
-    json_object_object_add(json_request, "RequestUrl", json_object_new_string(url));
-    json_object_object_add(json_request, "RequestBody", json_object_new_string(requestBody));
-    json_object_object_add(json_request, "ResponseBody", json_object_new_string(responseBody));
-    log_notice(LD_GENERAL, "%s: %s", "Payments Log", json_object_to_json_string(json_request));
+    log_notice(LD_GENERAL,
+        "Payments Log: NodeNickname='%s' RequestUrl='%s' RequestBody='%s' ResponseBody='%s'",
+        options->Nickname ? options->Nickname : "(NULL)",
+        args->url ? args->url : "(NULL)",
+        args->requestBody ? args->requestBody : "(NULL)",
+        args->responseBody ? args->responseBody : "(NULL)"
+    );
 }
 
 char* tp_create_payment_info(char *url, create_payment_info_t* body)
