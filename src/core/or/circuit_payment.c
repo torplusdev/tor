@@ -315,7 +315,7 @@ static void tp_rest_log(const char * message)
 {
     if(!get_options()->EnablePaymentLog)
         return;
-    log_notice(LD_GENERAL,"Payment REST_LOG: %s", message);
+    log_notice(LD_GENERAL,"Payment REST_LOG:\n%s", message);
 }
 
 void tp_init(void)

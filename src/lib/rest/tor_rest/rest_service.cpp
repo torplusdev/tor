@@ -71,11 +71,13 @@ void tor_rest_service::req_log(rest_request& req)
 		return;
 
 	std::stringstream message;
+	message << "===[ tor_rest_service::req_log ]=================================" << std::endl;
 	message << "method: " << req.method << std::endl;
 	message << "url: " << req.url << std::endl;
 	message << "content_type: " << req.content_type << std::endl;
 	message << "body_len: " << req.body.size() << std::endl;
 	message << "body: " << req.body << std::endl;
+	message << "=================================================================";
 	std::string tmp = message.str();
 	m_log_handler(tmp.c_str());
 }
