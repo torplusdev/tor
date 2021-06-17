@@ -311,6 +311,13 @@ static const char* tp_get_address(void)
     return NULL;
 }
 
+static void tp_rest_log(const char * message)
+{
+    if(!get_options()->EnablePaymentLog)
+        return;
+    log_notice(LD_GENERAL,"Payment REST_LOG: %s", message);
+}
+
 void tp_init(void)
 {
   const char* stellar = tp_get_address();
@@ -323,7 +330,7 @@ void tp_init(void)
   const int port = get_options()->PPChannelCallbackPort;
   if ( port != -1 ) {
     const char *server_version_string = get_version();
-    runServer(port, tp_get_route, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, server_version_string);
+    runServer(port, tp_get_route, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, server_version_string);
   }
 }
 

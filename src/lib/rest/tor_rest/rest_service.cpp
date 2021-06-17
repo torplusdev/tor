@@ -47,42 +47,42 @@ tor_rest_service::tor_rest_service(void (* routeFunction)(const char* targetNode
         int (* commandProcessingFunction)(tor_command* command),
 		int (* commandProcessingReplayFunction)(tor_command_replay* command),
 		int (*commandProcessingCompletedFunction)(payment_completed *command),
+		void (*log_function)(const char *message),
 		const char *app_version_string /*= NULL*/)
 {
 	m_routeCreator = routeFunction;
 	m_commandProcessor = commandProcessingFunction;
 	m_commandProcessorReplay = commandProcessingReplayFunction;
     m_commandProcessingCompleted = commandProcessingCompletedFunction;
+	m_log_handler = log_function;
 	if(NULL != app_version_string)
 		app_version = app_version_string;
 }
 
-void tor_rest_service::dump_requests(const char *file_name_suffix, rest_request& req)
+void tor_rest_service::log(const char *message)
 {
-	if (1) // TODO: set flag from client code
-		return;
-
-	std::stringstream file_name;
-	static int fn = 0;
-	file_name << "~/dump/" << std::this_thread::get_id() << "-" << fn++ << "-" << file_name_suffix;
-	// std::sprintf(file_name, "api_command.%i.log", fn++);
-	std::ofstream ostrm(file_name.str(), std::ios::binary);
-	if (ostrm.is_open())
-	{
-		ostrm << "method: " << req.method << std::endl;
-		ostrm << "url: " << req.url << std::endl;
-		ostrm << "content_type: " << req.content_type << std::endl;
-		ostrm << "body_len: " << req.body.size() << std::endl;
-		ostrm << "body: " << req.body << std::endl;
-	}
-	else {
-		std::cout << req.body;
-	}
+	if(m_log_handler)
+		m_log_handler(message);
 }
 
-
-bool tor_rest_service::handle(rest_request& req) 
+void tor_rest_service::req_log(rest_request& req)
 {
+	if(!m_log_handler)
+		return;
+
+	std::stringstream message;
+	message << "method: " << req.method << std::endl;
+	message << "url: " << req.url << std::endl;
+	message << "content_type: " << req.content_type << std::endl;
+	message << "body_len: " << req.body.size() << std::endl;
+	message << "body: " << req.body << std::endl;
+	std::string tmp = message.str();
+	m_log_handler(tmp.c_str());
+}
+
+bool tor_rest_service::handle(rest_request& req)
+{
+	req_log(req);
 	const int ConstMaxJsonTokens = 1280;
 	jsmntok_t t[ConstMaxJsonTokens];
 	jsmn_parser jsonParser;
@@ -118,7 +118,6 @@ bool tor_rest_service::handle(rest_request& req)
 	    }
 	    else if (req.url.rfind("/api/command",0) == 0)
 		{
-			dump_requests("api_command", req);
 	    	const char* jsonRequest = req.body.c_str();
 	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
 
@@ -170,7 +169,6 @@ bool tor_rest_service::handle(rest_request& req)
 	    }
 	    else if (req.url.rfind("/api/response",0) == 0)
 		{
-			dump_requests("api_response", req);
 	    	const char* jsonRequest = req.body.c_str();
 	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
 
@@ -217,7 +215,6 @@ bool tor_rest_service::handle(rest_request& req)
 	    }
 	    else if (req.url.rfind("/api/paymentComplete",0) == 0)
 		{
-			dump_requests("api_paymentComplete", req);
 	    	const char* jsonRequest = req.body.c_str();
 	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
 

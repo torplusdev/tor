@@ -41,11 +41,15 @@ typedef struct tor_command_replay {
 extern "C" {
 #endif
 
-int runServer(int port, void (*routeFunction)(const char* targetNode, tor_route *route),
-              int (*commandProcessingFunction)(tor_command *command),
-              int (*commandProcessingReplayFunction)(tor_command_replay *command),
-              int (*commandProcessingCompletedFunction)(payment_completed *command),
-              const char *appVersionString /*= NULL*/);
+int runServer(
+        int port,
+        void (*routeFunction)(const char* targetNode, tor_route *route),
+        int (*commandProcessingFunction)(tor_command *command),
+        int (*commandProcessingReplayFunction)(tor_command_replay *command),
+        int (*commandProcessingCompletedFunction)(payment_completed *command),
+        void (*log_function)(const char *message),
+        const char *appVersionString /*= NULL*/
+    );
 
 #ifdef __cplusplus
 }

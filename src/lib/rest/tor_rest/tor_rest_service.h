@@ -17,16 +17,20 @@ private:
 	int  (*m_commandProcessorReplay) (tor_command_replay * command);
 	int  (*m_commandProcessingCompleted) (payment_completed * command);
 	std::string app_version = "undefined";
+	void (*m_log_handler)(const char *message);
+	void log(const char *message);
+	void req_log(rest_request& req);
 
 	std::string* route2json(tor_route *route);
-	void dump_requests(const char *file_name_suffix, rest_request& req);
  public:
 	tor_rest_service(
         void (*routeFunction)(const char* targetNode, tor_route *route),
         int (*commandProcessingFunction)(tor_command* command),
         int (*commandProcessingReplayFunction)(tor_command_replay * command),
         int (*commandProcessingCompletedFunction)(payment_completed *command),
-		const char *app_version_string = NULL);
+		void (*log_function)(const char *message),
+		const char *app_version_string = NULL
+	);
 
 	virtual bool handle(ufal::microrestd::rest_request& req) override;
 	

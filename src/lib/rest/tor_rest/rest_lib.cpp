@@ -4,11 +4,15 @@
 #include "tor_rest_service.h"
 
 
-extern "C" int runServer(int port, void (*routeFunction)(const char* targetNode, tor_route *route),
+extern "C" int runServer(
+		int port,
+		void (*routeFunction)(const char* targetNode, tor_route *route),
         int (*commandProcessingFunction)(tor_command* command),
-                         int (*commandProcessingReplayFunction)(tor_command_replay* command),
-                         int (*commandProcessingCompletedFunction)(payment_completed *command),
-						 const char *appVersionString /*= NULL*/)
+		int (*commandProcessingReplayFunction)(tor_command_replay* command),
+		int (*commandProcessingCompletedFunction)(payment_completed *command),
+		void (*log_function)(const char *message),
+		const char *appVersionString /*= NULL*/
+	)
 {	  
 	int threads = 2;
 	int connection_limit = 100;
@@ -18,6 +22,7 @@ extern "C" int runServer(int port, void (*routeFunction)(const char* targetNode,
 		commandProcessingFunction,
 		commandProcessingReplayFunction,
 		commandProcessingCompletedFunction,
+		log_function,
 		static_cast<const char *>(appVersionString));
 
 	//auto rest_server server;
