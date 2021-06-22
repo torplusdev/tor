@@ -32,6 +32,11 @@ typedef int32_t error_t;
 
 #define tp_zero_mem(buf, len) memset((buf), 0, (len))
 
+typedef struct payment_chunks_st {
+    char key[PAYMENT_HASH_KEY_LEN];
+    char value[MAX_REAL_MESSAGE_LEN];
+} payment_chunks_t;
+
 struct OR_OP_request_st {
     uint8_t version;
     uint8_t message_type;
@@ -48,6 +53,14 @@ struct OR_OP_request_st {
     char message[MAX_MESSAGE_LEN];
     uint16_t messageTotalLength;
 };
+
+typedef struct OR_OP_request_st OR_OP_request_t;
+
+typedef struct payment_message_for_sending_st {
+    const char * sessionId;
+    const char * nodeId;
+    OR_OP_request_t * message;
+} payment_message_for_sending_t;
 
 typedef struct payment_session_context_st {
     char session_id[PAYMENT_HASH_KEY_LEN];
@@ -76,8 +89,6 @@ typedef struct chunk_payment_st {
     int len;
     list_of_chunks_t list[50];
 }chunk_payment_t;
-
-typedef struct OR_OP_request_st OR_OP_request_t;
 
 // public API
 void tp_init(void);
