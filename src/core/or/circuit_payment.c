@@ -262,9 +262,9 @@ static int tp_process_command_replay(tor_command_replay* command)
 
 static void add_payment_curl_request(thread_args_t* args)
 {
-    pthread_rwlock_wrlock(&global_curl_request_rwlock);
+    // pthread_rwlock_wrlock(&global_curl_request_rwlock);
     smartlist_add(payment_curl_request, args);
-    pthread_rwlock_unlock(&global_curl_request_rwlock);
+    // pthread_rwlock_unlock(&global_curl_request_rwlock);
 }
 
 void tp_fill_stellar_address(char *dst)
@@ -1091,10 +1091,10 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
   smartlist_clear(payment_messsages_for_sending);
   pthread_rwlock_unlock(&global_payment_messsages_rwlock);
 
-  pthread_rwlock_wrlock(&global_curl_request_rwlock);
+//   pthread_rwlock_wrlock(&global_curl_request_rwlock);
   smartlist_t *tmp_requests = payment_curl_request;
   payment_curl_request = smartlist_new();
-  pthread_rwlock_unlock(&global_curl_request_rwlock);
+//   pthread_rwlock_unlock(&global_curl_request_rwlock);
 
   SMARTLIST_FOREACH_BEGIN(tmp_requests, thread_args_t*, message) {
     if(message->step_type == 1){
