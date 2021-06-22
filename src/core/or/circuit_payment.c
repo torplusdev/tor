@@ -62,7 +62,9 @@ static smartlist_t *global_payment_info_list = NULL;
 static smartlist_t *global_chunks_list = NULL;
 static smartlist_t *payment_messsages_for_sending = NULL;
 static smartlist_t *payment_curl_request = NULL;
-static pthread_rwlock_t rwlock;
+
+static pthread_rwlock_t global_payment_messsages_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+static pthread_rwlock_t global_curl_request_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
 static error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
@@ -173,7 +175,7 @@ static int tp_process_command(tor_command* command)
     const size_t body_len = strlen(command->commandBody);
     const size_t part_size = body_len / CHUNK_SIZE;
 
-    pthread_rwlock_wrlock(&rwlock);
+    pthread_rwlock_wrlock(&global_payment_messsages_rwlock);
 
     for(size_t g = 0 ; g <= part_size ;g++) {
         payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
@@ -209,7 +211,7 @@ static int tp_process_command(tor_command* command)
     log_input.url = "/api/command";
     ship_log(&log_input);
 
-    pthread_rwlock_unlock(&rwlock);
+    pthread_rwlock_unlock(&global_payment_messsages_rwlock);
     return 0;
 }
 
@@ -218,7 +220,7 @@ static int tp_process_command_replay(tor_command_replay* command)
     const size_t body_len = strlen(command->commandResponse);
     const size_t part_size = body_len / CHUNK_SIZE;
 
-    pthread_rwlock_wrlock(&rwlock);
+    pthread_rwlock_wrlock(&global_payment_messsages_rwlock);
     for(size_t g = 0 ; g <= part_size ;g++) {
         payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
         OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
@@ -244,7 +246,7 @@ static int tp_process_command_replay(tor_command_replay* command)
         message->nodeId = command->nodeId;
         smartlist_add(payment_messsages_for_sending, message);
     }
-    pthread_rwlock_unlock(&rwlock);
+    pthread_rwlock_unlock(&global_payment_messsages_rwlock);
 
     log_args_t log_input;
     char request[10000];
@@ -260,7 +262,9 @@ static int tp_process_command_replay(tor_command_replay* command)
 
 static void add_payment_curl_request(thread_args_t* args)
 {
+    pthread_rwlock_wrlock(&global_curl_request_rwlock);
     smartlist_add(payment_curl_request, args);
+    pthread_rwlock_unlock(&global_curl_request_rwlock);
 }
 
 void tp_fill_stellar_address(char *dst)
@@ -833,7 +837,6 @@ int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ)
 
 void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number)
 {
-    pthread_rwlock_wrlock(&rwlock);
     circ->total_package_received = 0;
     circ->total_package_sent = 0;
     thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
@@ -843,7 +846,6 @@ void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number
     args->step_type = 3;
 
     add_payment_curl_request(args);
-    pthread_rwlock_unlock(&rwlock);
     return;
 }
 
@@ -1026,7 +1028,7 @@ static int process_payment_command_cell_to_node(thread_args_t* args)
 int tp_payment_requests_callback(time_t now, const or_options_t *options)
 {
     (void) now; (void) options;
-    pthread_rwlock_wrlock(&rwlock);
+    pthread_rwlock_wrlock(&global_payment_messsages_rwlock);
     SMARTLIST_FOREACH_BEGIN(payment_messsages_for_sending, payment_message_for_sending_t*, message) {
     if(message->message == NULL) {
       payment_session_context_t *session_context = get_from_session_context_by_session_id(
@@ -1087,8 +1089,14 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
   }
   SMARTLIST_FOREACH_END(message);
   smartlist_clear(payment_messsages_for_sending);
+  pthread_rwlock_unlock(&global_payment_messsages_rwlock);
 
-  SMARTLIST_FOREACH_BEGIN(payment_curl_request, thread_args_t*, message) {
+  pthread_rwlock_wrlock(&global_curl_request_rwlock);
+  smartlist_t *tmp_requests = payment_curl_request;
+  payment_curl_request = smartlist_new();
+  pthread_rwlock_unlock(&global_curl_request_rwlock);
+
+  SMARTLIST_FOREACH_BEGIN(tmp_requests, thread_args_t*, message) {
     if(message->step_type == 1){
         process_payment_command_cell_to_node(message);
     }
@@ -1101,7 +1109,7 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
     tor_free_(message);
   }
   SMARTLIST_FOREACH_END(message);
-  smartlist_clear(payment_curl_request);
-  pthread_rwlock_unlock(&rwlock);
+  smartlist_clear(tmp_requests);
+  smartlist_free(tmp_requests);
   return 1;
 }
