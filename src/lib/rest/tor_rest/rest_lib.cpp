@@ -2,7 +2,7 @@
 #define JSMN_HEADER
 #include "jsmn.h"
 #include "tor_rest_service.h"
-
+#include <sstream>
 
 extern "C" int runServer(
 		int port,
@@ -25,16 +25,20 @@ extern "C" int runServer(
 		log_function,
 		static_cast<const char *>(appVersionString));
 
-	//auto rest_server server;
 	auto server = new rest_server();
 	
-	server->set_log_file(&cerr);
+	// server->set_log_file(&cerr);
 	server->set_max_connections(connection_limit);
 	server->set_threads(threads);
   
-	if (!server->start(service, port))
-		return cerr << "Cannot start REST server!" << endl, 1;
-	
-	//server.wait_until_signalled();
+	if (!server->start(service, port)) {
+		std::stringstream msg;
+		msg << "Cannot start REST server on port: " << port;
+		if (nullptr != log_function)
+			log_function(msg.str().c_str());
+		else
+			cerr << msg.str() << std::endl;
+		return -1;
+	}
 	return 0;
 }
