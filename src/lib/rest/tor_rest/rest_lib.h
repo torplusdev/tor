@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdlib.h>
 
 #define CONST_ROUTE_NODE_ID_LENGTH 100
 
@@ -9,9 +10,9 @@ typedef struct rest_node_t {
 
 typedef struct tor_route {
     rest_node_t* nodes;
-    int nodes_len;
-    char* call_back_url; 		        // process command url
-    char* status_call_back_url; 		// process command url
+    size_t nodes_len;
+    const char* call_back_url; 		        // process command url
+    const char* status_call_back_url; 		// process command url
 } tor_route;
 
 typedef struct tor_command {

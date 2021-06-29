@@ -19,14 +19,15 @@ struct curl_fetch_st {
     size_t size;
 };
 
-void ship_log(log_args_t* args)
+void ship_log(const char * prefix, log_args_t* args)
 {
     const or_options_t *options = get_options();
     if( !options->EnablePaymentLog )
         return;
 
     log_notice(LD_GENERAL,
-        "Payments Log: NodeNickname='%s' RequestUrl='%s' RequestBody='%s' ResponseBody='%s'",
+        "Payment %s: NodeNickname='%s' RequestUrl='%s' RequestBody='%s' ResponseBody='%s'",
+        prefix ? prefix : "other",
         options->Nickname ? options->Nickname : "(NULL)",
         args->url ? args->url : "(NULL)",
         args->requestBody ? args->requestBody : "(NULL)",
@@ -48,7 +49,7 @@ char* tp_create_payment_info(char *url, create_payment_info_t* body)
     args.url= url;
     args.requestBody = request_string;
     args.responseBody = (response == NULL) ? "" : response;
-    ship_log(&args);
+    ship_log(PAYMENT_REQUEST, &args);
     return response;
 }
 
@@ -75,7 +76,7 @@ payment_response_t* tp_http_payment(char *url, process_payment_request_t* body, 
     args.url= url;
     args.requestBody = request_string;
     args.responseBody = (response == NULL) ? "" : response;
-    ship_log(&args);
+    ship_log(PAYMENT_REQUEST, &args);
     return NULL;
 }
 
@@ -95,7 +96,7 @@ payment_response_t* tp_http_command(char *url, utility_command_t* body) {
     args.url= url;
     args.requestBody = request_string;
     args.responseBody = (response == NULL) ? "" : response;
-    ship_log(&args);
+    ship_log(PAYMENT_REQUEST, &args);
     return NULL;
 }
 
@@ -113,7 +114,7 @@ payment_response_t* tp_http_response(char *url, utility_response_t* body) {
     args.url= url;
     args.requestBody = request_string;
     args.responseBody = (response == NULL) ? "" : response;
-    ship_log(&args);
+    ship_log(PAYMENT_REQUEST, &args);
     return NULL;
 }
 

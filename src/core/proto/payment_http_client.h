@@ -59,8 +59,11 @@ char* tp_create_payment_info(char *url, create_payment_info_t* request); //1
 payment_response_t* tp_http_payment(char *url, process_payment_request_t* request, int hup_num); //2
 payment_response_t* tp_http_command(char *url, utility_command_t* request); //4
 payment_response_t* tp_http_response(char *url, utility_response_t* request); //5
-void ship_log(log_args_t* args);
+void ship_log(const char * prefix, log_args_t* args);
 json_object* tp_http_get_request(const char* url_input);
 char* tp_http_post_request(const char* url_input, const char* json);
+
+#define PAYMENT_REQUEST "request"
+#define PAYMENT_CALLBACK "callback"
 
 #endif // __PAYMENT_HTTP_CLIENT_H__INCLUDED__

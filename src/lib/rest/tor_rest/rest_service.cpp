@@ -114,6 +114,7 @@ bool tor_rest_service::handle(rest_request& req)
 	    	tor_route route;
 	    	m_routeCreator(nodeId.c_str(),&route);
 	    	auto str = route2json(&route);
+			//TODO: free tor_route
 	    	
 	    	return req.respond("application/json", string_piece(str->c_str(),str->length()));  
 		    
