@@ -57,8 +57,8 @@ struct OR_OP_request_st {
 typedef struct OR_OP_request_st OR_OP_request_t;
 
 typedef struct payment_message_for_sending_st {
-    const char * sessionId;
-    const char * nodeId;
+    char sessionId[PAYMENT_HASH_KEY_LEN + 1];
+    char nodeId[USER_NAME_LEN + 1];
     OR_OP_request_t * message;
 } payment_message_for_sending_t;
 

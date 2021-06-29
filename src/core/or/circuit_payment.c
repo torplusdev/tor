@@ -189,8 +189,8 @@ static int tp_payment_chain_completed(payment_completed* command)
         return -2;
 
     payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
-    message->nodeId = "-1";
-    message->sessionId = command->sessionId;
+    strcpy(message->nodeId, "-1");
+    strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
     message->message = NULL;
     pthread_rwlock_wrlock(&global_payment_messsages_rwlock);
     smartlist_add(global_payment_messsages, message);
@@ -239,15 +239,19 @@ static int tp_process_command(tor_command* command)
     for(size_t g = 0 ; g <= part_size ;g++) {
         payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
         OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
-        input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-        strcpy(input->nickname, command->nodeId);
-        input->command_type = atoi(command->commandType);
-        input->nicknameLength = strlen(command->nodeId);
         input->version = 0;
+        input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
+        input->command_type = atoi(command->commandType);
+
+        strcpy(input->nickname, command->nodeId);
+        input->nicknameLength = strlen(command->nodeId);
+
         strcpy(input->session_id, command->sessionId);
         input->session_id_length = strlen(command->sessionId);
+    
         strcpy(input->command_id, command->commandId);
         input->command_id_length = strlen(command->commandId);
+    
         size_t chunck_real_size = 0;
         const char * buf_ptr = tp_get_buffer_part_number(command->commandBody, body_len, CHUNK_SIZE, g, &chunck_real_size);
         strncpy(input->message, buf_ptr, chunck_real_size);
@@ -256,8 +260,8 @@ static int tp_process_command(tor_command* command)
         input->is_last = (g < part_size) ? 0 : 1;
 
         message->message = input;
-        message->nodeId = command->nodeId;
-        message->sessionId = command->sessionId;
+        strncpy(message->nodeId, command->nodeId, sizeof(message->nodeId));
+        strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
         smartlist_add(global_payment_messsages, message);
     }
     pthread_rwlock_unlock(&global_payment_messsages_rwlock);
@@ -309,8 +313,8 @@ static int tp_process_command_replay(tor_command_replay* command)
         input->message[chunck_real_size] = '\0';
         input->messageLength = chunck_real_size;
         input->is_last = (g < part_size) ? 0 : 1;
-        message->sessionId = command->sessionId;
-        message->nodeId = command->nodeId;
+        strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
+        strncpy(message->nodeId, command->nodeId, sizeof(message->nodeId));
         smartlist_add(global_payment_messsages, message);
     }
     pthread_rwlock_unlock(&global_payment_messsages_rwlock);
