@@ -98,7 +98,7 @@ static void test_payment_session_context(void *arg)
     const char* nickname = "nickname";
     uint64_t channel_global_id =101;
     uint32_t circuit_idl = 202;
-    set_to_session_context(session_id, nickname, channel_global_id, circuit_idl);
+    tp_store_session_context(session_id, nickname, channel_global_id, circuit_idl);
 
     payment_session_context_t *session_context = get_from_session_context_by_session_id(
             session_id);

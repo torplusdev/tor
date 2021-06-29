@@ -97,7 +97,7 @@ void tp_fill_stellar_address(char *dst);
 ssize_t circuit_payment_negotiate_parse(OR_OP_request_t **output, const uint8_t *input, const size_t len_in);
 ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const OR_OP_request_t *obj);
 
-void set_to_session_context(const char* session, const char* nickname, uint64_t channel_global_id, uint32_t circuit_id);
+void tp_store_session_context(const char* session, const char* nickname, uint64_t channel_global_id, uint32_t circuit_id);
 payment_session_context_t* get_from_session_context_by_session_id(const char* session);
 void remove_from_session_context(payment_session_context_t* element);
 
