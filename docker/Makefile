@@ -33,3 +33,6 @@ update_config:
 update_config_prod:
 	export PP_ENV=prod
 	sh update.config.sh
+
+run:
+    tor

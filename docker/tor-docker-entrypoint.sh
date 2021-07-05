@@ -14,10 +14,13 @@ case "$PP_ENV" in
  prod) echo PROD ;;
  *) sleep 1 && echo "PP_ENV not valid $role" && exit 1 ;;
 esac
+#export data_directory="/Users/tumarsal/tor"
+
 if [[ "${no_conf}" != "1" ]]; then
   source /opt/paidpiper/tor.${PP_ENV}.cfg
   export dirauth=$dirauth
   export data_directory="/root/tor"
+
   randNickname="t$(cat /proc/sys/kernel/random/uuid | sed 's/-//g')"
   export nickname="${randNickname:0:10}"
 
@@ -51,10 +54,7 @@ function checkTorReady {
     hs_client) mark "Bootstrapped 100% (done): Done" "/opt/paidpiper/.tor_ready" ;;
     esac
 }
-function server {
-    seed=GDTMVPOW2IOPAKEIOSTNPH2F6HWP64RUTCIDP3IFGTNU6JXTMNQMQUSC
-    echo -en "HTTP/1.1 200 OK\r\n$(date)\r\n\r\n{ \"Address\":\"$seed\"}\r\n\r\n" |  nc -q 1 -l 8080;
-}
+
 if [ ! -f /opt/paidpiper/.pg_ready ]; then
   fn_exists pg_start && pg_start
 fi
