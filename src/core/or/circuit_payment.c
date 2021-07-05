@@ -97,7 +97,7 @@ static int circuit_get_length(origin_circuit_t * circ)
 static void tp_get_route(const char* sessionId, tor_route *route)
 {
     if (NULL == sessionId || NULL == route) {
-        log_notice(LD_BUG, "tp_get_route: invalid arguments");
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_get_route: invalid arguments");
         return;
     }
 
@@ -138,7 +138,7 @@ static void tp_get_route(const char* sessionId, tor_route *route)
                 route->nodes = (rest_node_t *) tor_malloc_(route->nodes_len * sizeof(rest_node_t));
                 for (size_t i = 0; i < route->nodes_len; ++i) {
                     if (strcmp(next->extend_info->stellar_address, "") == 0) {
-                        log_notice(LD_PROTOCOL, "Some nodes without stellar address. nodes_count: %d, failed_num: %d", route->nodes_len, i);
+                        log_notice(LD_PROTOCOL | LD_BUG, "tp_get_route: Some nodes without stellar address. nodes_count: %zu, failed_num: %zu", route->nodes_len, i);
                         tor_free_(route->nodes);
                         route->nodes = NULL;
                         route->nodes_len = 0;
@@ -172,8 +172,10 @@ static void tp_get_route(const char* sessionId, tor_route *route)
 // HTTP CALLBACK
 static int tp_payment_chain_completed(payment_completed* command)
 {
-    if (NULL == command)
+    if (NULL == command) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_payment_chain_completed: invalid arguments");
         return -1;
+    }
 
     {
         log_args_t log_input;
@@ -183,12 +185,12 @@ static int tp_payment_chain_completed(payment_completed* command)
         ship_log(PAYMENT_CALLBACK, &log_input);
     }
 
-    if (NULL == command->sessionId
-        /*|| 0 > command->status*/
-        )
-        return -2;
+    if (NULL == command->sessionId /*|| 0 > command->status*/) {
+            log_notice(LD_PROTOCOL | LD_BUG, "tp_payment_chain_completed: invalid sessionId arguments");
+            return -2;
+    }
 
-    payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
+    payment_message_for_sending_t* message = tor_calloc_(1, sizeof(payment_message_for_sending_t));
     strcpy(message->nodeId, "-1");
     strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
     message->message = NULL;
@@ -213,8 +215,10 @@ static const char* tp_get_buffer_part_number(const char * buffer, size_t buffer_
 // HTTP CALLBACK
 static int tp_process_command(tor_command* command)
 {
-    if (NULL == command)
+    if (NULL == command) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: invalid arguments");
         return -1;
+    }
 
     {
         log_args_t log_input;
@@ -228,29 +232,55 @@ static int tp_process_command(tor_command* command)
         NULL == command->commandType ||
         NULL == command->commandId ||
         NULL == command->sessionId ||
-        NULL == command->commandBody)
-        return -2;
+        NULL == command->commandBody) {
+            log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: invalid arguments");
+            return -2;
+    }
+    
+    const size_t command_type_length = strlen(command->commandType);
+    const int command_type = atoi(command->commandType);
+    const size_t nicknameLength = strlen(command->nodeId);
+    const size_t session_id_length = strlen(command->sessionId);
+    const size_t command_id_length = strlen(command->commandId);
 
+    if(0 == command_type_length || 0 > command_type) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: argument 'commandType' invalid string length: %zu, value:%s", command_type_length, command->commandType);
+        return -3;
+    }
+    if(nicknameLength > USER_NAME_LEN || 0 == nicknameLength) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: argument 'nodeId' invalid string length: %zu, value:%s", nicknameLength, command->nodeId);
+        return -3;
+    }
+    if(session_id_length > SESSION_ID_LEN || 0 ==session_id_length) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: argument 'sessionId' invalid string length: %zu, value:%s", session_id_length, command->sessionId);
+        return -3;
+    }
+    if(command_id_length > COMMAND_ID_LEN || 0 ==command_id_length) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: argument 'commandId' invalid string length: %zu, value:%s", command_id_length, command->commandId);
+        return -3;
+    }
     const size_t body_len = strlen(command->commandBody);
     const size_t part_size = body_len / CHUNK_SIZE;
 
     pthread_rwlock_wrlock(&global_payment_messsages_rwlock);
 
     for(size_t g = 0 ; g <= part_size ;g++) {
-        payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
-        OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
+        payment_message_for_sending_t* message = tor_calloc_(1, sizeof(payment_message_for_sending_t));
+        strncpy(message->nodeId, command->nodeId, sizeof(message->nodeId) - 1);
+        strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId) - 1);
+
+        OR_OP_request_t *input = tor_calloc_(1, sizeof(OR_OP_request_t));
+        message->message = input;
         input->version = 0;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-        input->command_type = atoi(command->commandType);
+        input->command_type = command_type;
 
-        strcpy(input->nickname, command->nodeId);
-        input->nicknameLength = strlen(command->nodeId);
-
-        strcpy(input->session_id, command->sessionId);
-        input->session_id_length = strlen(command->sessionId);
-    
-        strcpy(input->command_id, command->commandId);
-        input->command_id_length = strlen(command->commandId);
+        strncpy(input->nickname, command->nodeId, sizeof(input->nickname));
+        input->nicknameLength = nicknameLength;
+        strncpy(input->session_id, command->sessionId, sizeof(input->session_id));
+        input->session_id_length = session_id_length;
+        strncpy(input->command_id, command->commandId, sizeof(input->command_id));
+        input->command_id_length = command_id_length;
     
         size_t chunck_real_size = 0;
         const char * buf_ptr = tp_get_buffer_part_number(command->commandBody, body_len, CHUNK_SIZE, g, &chunck_real_size);
@@ -259,9 +289,6 @@ static int tp_process_command(tor_command* command)
         input->messageLength = chunck_real_size;
         input->is_last = (g < part_size) ? 0 : 1;
 
-        message->message = input;
-        strncpy(message->nodeId, command->nodeId, sizeof(message->nodeId));
-        strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
         smartlist_add(global_payment_messsages, message);
     }
     pthread_rwlock_unlock(&global_payment_messsages_rwlock);
@@ -271,8 +298,10 @@ static int tp_process_command(tor_command* command)
 // HTTP CALLBACK
 static int tp_process_command_replay(tor_command_replay* command)
 {
-    if (NULL == command)
+    if (NULL == command) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: invalid arguments");
         return -1;
+    }
 
     {
         log_args_t log_input;
@@ -285,36 +314,58 @@ static int tp_process_command_replay(tor_command_replay* command)
     if (NULL == command->nodeId ||
         NULL == command->sessionId ||
         NULL == command->commandId ||
-        NULL == command->commandResponse)
-        return -2;
+        NULL == command->commandResponse) {
+            log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: invalid arguments");
+            return -2;
+    }
+
+    const size_t nicknameLength = strlen(command->nodeId);
+    const size_t session_id_length = strlen(command->sessionId);
+    const size_t command_id_length = strlen(command->commandId);
+
+    if(nicknameLength > USER_NAME_LEN || 0 == nicknameLength) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'nodeId' invalid string length: %zu, value:%s", nicknameLength, command->nodeId);
+        return -3;
+    }
+    if(session_id_length > SESSION_ID_LEN || 0 ==session_id_length) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'sessionId' invalid string length: %zu, value:%s", session_id_length, command->sessionId);
+        return -3;
+    }
+    if(command_id_length > COMMAND_ID_LEN || 0 ==command_id_length) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'commandId' invalid string length: %zu, value:%s", command_id_length, command->commandId);
+        return -3;
+    }
 
     const size_t body_len = strlen(command->commandResponse);
     const size_t part_size = body_len / CHUNK_SIZE;
 
     pthread_rwlock_wrlock(&global_payment_messsages_rwlock);
     for(size_t g = 0 ; g <= part_size ;g++) {
-        payment_message_for_sending_t* message = tor_malloc(sizeof(payment_message_for_sending_t));
-        OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
+        payment_message_for_sending_t* message = tor_calloc_(1, sizeof(payment_message_for_sending_t));
+        strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId) - 1);
+        strncpy(message->nodeId, command->nodeId, sizeof(message->nodeId) - 1);
+    
+        OR_OP_request_t *input = tor_calloc_(1, sizeof(OR_OP_request_t));
         message->message = input;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-        strcpy(input->nickname, command->nodeId);
         input->command_type = 0;
-        input->nicknameLength = strlen(command->nodeId);
         input->version = 0;
-
         input->message_type = 4;
-        strcpy(input->session_id, command->sessionId);
-        input->session_id_length = strlen(command->sessionId);
-        strcpy(input->command_id, command->commandId);
-        input->command_id_length = strlen(command->commandId);
+
+        strncpy(input->nickname, command->nodeId, sizeof(input->nickname));
+        input->nicknameLength = nicknameLength;
+        strncpy(input->session_id, command->sessionId, sizeof(input->session_id));
+        input->session_id_length = session_id_length;
+        strncpy(input->command_id, command->commandId, sizeof(input->command_id));
+        input->command_id_length = command_id_length;
+
         size_t chunck_real_size = 0;
         const char * buf_ptr = tp_get_buffer_part_number(command->commandResponse, body_len, CHUNK_SIZE, g, &chunck_real_size);
         strncpy(input->message, buf_ptr, chunck_real_size);
         input->message[chunck_real_size] = '\0';
         input->messageLength = chunck_real_size;
         input->is_last = (g < part_size) ? 0 : 1;
-        strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
-        strncpy(message->nodeId, command->nodeId, sizeof(message->nodeId));
+    
         smartlist_add(global_payment_messsages, message);
     }
     pthread_rwlock_unlock(&global_payment_messsages_rwlock);
@@ -429,7 +480,7 @@ static error_t circuit_payment_send_OR(circuit_t *circ, OR_OP_request_t* input)
         RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN, payload, len);
 }
 
-static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum,uint8_t relay_command, const uint8_t *payload, ssize_t payload_len)
+static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len)
 {
     crypt_path_t *target_hop = circuit_get_cpath_hop(circ, hopnum);
     error_t ret;
@@ -1063,27 +1114,30 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
             channel_t *chan = channel_find_by_global_id(session_context->channel_global_id);
             /* Get the circuit */
             circuit_t *circ = circuit_get_by_circid_channel_even_if_marked(session_context->circuit_id, chan);
-            if(message->message == NULL) {
-                OR_OP_request_t *input = tor_malloc(sizeof(OR_OP_request_t));
-                input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-                input->is_last = 1;
-                memcpy(input->session_id, message->sessionId, sizeof(input->session_id));
-                input->session_id_length = strlen(message->sessionId);
-                input->message_type = 100;
-                input->command_type = 0;
-                input->version = 0;
-                input->messageTotalLength = 0;
-                input->command_id_length = 0;
-                input->nicknameLength = 0;
+            if(message->message == NULL) { // from tp_payment_chain_completed
+                OR_OP_request_t input;
+                memset(&input, 0, sizeof(input));
+
+                memcpy(input.session_id, message->sessionId, sizeof(input.session_id));
+                input.session_id_length = strlen(message->sessionId);
+
+                input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
+                input.is_last = 1;
+                input.message_type = 100;
+                input.command_type = 0;
+                input.version = 0;
+                input.messageTotalLength = 0;
+                input.messageLength = 0;
+                input.command_id_length = 0;
+                input.nicknameLength = 0;
                 if (circ != NULL) {
                     origin_circuit_t *origin_circuit = TO_ORIGIN_CIRCUIT(circ);
                     int length = circuit_get_length(origin_circuit);
                     for (int i = 1; i < length + 1; ++i) {
-                        circuit_payment_send_OP(circ, i, input);
+                        circuit_payment_send_OP(circ, i, &input);
                     }
                     remove_from_session_context(session_context);
                 }
-                tor_free_(input);
             } else {
                 if (circ != NULL) {
                     if (CIRCUIT_IS_ORIGIN(circ)) {
@@ -1096,7 +1150,9 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
                 }
             }
         }
-        tor_free_(message->message);
+        if (NULL != message->message){
+            tor_free_(message->message);
+        }
         tor_free_(message);
     } SMARTLIST_FOREACH_END(message);
 

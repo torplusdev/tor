@@ -57,13 +57,13 @@ struct OR_OP_request_st {
 typedef struct OR_OP_request_st OR_OP_request_t;
 
 typedef struct payment_message_for_sending_st {
-    char sessionId[PAYMENT_HASH_KEY_LEN + 1];
+    char sessionId[SESSION_ID_LEN + 1];
     char nodeId[USER_NAME_LEN + 1];
     OR_OP_request_t * message;
 } payment_message_for_sending_t;
 
 typedef struct payment_session_context_st {
-    char session_id[PAYMENT_HASH_KEY_LEN];
+    char session_id[SESSION_ID_LEN];
     char nickname[USER_NAME_LEN];
     uint32_t circuit_id;
     uint64_t channel_global_id;
