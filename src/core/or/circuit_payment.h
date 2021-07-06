@@ -91,6 +91,7 @@ typedef struct chunk_payment_st {
 }chunk_payment_t;
 
 // public API
+void tp_init_lists(void);
 void tp_init(void);
 void tp_fill_stellar_address(char *dst);
 

@@ -403,6 +403,15 @@ static void tp_rest_log(const char * message)
     log_notice(LD_GENERAL,"Payment REST_LOG:\n%s", message);
 }
 
+void tp_init_lists()
+{
+    global_payment_messsages = smartlist_new();
+    global_curl_request = smartlist_new();
+    global_payment_session_list = smartlist_new();
+    global_payment_info_list = smartlist_new();
+    global_chunks_list = smartlist_new();
+}
+
 void tp_init(void)
 {
     const char* stellar = tp_get_address();
@@ -423,11 +432,7 @@ void tp_init(void)
     snprintf(s_url_api_gw_processPayment, PAYMENT_URL_LEN, "http://localhost:%d/api/gateway/processPayment", ppc_port);
     snprintf(s_url_api_gw_processResponse, PAYMENT_URL_LEN, "http://localhost:%d/api/gateway/processResponse", ppc_port);
 
-    global_payment_messsages = smartlist_new();
-    global_curl_request = smartlist_new();
-    global_payment_session_list = smartlist_new();
-    global_payment_info_list = smartlist_new();
-    global_chunks_list = smartlist_new();
+    tp_init_lists();
 
     const int ppcb_port = get_options()->PPChannelCallbackPort;
     if ( ppcb_port != -1 ) {

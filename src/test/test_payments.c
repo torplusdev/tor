@@ -38,7 +38,6 @@ static void test_payment_cell(void *arg)
 
     cell.command = CELL_RELAY;
 
-
     OR_OP_request_t *input = tor_malloc_(sizeof(OR_OP_request_t));
     strcpy(input->session_id, "session_id");
     input->session_id_length = strlen(input->session_id);
@@ -54,7 +53,6 @@ static void test_payment_cell(void *arg)
     input->version = 203;
     input->is_last = 1;
     input->message_type = 206;
-
 
     len = circuit_payment_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE, input);
     tt_int_op(len, OP_GE, 0);
@@ -76,24 +74,23 @@ static void test_payment_cell(void *arg)
     tt_int_op(input->nicknameLength, OP_EQ, negotiate->nicknameLength);
     tt_int_op(input->session_id_length, OP_EQ, negotiate->session_id_length);
 
-
     tt_mem_op(input->session_id, OP_EQ, input->session_id, input->session_id_length);
     tt_mem_op(input->nickname, OP_EQ, input->nickname, input->nicknameLength);
     tt_mem_op(input->message, OP_EQ, input->message, input->messageTotalLength);
     tt_mem_op(input->command_id, OP_EQ, input->command_id, input->command_id_length);
 
-
-
     done:
     tor_free_(input);
     return;
-
 }
 
 
 static void test_payment_session_context(void *arg)
 {
     (void)arg;
+
+    tp_init_lists();
+
     const char* session_id = "sdfgjkhsdfjkh";
     const char* nickname = "nickname";
     uint64_t channel_global_id =101;
@@ -112,7 +109,7 @@ static void test_payment_session_context(void *arg)
     session_context = get_from_session_context_by_session_id(
             session_id);
 
-    if(session_context != NULL){
+    if(session_context != NULL) {
         tt_int_op(1, OP_EQ, 0);
     }
 
@@ -123,6 +120,9 @@ static void test_payment_session_context(void *arg)
 static void test_payment_payment_info(void *arg)
 {
     (void)arg;
+
+    tp_init_lists();
+
     uint32_t circuit_idl = 202;
 
     set_circuit_payment_info(circuit_idl);
