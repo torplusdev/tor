@@ -33,6 +33,7 @@ update_config:
 update_config_prod:
 	export PP_ENV=prod
 	sh update.config.sh
-
+ping:
+	sh tor.ping.sh
 run:
-    tor
+	sh tor.start.sh
