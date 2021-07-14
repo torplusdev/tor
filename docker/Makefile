@@ -14,6 +14,7 @@ image_last:
                 -t torplusserviceregistry.azurecr.io/private/tor:$(VERSION) \
                 -t torplusserviceregistry.azurecr.io/private/tor:latest \
                 -f Dockerfile ../
+
 push:
 	docker push torplusserviceregistry.azurecr.io/private/tor:$(VERSION)
 	docker push torplusserviceregistry.azurecr.io/private/tor:latest
@@ -28,11 +29,9 @@ run_it_builder:
 	docker run -it --name torplus_build --rm --entrypoint /bin/bash torplus_build
 
 update_config:
-	export PP_ENV=stage
-	sh update.config.sh
+	PP_ENV=stage sh update.config.sh
 update_config_prod:
-	export PP_ENV=prod
-	sh update.config.sh
+	PP_ENV=prod sh update.config.sh
 ping:
 	sh tor.ping.sh
 run:

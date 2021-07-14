@@ -15,7 +15,7 @@ ARG TOR_VERSION
 ENV TOR_VERSION $TOR_VERSION
 ARG PP_ENV
 ENV PP_ENV $PP_ENV
-
+ENV wwwsite=127.0.0.1:8080
 # should use configuration
 ENV no_conf=0
 WORKDIR /opt/paidpiper/

@@ -21,9 +21,8 @@ WORKDIR /opt/paidpiper/tor_plus
 # Building and installing
 COPY --from=cache /app .
 #COPY . .
-RUN cd src/lib/rest && rm -rf build && mkdir -p build && cd build && cmake .. && make
 RUN sh autogen.sh && \
     autoreconf -f -i && \
     ./configure  --disable-asciidoc && \
-    make && \
+    make -j && \
     make install
