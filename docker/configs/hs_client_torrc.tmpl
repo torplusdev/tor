@@ -42,7 +42,7 @@ SocksPort 9050
 Address ${self_host}
 
 HiddenServiceDir ${data_directory}/hidden_service/hsv3
-HiddenServicePort 80 {wwwsite}
+HiddenServicePort 80 ${wwwsite}
 HiddenServiceVersion 3
 
 ExitPolicy reject *:*
