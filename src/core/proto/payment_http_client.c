@@ -103,7 +103,7 @@ payment_response_t* tp_http_command(char *url, utility_command_t* body) {
 payment_response_t* tp_http_response(char *url, utility_response_t* body) {
     json_object*  json_request = json_object_new_object();
     /* build post data */
-    json_object_object_add(json_request, "ResponseBody", json_object_new_string(body->response_body));
+    json_object_object_add(json_request, "CommandResponse", json_object_new_string(body->response_body));
     json_object_object_add(json_request, "NodeId", json_object_new_string(body->node_id));
     json_object_object_add(json_request, "CommandId", json_object_new_string(body->command_id));
     json_object_object_add(json_request, "SessionId", json_object_new_string(body->session_id));

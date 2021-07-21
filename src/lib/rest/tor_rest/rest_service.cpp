@@ -178,7 +178,7 @@ bool tor_rest_service::handle(rest_request& req)
 	    	if (r < 0)
 	    		return req.respond_error("Couldn't parse json");
 
-	    	std::string commandResponse, commandId, nodeId, sessionId;
+	    	std::string commandResponse, commandId, nodeId, sessionId, commandType;
 			for (int i = 1; i < r; i++)
 			{
 				const jsmntok_t* pt = &t[i + 1];
@@ -201,6 +201,11 @@ bool tor_rest_service::handle(rest_request& req)
 					sessionId = std::string(jsonRequest + pt->start, pt->end - pt->start);
 					i++;
 				}
+				else if (jsoneq(jsonRequest, &t[i], "CommandType") == 0)
+				{
+					commandType = std::string(jsonRequest + pt->start, pt->end - pt->start);
+					i++;
+				}
 			}
 
 	    	tor_command_replay cmd;
@@ -209,6 +214,7 @@ bool tor_rest_service::handle(rest_request& req)
 			cmd.nodeId = nodeId.c_str();
 			cmd.sessionId = sessionId.c_str();
 			cmd.commandResponse = commandResponse.c_str();
+			cmd.commandType = commandType.c_str();
 
 	    	int code = m_commandProcessorReplay(&cmd);
 	    	if (code < 0)

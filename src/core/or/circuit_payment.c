@@ -314,7 +314,8 @@ static int tp_process_command_replay(tor_command_replay* command)
     if (NULL == command->nodeId ||
         NULL == command->sessionId ||
         NULL == command->commandId ||
-        NULL == command->commandResponse) {
+        NULL == command->commandResponse ||
+        NULL == command->commandType) {
             log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: invalid arguments");
             return -2;
     }
@@ -322,6 +323,8 @@ static int tp_process_command_replay(tor_command_replay* command)
     const size_t nicknameLength = strlen(command->nodeId);
     const size_t session_id_length = strlen(command->sessionId);
     const size_t command_id_length = strlen(command->commandId);
+    const size_t command_type_length = strlen(command->commandType);
+    const int command_type = atoi(command->commandType);
 
     if(nicknameLength > USER_NAME_LEN || 0 == nicknameLength) {
         log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'nodeId' invalid string length: %zu, value:%s", nicknameLength, command->nodeId);
@@ -333,6 +336,10 @@ static int tp_process_command_replay(tor_command_replay* command)
     }
     if(command_id_length > COMMAND_ID_LEN || 0 ==command_id_length) {
         log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'commandId' invalid string length: %zu, value:%s", command_id_length, command->commandId);
+        return -3;
+    }
+    if(0 == command_type_length || 0 > command_type || command_type) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'commandType' invalid string length: %zu, value:%s", command_type_length, command->commandType);
         return -3;
     }
 
@@ -348,7 +355,7 @@ static int tp_process_command_replay(tor_command_replay* command)
         OR_OP_request_t *input = tor_calloc_(1, sizeof(OR_OP_request_t));
         message->message = input;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-        input->command_type = 0;
+        input->command_type = command_type;
         input->version = 0;
         input->message_type = 4;
 
