@@ -1,4 +1,4 @@
-export PP_ENV=stage
+export PP_ENV=prod
 export role=hs_client
 sh update.config.sh
 source tor.${PP_ENV}.cfg
@@ -15,5 +15,10 @@ if [[ "${role}" = "hs_client" ]]; then
 fi
 cat configs/${role}_torrc.tmpl | envsubst > /usr/local/etc/tor/torrc
 echo "SHOW CONFIG: cat /usr/local/etc/tor/torrc"
-tor -f /usr/local/etc/tor/torrc
-#./tor_plus -f /usr/local/etc/tor/torrc
+if [[ "${PP_ENV}" = "prod" ]]; then
+  ./tor_plus -f /usr/local/etc/tor/torrc
+else
+   tor -f /usr/local/etc/tor/torrc
+fi
+
+
