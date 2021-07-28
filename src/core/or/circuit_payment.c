@@ -338,7 +338,7 @@ static int tp_process_command_replay(tor_command_replay* command)
         log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'commandId' invalid string length: %zu, value:%s", command_id_length, command->commandId);
         return -3;
     }
-    if(0 == command_type_length || 0 > command_type || command_type) {
+    if(0 == command_type_length || 0 > command_type) {
         log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'commandType' invalid string length: %zu, value:%s", command_type_length, command->commandType);
         return -3;
     }
