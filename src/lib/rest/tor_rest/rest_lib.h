@@ -36,6 +36,7 @@ typedef struct tor_command_replay {
     const char * nodeId;
     const char * sessionId;
     const char * json_body;
+    const char * commandType;
 } tor_command_replay;
 
 #ifdef __cplusplus
