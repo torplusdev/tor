@@ -48,6 +48,9 @@ struct cell_ewma_t {
   /** True iff this is the cell count for a circuit's previous
    * channel. */
   unsigned int is_for_p_chan : 1;
+  /* True if this circuit use speed limitaion by TorPlus
+  */
+  unsigned int is_limited : 1;
   /** The position of the circuit within the OR connection's priority
    * queue. */
   int heap_index;
@@ -63,6 +66,9 @@ struct ewma_policy_data_t {
    * in or_connection_t before that.
    */
   smartlist_t *active_circuit_pqueue;
+  /*
+  */
+  smartlist_t *paused_circuits;
 
   /**
    * The tick on which the cell_ewma_ts in active_circuit_pqueue last had

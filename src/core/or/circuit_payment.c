@@ -57,7 +57,6 @@ typedef struct thread_args_st {
 #define payment_step_to_client 3
 
 static smartlist_t *global_payment_session_list = NULL;
-static smartlist_t *global_payment_info_list = NULL;
 static smartlist_t *global_chunks_list = NULL;
 
 static smartlist_t *global_curl_request = NULL;
@@ -410,12 +409,11 @@ static void tp_rest_log(const char * message)
     log_notice(LD_GENERAL,"Payment REST_LOG:\n%s", message);
 }
 
-void tp_init_lists()
+void tp_init_lists(void)
 {
     global_payment_messsages = smartlist_new();
     global_curl_request = smartlist_new();
     global_payment_session_list = smartlist_new();
-    global_payment_info_list = smartlist_new();
     global_chunks_list = smartlist_new();
 }
 
@@ -839,29 +837,6 @@ void tp_store_session_context(const char* session, const char* nickname, uint64_
     }
 }
 
-void set_circuit_payment_info(uint32_t circuit_id)
-{
-    payment_info_context_t *origin = NULL;
-
-    SMARTLIST_FOREACH_BEGIN(global_payment_info_list, payment_info_context_t *, element) {
-        if (element->circuit_id == circuit_id) {
-            origin = element;
-            break;
-        }
-    } SMARTLIST_FOREACH_END(element);
-
-    if (origin == NULL) {
-        payment_info_context_t *ent = (payment_info_context_t *) tor_malloc_zero_(
-                sizeof(payment_info_context_t));
-        ent->circuit_id = circuit_id;
-        ent->delay_payments_counter = 1;
-        origin = ent;
-        smartlist_add(global_payment_info_list, ent);
-    } else {
-        origin->delay_payments_counter++;
-    }
-}
-
 payment_session_context_t* get_from_session_context_by_session_id(const char* session)
 {
     SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
@@ -873,27 +848,9 @@ payment_session_context_t* get_from_session_context_by_session_id(const char* se
     return NULL;
 }
 
-
-payment_info_context_t* get_circuit_payment_info(uint32_t circuit_id)
-{
-    SMARTLIST_FOREACH_BEGIN(global_payment_info_list, payment_info_context_t *, element) {
-        if (element->circuit_id == circuit_id) {
-            return element;
-        }
-    } SMARTLIST_FOREACH_END(element);
-
-    return NULL;
-}
-
 void remove_from_session_context(payment_session_context_t* element)
 {
     smartlist_remove(global_payment_session_list, element);
-    tor_free_(element);
-}
-
-void tp_remove_circuit_payment_info(payment_info_context_t* element)
-{
-    smartlist_remove(global_payment_info_list, element);
     tor_free_(element);
 }
 
@@ -959,6 +916,33 @@ void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number
     return;
 }
 
+static void tp_set_circ_limits(channel_t *chan, circuit_t *circ, cell_direction_t direction)
+{
+    circuitmux_circ_set_limited(chan->cmux, circ, direction);
+}
+
+static void tp_update_circ_counters(or_circuit_t *or_circut)
+{
+    tor_assert(or_circut);
+
+    or_circut->delay_payments_counter++;
+
+    if (or_circut->delay_payments_counter < 1)
+        return;
+
+    if (or_circut->is_limited)
+        return;
+
+    or_circut->is_limited = 1;
+    log_notice(LD_OR, "tp_update_circ_counters: use circuit bandwidth limitation");
+
+    circuit_t *circ = TO_CIRCUIT(or_circut);
+    if (or_circut->p_chan)
+        tp_set_circ_limits(or_circut->p_chan, circ, CELL_DIRECTION_IN);
+    if (circ->n_chan)
+        tp_set_circ_limits(circ->n_chan, circ, CELL_DIRECTION_OUT);
+}
+
 static void send_payment_request_to_client(thread_args_t* args)
 {
     circuit_t *circ = args->circ;
@@ -984,7 +968,7 @@ static void send_payment_request_to_client(thread_args_t* args)
     if (session == NULL || !strcmp(session, ""))
         return;
 
-    set_circuit_payment_info(or_circut->p_circ_id);
+    tp_update_circ_counters(or_circut);
 
     OR_OP_request_t input;
     input.version = 0;
@@ -1031,9 +1015,6 @@ static int process_payment_cell(thread_args_t* args)
 
     if(payment_request_payload->message_type == 100)
     {
-        payment_info_context_t *info = get_circuit_payment_info(TO_OR_CIRCUIT(circ)->p_circ_id);
-        if(info != NULL)
-            tp_remove_circuit_payment_info(info);
         payment_session_context_t *session_context =
                 get_from_session_context_by_session_id(payment_request_payload->session_id);
         if(session_context != NULL)

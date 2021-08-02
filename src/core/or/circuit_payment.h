@@ -69,11 +69,6 @@ typedef struct payment_session_context_st {
     uint64_t channel_global_id;
 } payment_session_context_t;
 
-typedef struct payment_info_context_st {
-    int delay_payments_counter;
-    uint32_t circuit_id;
-} payment_info_context_t;
-
 typedef struct payment_chunk_st {
     char nickname[USER_NAME_LEN];
     char merged_string[MAX_REAL_MESSAGE_LEN];
@@ -102,9 +97,6 @@ void tp_store_session_context(const char* session, const char* nickname, uint64_
 payment_session_context_t* get_from_session_context_by_session_id(const char* session);
 void remove_from_session_context(payment_session_context_t* element);
 
-void set_circuit_payment_info(uint32_t circuit_id);
-payment_info_context_t* get_circuit_payment_info(uint32_t circuit_id);
-void tp_remove_circuit_payment_info(payment_info_context_t* element);
 int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ);
 void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number);
 int tp_payment_requests_callback(time_t now, const or_options_t *options);

@@ -541,7 +541,7 @@ static int check_known_domains_list(const char *domain)
   tor_assert(domain);
   // If we have "torplus." in our domain, assume that this needs to be looked up.
   // Eventually this will need to be changed into a more complex logic
-  if (strstr(domain,"torplus.") > 0)
+  if (strstr(domain,"torplus.") != NULL)
     return 0;
 
   smartlist_t *known_domains = get_options()->PPResolvDomains;

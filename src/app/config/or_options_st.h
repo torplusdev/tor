@@ -1072,8 +1072,6 @@ struct or_options_t {
 
   int EnforceReachability; //Tor+
 
-  int EnableToCloseCircuitByTorPlus; //Tor+
-
   struct smartlist_t * PPResolvDomains;//Tor+
 
   /**

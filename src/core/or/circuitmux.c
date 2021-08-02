@@ -1288,3 +1288,44 @@ circuitmux_compare_muxes, (circuitmux_t *cmux_1, circuitmux_t *cmux_2))
     return 0;
   }
 }
+
+int circuitmux_circ_set_limited(circuitmux_t *cmux, circuit_t *circ, cell_direction_t direction)
+{
+  chanid_circid_muxinfo_t *hashent = NULL;
+  int becomes_inactive = 0;
+
+  tor_assert(cmux);
+  tor_assert(circ);
+
+  hashent = circuitmux_find_map_entry(cmux, circ);
+  tor_assert(hashent);
+  tor_assert(hashent->muxinfo.direction == direction);
+
+  if (cmux->policy->circ_set_limited)
+    cmux->policy->circ_set_limited(cmux, cmux->policy_data, circ, hashent->muxinfo.policy_data);
+}
+
+int circuitmux_circ_check_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int n_cells)
+{
+  circ->cell_limit -= n_cells;
+
+  if (circ->cell_limit <= 0) {
+    circ->cell_limit = 0;
+    return 1;
+  }
+
+  return 0;
+}
+
+int circuitmux_circ_add_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int n_cells)
+{
+  const int been_paused = (circ->cell_limit <= 0) ? 1 : 0;
+  circ->cell_limit += n_cells;
+  if (circ->cell_limit > 0) {
+    if (circ->cell_limit > LIMITED_CIRC_MAX_CELLS)
+      circ->cell_limit = LIMITED_CIRC_MAX_CELLS;
+    if (been_paused) {
+      //TODO: resume
+    }
+  }
+}
