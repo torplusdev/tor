@@ -70,6 +70,7 @@ static void remove_cell_ewma(ewma_policy_data_t *pol, cell_ewma_t *ewma);
 static void scale_single_cell_ewma(cell_ewma_t *ewma, unsigned cur_tick);
 static void scale_active_circuits(ewma_policy_data_t *pol,
                                   unsigned cur_tick);
+static void add_pause_cell_ewma(ewma_policy_data_t *pol, cell_ewma_t *ewma);
 
 /*** Circuitmux policy methods ***/
 
@@ -108,6 +109,8 @@ static int
 ewma_cmp_cmux(circuitmux_t *cmux_1, circuitmux_policy_data_t *pol_data_1,
               circuitmux_t *cmux_2, circuitmux_policy_data_t *pol_data_2);
 
+static void ewma_circ_set_limited(circuitmux_t *cmux, circuitmux_policy_data_t *pol_data, circuit_t *circ, circuitmux_policy_circ_data_t *pol_circ_data);
+
 /*** EWMA global variables ***/
 
 /** The per-tick scale factor to be used when computing cell-count EWMA
@@ -127,6 +130,7 @@ circuitmux_policy_t ewma_policy = {
   /*.notify_circ_inactive =*/ ewma_notify_circ_inactive,
   /*.notify_set_n_cells =*/ NULL, /* EWMA doesn't need this */
   /*.notify_xmit_cells =*/ ewma_notify_xmit_cells,
+  /*.circ_set_limited =*/ ewma_circ_set_limited,
   /*.pick_active_circuit =*/ ewma_pick_active_circuit,
   /*.cmp_cmux =*/ ewma_cmp_cmux
 };
@@ -187,6 +191,10 @@ ewma_free_cmux_data(circuitmux_t *cmux,
   pol = TO_EWMA_POL_DATA(pol_data);
 
   smartlist_free(pol->active_circuit_pqueue);
+  if (pol->paused_circuits){
+    smartlist_free(pol->paused_circuits);
+    pol->paused_circuits = NULL;
+  }
   memwipe(pol, 0xda, sizeof(ewma_policy_data_t));
   tor_free(pol);
 }
@@ -280,6 +288,16 @@ ewma_notify_circ_active(circuitmux_t *cmux,
   pol = TO_EWMA_POL_DATA(pol_data);
   cdata = TO_EWMA_POL_CIRC_DATA(pol_circ_data);
 
+  do {
+    if(!cdata->cell_ewma.is_limited)
+      break;
+    if (cdata->cell_ewma.heap_index != -1)
+      break;
+    if (smartlist_pos(pol->paused_circuits, &(cdata->cell_ewma)) >= 0) {
+      return; // Keep circuit flow paused
+    }
+  } while(false);
+
   add_cell_ewma(pol, &(cdata->cell_ewma));
 }
 
@@ -304,6 +322,15 @@ ewma_notify_circ_inactive(circuitmux_t *cmux,
 
   pol = TO_EWMA_POL_DATA(pol_data);
   cdata = TO_EWMA_POL_CIRC_DATA(pol_circ_data);
+
+  do {
+    if(!cdata->cell_ewma.is_limited)
+      break;
+    if (cdata->cell_ewma.heap_index != -1)
+      break;
+    if (smartlist_pos(pol->paused_circuits, &(cdata->cell_ewma)) >= 0)
+      return; // Keep circuit flow paused
+  } while(false);
 
   remove_cell_ewma(pol, &(cdata->cell_ewma));
 }
@@ -357,7 +384,31 @@ ewma_notify_xmit_cells(circuitmux_t *cmux,
    */
   tmp = pop_first_cell_ewma(pol);
   tor_assert(tmp == cell_ewma);
-  add_cell_ewma(pol, cell_ewma);
+
+  //TODO: add logic to postpone insertion for last circuit if it a slowed and don't have enough bandwidth quota
+  if (cell_ewma->is_limited) {
+    if (circuitmux_circ_check_limit(cmux, circ, n_cells)) {
+      add_pause_cell_ewma(pol, cell_ewma);
+    }
+    else {
+      add_cell_ewma(pol, cell_ewma);
+    }
+  }
+  else
+    add_cell_ewma(pol, cell_ewma);
+}
+
+static void ewma_circ_set_limited(circuitmux_t *cmux, circuitmux_policy_data_t *pol_data, circuit_t *circ, circuitmux_policy_circ_data_t *pol_circ_data)
+{
+  tor_assert(cmux);
+  tor_assert(pol_data);
+  tor_assert(circ);
+  tor_assert(pol_circ_data);
+
+  //ewma_policy_data_t *pol = TO_EWMA_POL_DATA(pol_data);
+  ewma_policy_circ_data_t *cdata = TO_EWMA_POL_CIRC_DATA(pol_circ_data);
+  cdata->cell_ewma.is_limited = 1;
+
 }
 
 /**
@@ -378,6 +429,8 @@ ewma_pick_active_circuit(circuitmux_t *cmux,
   tor_assert(pol_data);
 
   pol = TO_EWMA_POL_DATA(pol_data);
+
+  //TODO: update queue, remove paused circuits and add again active
 
   if (smartlist_len(pol->active_circuit_pqueue) > 0) {
     /* Get the head of the queue */
@@ -682,6 +735,19 @@ add_cell_ewma(ewma_policy_data_t *pol, cell_ewma_t *ewma)
                        compare_cell_ewma_counts,
                        offsetof(cell_ewma_t, heap_index),
                        ewma);
+}
+
+/**  */
+static void add_pause_cell_ewma(ewma_policy_data_t *pol, cell_ewma_t *ewma)
+{
+  tor_assert(pol);
+  // tor_assert(pol->paused_circuits);
+  tor_assert(ewma);
+  tor_assert(ewma->heap_index == -1);
+
+  if(!pol->paused_circuits)
+    pol->paused_circuits = smartlist_new();
+  smartlist_add(pol->paused_circuits, ewma);
 }
 
 /** Remove <b>ewma</b> from <b>pol</b>'s priority queue of active circuits */
