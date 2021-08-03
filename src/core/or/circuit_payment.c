@@ -958,7 +958,10 @@ static void tp_circuitmux_reset_limits(circuit_t * circ)
 static void send_payment_request_to_client(thread_args_t* args)
 {
     circuit_t *circ = args->circ;
+
     or_circuit_t *or_circut = TO_OR_CIRCUIT(circ);
+    tp_update_circ_counters(or_circut);
+
     const or_options_t *options = get_options();
     char *nickname = options->Nickname;
 
@@ -979,8 +982,6 @@ static void send_payment_request_to_client(thread_args_t* args)
 
     if (session == NULL || !strcmp(session, ""))
         return;
-
-    tp_update_circ_counters(or_circut);
 
     OR_OP_request_t input;
     input.version = 0;
