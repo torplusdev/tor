@@ -63,6 +63,11 @@ struct circuitmux_policy_t {
                              circuit_t *circ,
                              circuitmux_policy_circ_data_t *pol_circ_data,
                              int n_cells);
+  void (*circ_reset_limited)(circuitmux_t *cmux,
+                             circuitmux_policy_data_t *pol_data,
+                             circuit_t *circ,
+                             circuitmux_policy_circ_data_t *pol_circ_data,
+                             int n_cells);
   /* Choose a circuit */
   circuit_t * (*pick_active_circuit)(circuitmux_t *cmux,
                                      circuitmux_policy_data_t *pol_data);
@@ -168,6 +173,7 @@ MOCK_DECL(int, circuitmux_compare_muxes,
           (circuitmux_t *cmux_1, circuitmux_t *cmux_2));
 
 void circuitmux_circ_set_limited(circuitmux_t *cmux, circuit_t *circ, cell_direction_t direction);
+void circuitmux_circ_reset_limited(circuitmux_t *cmux, circuit_t *circ, cell_direction_t direction);
 void circuitmux_circ_resume(circuit_t *circ);
 int circuitmux_circ_check_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int n_cells);
 void circuitmux_circ_add_limit(circuit_t *circ, unsigned int n_cells);

@@ -916,11 +916,6 @@ void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number
     return;
 }
 
-static void tp_set_circ_limits(channel_t *chan, circuit_t *circ, cell_direction_t direction)
-{
-    circuitmux_circ_set_limited(chan->cmux, circ, direction);
-}
-
 static void tp_update_circ_counters(or_circuit_t *or_circut)
 {
     tor_assert(or_circut);
@@ -938,9 +933,25 @@ static void tp_update_circ_counters(or_circuit_t *or_circut)
 
     circuit_t *circ = TO_CIRCUIT(or_circut);
     if (or_circut->p_chan)
-        tp_set_circ_limits(or_circut->p_chan, circ, CELL_DIRECTION_IN);
+        circuitmux_circ_set_limited(or_circut->p_chan->cmux, circ, CELL_DIRECTION_IN);
     if (circ->n_chan)
-        tp_set_circ_limits(circ->n_chan, circ, CELL_DIRECTION_OUT);
+        circuitmux_circ_set_limited(circ->n_chan->cmux, circ, CELL_DIRECTION_OUT);
+}
+
+static void tp_circuitmux_reset_limits(circuit_t * circ)
+{
+    tor_assert(circ);
+    tor_assert(CIRCUIT_IS_ORCIRC(circ));
+    circ->cell_limit = 0;
+    or_circuit_t *or_circut = TO_OR_CIRCUIT(circ);
+    or_circut->delay_payments_counter = 0;
+    or_circut->is_limited = 0;
+
+    if (or_circut->p_chan)
+        circuitmux_circ_reset_limited(or_circut->p_chan->cmux, circ, CELL_DIRECTION_IN);
+    if (circ->n_chan)
+        circuitmux_circ_reset_limited(circ->n_chan->cmux, circ, CELL_DIRECTION_OUT);
+
 }
 
 static void send_payment_request_to_client(thread_args_t* args)
@@ -1015,6 +1026,7 @@ static int process_payment_cell(thread_args_t* args)
 
     if(payment_request_payload->message_type == 100)
     {
+        tp_circuitmux_reset_limits(circ);
         payment_session_context_t *session_context =
                 get_from_session_context_by_session_id(payment_request_payload->session_id);
         if(session_context != NULL)

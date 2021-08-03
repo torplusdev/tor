@@ -112,6 +112,7 @@ ewma_cmp_cmux(circuitmux_t *cmux_1, circuitmux_policy_data_t *pol_data_1,
 
 static void ewma_circ_set_limited(circuitmux_t *cmux, circuitmux_policy_data_t *pol_data, circuit_t *circ, circuitmux_policy_circ_data_t *pol_circ_data);
 static void ewma_circ_resume(circuitmux_t *cmux, circuitmux_policy_data_t *pol_data, circuit_t *circ, circuitmux_policy_circ_data_t *pol_circ_data, int n_cells);
+static void ewma_circ_reset_limited(circuitmux_t *cmux, circuitmux_policy_data_t *pol_data, circuit_t *circ, circuitmux_policy_circ_data_t *pol_circ_data, int n_cells);
 
 /*** EWMA global variables ***/
 
@@ -134,7 +135,8 @@ circuitmux_policy_t ewma_policy = {
   /*.notify_xmit_cells =*/ ewma_notify_xmit_cells,
   /*.circ_set_limited =*/ ewma_circ_set_limited,
   /*.circ_resume =*/ ewma_circ_resume,
-  /*.pick_active_circuit =*/ ewma_pick_active_circuit,
+  /*.circ_reset_limited =*/ ewma_circ_reset_limited,
+ /*.pick_active_circuit =*/ ewma_pick_active_circuit,
   /*.cmp_cmux =*/ ewma_cmp_cmux
 };
 
@@ -426,8 +428,35 @@ static void ewma_circ_resume(circuitmux_t *cmux, circuitmux_policy_data_t *pol_d
 
   if(!cdata->cell_ewma.is_limited)
     return;
+
   if (cdata->cell_ewma.heap_index != -1)
     return;
+
+  if (smartlist_pos(pol->paused_circuits, &(cdata->cell_ewma)) >= 0)
+    smartlist_remove(pol->paused_circuits, &(cdata->cell_ewma));
+
+  if (0 < n_cells)
+    add_cell_ewma(pol, &(cdata->cell_ewma));
+}
+
+static void ewma_circ_reset_limited(circuitmux_t *cmux, circuitmux_policy_data_t *pol_data, circuit_t *circ, circuitmux_policy_circ_data_t *pol_circ_data, int n_cells)
+{
+  tor_assert(cmux);
+  tor_assert(pol_data);
+  tor_assert(circ);
+  tor_assert(pol_circ_data);
+
+  ewma_policy_data_t *pol = TO_EWMA_POL_DATA(pol_data);
+  ewma_policy_circ_data_t *cdata = TO_EWMA_POL_CIRC_DATA(pol_circ_data);
+
+  if(!cdata->cell_ewma.is_limited)
+    return;
+
+  cdata->cell_ewma.is_limited = 0;
+
+  if (cdata->cell_ewma.heap_index != -1)
+    return;
+
   if (smartlist_pos(pol->paused_circuits, &(cdata->cell_ewma)) >= 0) {
     smartlist_remove(pol->paused_circuits, &(cdata->cell_ewma));
   }
