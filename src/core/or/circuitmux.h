@@ -58,6 +58,11 @@ struct circuitmux_policy_t {
                              circuitmux_policy_data_t *pol_data,
                              circuit_t *circ,
                              circuitmux_policy_circ_data_t *pol_circ_data);
+  void (*circ_resume)(circuitmux_t *cmux,
+                             circuitmux_policy_data_t *pol_data,
+                             circuit_t *circ,
+                             circuitmux_policy_circ_data_t *pol_circ_data,
+                             int n_cells);
   /* Choose a circuit */
   circuit_t * (*pick_active_circuit)(circuitmux_t *cmux,
                                      circuitmux_policy_data_t *pol_data);
@@ -162,9 +167,11 @@ void circuitmux_mark_destroyed_circids_usable(circuitmux_t *cmux,
 MOCK_DECL(int, circuitmux_compare_muxes,
           (circuitmux_t *cmux_1, circuitmux_t *cmux_2));
 
-int circuitmux_circ_set_limited(circuitmux_t *cmux, circuit_t *circ, cell_direction_t direction);
+void circuitmux_circ_set_limited(circuitmux_t *cmux, circuit_t *circ, cell_direction_t direction);
+void circuitmux_circ_resume(circuit_t *circ);
 int circuitmux_circ_check_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int n_cells);
-int circuitmux_circ_add_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int n_cells);
+void circuitmux_circ_add_limit(circuit_t *circ, unsigned int n_cells);
+void tp_circuitmux_refresh_limited_circuits(void);
 #define LIMITED_CIRC_MAX_CELLS 200
 
 #ifdef CIRCUITMUX_PRIVATE

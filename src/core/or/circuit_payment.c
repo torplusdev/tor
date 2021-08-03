@@ -1170,5 +1170,8 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
     } SMARTLIST_FOREACH_END(message);
 
     smartlist_clear(global_curl_request);
+
+    tp_circuitmux_refresh_limited_circuits();
+
     return 1;
 }
