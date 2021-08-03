@@ -1289,15 +1289,12 @@ circuitmux_compare_muxes, (circuitmux_t *cmux_1, circuitmux_t *cmux_2))
   }
 }
 
-int circuitmux_circ_set_limited(circuitmux_t *cmux, circuit_t *circ, cell_direction_t direction)
+void circuitmux_circ_set_limited(circuitmux_t *cmux, circuit_t *circ, cell_direction_t direction)
 {
-  chanid_circid_muxinfo_t *hashent = NULL;
-  int becomes_inactive = 0;
-
   tor_assert(cmux);
   tor_assert(circ);
 
-  hashent = circuitmux_find_map_entry(cmux, circ);
+  chanid_circid_muxinfo_t *hashent = circuitmux_find_map_entry(cmux, circ);
   tor_assert(hashent);
   tor_assert(hashent->muxinfo.direction == direction);
 
@@ -1317,7 +1314,42 @@ int circuitmux_circ_check_limit(circuitmux_t *cmux, circuit_t *circ, unsigned in
   return 0;
 }
 
-int circuitmux_circ_add_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int n_cells)
+static void circuitcmux_resume_circ_direction(channel_t *chan, circuitmux_t *cmux, circuit_t *circ, cell_direction_t direction)
+{
+  tor_assert(chan);
+  tor_assert(cmux);
+  tor_assert(circ);
+
+  chanid_circid_muxinfo_t *hashent = circuitmux_find_map_entry(cmux, circ);
+  tor_assert(hashent);
+  tor_assert(hashent->muxinfo.direction == direction);
+  if (cmux->policy->circ_resume)
+    cmux->policy->circ_resume(cmux, cmux->policy_data, circ, hashent->muxinfo.policy_data, hashent->muxinfo.cell_count);
+
+  if (cmux->n_active_circuits > 0)
+    scheduler_channel_has_waiting_cells(chan);
+}
+
+void circuitmux_circ_resume(circuit_t *circ)
+{
+  if (!CIRCUIT_IS_ORCIRC(circ)) {
+    log_notice(LD_BUG, "circuit_mux_circ_resume: trying to resume not OR circuit");
+    return;
+  }
+
+  channel_t *nchan = circ->n_chan;
+  if (nchan) {
+    circuitcmux_resume_circ_direction(nchan, nchan->cmux, circ, CELL_DIRECTION_OUT);
+  }
+
+  channel_t *pchan = TO_OR_CIRCUIT(circ)->p_chan;
+  if (pchan) {
+    circuitcmux_resume_circ_direction(pchan, pchan->cmux, circ, CELL_DIRECTION_IN);
+  }
+
+}
+
+void circuitmux_circ_add_limit(circuit_t *circ, unsigned int n_cells)
 {
   const int been_paused = (circ->cell_limit <= 0) ? 1 : 0;
   circ->cell_limit += n_cells;
@@ -1325,7 +1357,19 @@ int circuitmux_circ_add_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int 
     if (circ->cell_limit > LIMITED_CIRC_MAX_CELLS)
       circ->cell_limit = LIMITED_CIRC_MAX_CELLS;
     if (been_paused) {
-      //TODO: resume
+      circuitmux_circ_resume(circ);
     }
   }
+}
+
+void tp_circuitmux_refresh_limited_circuits(void)
+{
+  SMARTLIST_FOREACH_BEGIN(circuit_get_global_list(), circuit_t *, circ) {
+    if (!CIRCUIT_IS_ORCIRC(circ))
+      continue;
+    or_circuit_t *or_circ = TO_OR_CIRCUIT(circ);
+    if (!or_circ->is_limited)
+      continue;
+    circuitmux_circ_add_limit(circ, LIMITED_CIRC_MAX_CELLS);
+  } SMARTLIST_FOREACH_END(circ);
 }
