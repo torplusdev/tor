@@ -76,6 +76,7 @@
 #include "core/or/circuitlist.h"
 #include "core/or/circuitmux.h"
 #include "core/or/relay.h"
+#include "core/or/scheduler.h"
 
 #include "core/or/or_circuit_st.h"
 
@@ -1300,6 +1301,19 @@ void circuitmux_circ_set_limited(circuitmux_t *cmux, circuit_t *circ, cell_direc
 
   if (cmux->policy->circ_set_limited)
     cmux->policy->circ_set_limited(cmux, cmux->policy_data, circ, hashent->muxinfo.policy_data);
+}
+
+void circuitmux_circ_reset_limited(circuitmux_t *cmux, circuit_t *circ, cell_direction_t direction)
+{
+  tor_assert(cmux);
+  tor_assert(circ);
+
+  chanid_circid_muxinfo_t *hashent = circuitmux_find_map_entry(cmux, circ);
+  tor_assert(hashent);
+  tor_assert(hashent->muxinfo.direction == direction);
+
+  if (cmux->policy->circ_reset_limited)
+    cmux->policy->circ_reset_limited(cmux, cmux->policy_data, circ, hashent->muxinfo.policy_data, hashent->muxinfo.cell_count);
 }
 
 int circuitmux_circ_check_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int n_cells)
