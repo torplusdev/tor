@@ -946,6 +946,7 @@ static void tp_circuitmux_reset_limits(circuit_t * circ)
     or_circuit_t *or_circut = TO_OR_CIRCUIT(circ);
     or_circut->delay_payments_counter = 0;
     or_circut->is_limited = 0;
+    log_notice(LD_OR, "tp_circuitmux_reset_limits: reset circuit bandwidth limitation");
 
     if (or_circut->p_chan)
         circuitmux_circ_reset_limited(or_circut->p_chan->cmux, circ, CELL_DIRECTION_IN);
