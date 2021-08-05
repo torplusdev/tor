@@ -27,6 +27,7 @@
 #include <src/core/or/or_circuit_st.h>
 #include "lib/version/torversion.h"
 #include <pthread.h>
+#include "lib/evloop/compat_libevent.h"
 
 #if defined(__COVERITY__) || defined(__clang_analyzer__)
 /* If we're running a static analysis tool, we don't want it to complain
@@ -417,6 +418,19 @@ void tp_init_lists(void)
     global_chunks_list = smartlist_new();
 }
 
+static void tp_timer_callback(periodic_timer_t *timer, void *data)
+{
+    (void)timer;
+    (void)data;
+    tp_circuitmux_refresh_limited_circuits();
+}
+
+static void tp_init_timer(void)
+{
+    static const struct timeval interval = {0, 100000};
+    periodic_timer_new(tor_libevent_get_base(), &interval, tp_timer_callback, NULL);
+}
+
 void tp_init(void)
 {
     const char* stellar = tp_get_address();
@@ -444,6 +458,8 @@ void tp_init(void)
         const char *server_version_string = get_version();
         runServer(ppcb_port, tp_get_route, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, server_version_string);
     }
+
+    tp_init_timer();
 }
 
 static const node_t* circuit_payment_get_nth_node(origin_circuit_t *circ, int hop) {
@@ -1184,8 +1200,6 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
     } SMARTLIST_FOREACH_END(message);
 
     smartlist_clear(global_curl_request);
-
-    tp_circuitmux_refresh_limited_circuits();
 
     return 1;
 }

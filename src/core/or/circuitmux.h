@@ -178,7 +178,7 @@ void circuitmux_circ_resume(circuit_t *circ);
 int circuitmux_circ_check_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int n_cells);
 void circuitmux_circ_add_limit(circuit_t *circ, unsigned int n_cells);
 void tp_circuitmux_refresh_limited_circuits(void);
-#define LIMITED_CIRC_MAX_CELLS 200
+#define LIMITED_CIRC_MAX_CELLS 20
 
 #ifdef CIRCUITMUX_PRIVATE
 
