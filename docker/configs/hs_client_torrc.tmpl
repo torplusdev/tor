@@ -15,6 +15,9 @@ TestingDirAuthVoteGuard *
 TestingMinExitFlagThreshold 0
 
 DataDirectory ${data_directory}
+GeoIPFile /root/geodata/geoip
+GeoIPv6File /root/geodata/geoip6
+
 RunAsDaemon 0
 ConnLimit 60
 Nickname ${inventory_hostname}
@@ -41,8 +44,8 @@ ${dirauth}
 SocksPort 9050
 Address ${self_host}
 
-HiddenServiceDir ${data_directory}/hidden_service/hsv3
-HiddenServicePort 80 ${wwwsite}
+HiddenServiceDir ${hs_directory}/hsv3
+HiddenServicePort 80 127.0.0.1:8080
 HiddenServiceVersion 3
 
 ExitPolicy reject *:*

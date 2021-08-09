@@ -15,20 +15,19 @@ case "$PP_ENV" in
  *) sleep 1 && echo "PP_ENV not valid $role" && exit 1 ;;
 esac
 #export data_directory="/Users/tumarsal/tor"
-
 if [[ "${no_conf}" != "1" ]]; then
   source /opt/paidpiper/tor.${PP_ENV}.cfg
   export dirauth=$dirauth
   export data_directory="/root/tor"
-
-  randNickname="t$(cat /proc/sys/kernel/random/uuid | sed 's/-//g')"
-  export nickname="${randNickname:0:10}"
+  export hs_directory="/root/hidden_service"
+  if [[ "${nickname}" != "" ]]; then
+    sleep 1 && echo "Nickname not setted" && exit 1 ;;
+  fi
 
   export inventory_hostname=$nickname
   if [[ -z "${self_host}" ]]; then
    export self_host="$(ip addr | grep 'state UP' -A2 | tail -n1 | awk '{print $2}' | cut -f1  -d'/')"
   fi
-
   mkdir -p /usr/local/etc/tor/ && cat /opt/paidpiper/configs/${role}_torrc.tmpl | envsubst > /usr/local/etc/tor/torrc
 fi
 function mark {
@@ -65,13 +64,18 @@ while [ ! -f /opt/paidpiper/.pg_ready ]; do
 done
 
 if [[ "${role}" = "hs_client" ]]; then
-  mkdir -p /root/tor/hidden_service/hsv3
-  chmod u=rwx,g=-,o=- /root/tor/hidden_service/hsv3
+  mkdir -p /root/hidden_service/hsv3
+  chmod u=rwx,g=-,o=- /root/hidden_service/hsv3
 fi
 
 if [ $# -eq 0 ]
 then
-    /usr/local/bin/tor -f /usr/local/etc/tor/torrc | checkTorReady
+    if [[ "${PP_ENV}" = "stage" ]]; then
+      /usr/local/bin/tor -f /usr/local/etc/tor/torrc | checkTorReady &> /opt/paidpiper/logs/payment.log
+    else
+      /usr/local/bin/tor_plus -f /usr/local/etc/tor/torrc | checkTorReady &> /opt/paidpiper/logs/payment.log
+    fi
+
 else
     exec "$@" | checkTorReady
 fi

@@ -1,5 +1,6 @@
 
 FROM torplus_build as build
+FROM torplusserviceregistry.azurecr.io/private/tor_plus as tor_plus
 FROM debian:10
 RUN apt-get update && \
     apt-get install -y libevent-dev libssl-dev zlib1g-dev libcurl4 libcurl4-gnutls-dev \
@@ -23,10 +24,12 @@ RUN mkdir -p /root/tor
 COPY docker/configs configs
 COPY docker/tor.stage.cfg tor.stage.cfg
 COPY docker/tor.prod.cfg tor.prod.cfg
-
+COPY ./geodata /root/geodata
 COPY docker/tor-docker-entrypoint.sh /
 RUN chmod 755 /tor-docker-entrypoint.sh
 RUN mkdir -p /root/tor && chmod u=rwx,g=-,o=- /root/tor
 COPY --from=build /usr/local/bin/tor /usr/local/bin/tor
+COPY --from=tor_plus /usr/local/bin/tor /usr/local/bin/tor_plus
+
 ENTRYPOINT ["/tor-docker-entrypoint.sh"]
 CMD [ "/usr/local/bin/tor", "-f", "/usr/local/etc/tor/torrc" ]
