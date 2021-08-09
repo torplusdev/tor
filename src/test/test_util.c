@@ -1,12 +1,13 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2020, The Tor Project, Inc. */
+ * Copyright (c) 2007-2021, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #include "orconfig.h"
 #define COMPAT_TIME_PRIVATE
 #define UTIL_MALLOC_PRIVATE
 #define PROCESS_WIN32_PRIVATE
+#define TIME_FMT_PRIVATE
 #include "lib/testsupport/testsupport.h"
 #include "core/or/or.h"
 #include "lib/buf/buffers.h"
@@ -111,7 +112,7 @@ static time_t
 tor_timegm_wrapper(const struct tm *tm)
 {
   time_t t;
-  if (tor_timegm(tm, &t) < 0)
+  if (tor_timegm_impl(tm, &t) < 0)
     return -1;
   return t;
 }
@@ -1499,6 +1500,28 @@ test_util_parse_http_time(void *arg)
 #undef T
  done:
   teardown_capture_of_logs();
+}
+
+static void
+test_util_timegm_real(void *arg)
+{
+  (void)arg;
+  /* Get the real timegm again!  We're not testing our impl; we want the
+   * one that will actually get called. */
+#undef tor_timegm
+
+  /* Now check: is timegm the real inverse of gmtime? */
+  time_t now = time(NULL), time2=0;
+  struct tm tm, *p;
+  p = tor_gmtime_r(&now, &tm);
+  tt_ptr_op(p, OP_NE, NULL);
+
+  int r = tor_timegm(&tm, &time2);
+  tt_int_op(r, OP_EQ, 0);
+  tt_i64_op((int64_t) now, OP_EQ, (int64_t) time2);
+
+ done:
+  ;
 }
 
 static void
@@ -4532,7 +4555,7 @@ test_util_glob(void *ptr)
 #else
   const char *results_test3[] = {"dir1", "dir2", "file1", "file2",
                                  "forbidden"};
-#endif
+#endif /* defined(_WIN32) */
   TEST("*i*");
   EXPECT(results_test3);
 
@@ -4562,15 +4585,8 @@ test_util_glob(void *ptr)
   TEST("file1");
   EXPECT(results_test9);
 
-#if defined(__APPLE__) || defined(__darwin__) || \
-  defined(__FreeBSD__) || defined(__NetBSD__) || defined(OpenBSD)
   TEST("file1"PATH_SEPARATOR);
   EXPECT_EMPTY();
-#else
-  const char *results_test10[] = {"file1"};
-  TEST("file1"PATH_SEPARATOR);
-  EXPECT(results_test10);
-#endif
 
   // test path separator at end - with wildcards and linux path separator
   const char *results_test11[] = {"dir1", "dir2", "forbidden"};
@@ -4584,7 +4600,7 @@ test_util_glob(void *ptr)
 #else
   const char *results_test12[] = {"dir1", "dir2", "empty", "file1", "file2",
                                   "forbidden"};
-#endif
+#endif /* defined(_WIN32) */
   TEST("*");
   EXPECT(results_test12);
 
@@ -4631,7 +4647,7 @@ test_util_glob(void *ptr)
     tor_free(pattern);
     tt_assert(!results);
   }
-#endif
+#endif /* !defined(_WIN32) */
 
 #undef TEST
 #undef EXPECT
@@ -4643,7 +4659,7 @@ test_util_glob(void *ptr)
   (void) chmod(dir1_forbidden, 0700);
   (void) chmod(dir2_forbidden, 0700);
   (void) chmod(forbidden_forbidden, 0700);
-#endif
+#endif /* !defined(_WIN32) */
   tor_free(dir1);
   tor_free(dir2);
   tor_free(forbidden);
@@ -4657,11 +4673,11 @@ test_util_glob(void *ptr)
     SMARTLIST_FOREACH(results, char *, f, tor_free(f));
     smartlist_free(results);
   }
-#else
+#else /* !defined(HAVE_GLOB) */
   tt_skip();
  done:
   return;
-#endif
+#endif /* defined(HAVE_GLOB) */
 }
 
 static void
@@ -4769,7 +4785,7 @@ test_util_get_glob_opened_files(void *ptr)
   // dot files are not special on windows
   const char *results_test3[] = {"", ".test-hidden", "dir1", "dir2", "empty",
                                  "file1", "file2", "forbidden"};
-#endif
+#endif /* !defined(_WIN32) */
   TEST("*"PATH_SEPARATOR"*");
   EXPECT(results_test3);
 
@@ -4781,7 +4797,7 @@ test_util_get_glob_opened_files(void *ptr)
   // dot files are not special on windows
   const char *results_test4[] = {"", ".test-hidden", "dir1", "dir2", "empty",
                                  "file1", "file2", "forbidden"};
-#endif
+#endif /* !defined(_WIN32) */
   TEST("*"PATH_SEPARATOR"*"PATH_SEPARATOR);
   EXPECT(results_test4);
 
@@ -4846,7 +4862,7 @@ test_util_get_glob_opened_files(void *ptr)
       TT_FAIL(("unable to chmod a file on cleanup: %s", strerror(errno)));
     }
   }
-#endif
+#endif /* !defined(_WIN32) */
   tor_free(dir1);
   tor_free(dir2);
   tor_free(forbidden);
@@ -4860,11 +4876,11 @@ test_util_get_glob_opened_files(void *ptr)
     SMARTLIST_FOREACH(results, char *, f, tor_free(f));
     smartlist_free(results);
   }
-#else
+#else /* !defined(HAVE_GLOB) */
   tt_skip();
  done:
   return;
-#endif
+#endif /* defined(HAVE_GLOB) */
 }
 
 static void
@@ -5927,7 +5943,7 @@ static int
 fd_is_cloexec(tor_socket_t fd)
 {
   int flags = fcntl(fd, F_GETFD, 0);
-  return (flags & FD_CLOEXEC) == FD_CLOEXEC;
+  return (flags & FD_CLOEXEC) != 0;
 }
 #endif /* defined(FD_CLOEXEC) */
 
@@ -5937,7 +5953,7 @@ static int
 fd_is_nonblocking(tor_socket_t fd)
 {
   int flags = fcntl(fd, F_GETFL, 0);
-  return (flags & O_NONBLOCK) == O_NONBLOCK;
+  return (flags & O_NONBLOCK) != 0;
 }
 #endif /* !defined(_WIN32) */
 
@@ -7043,6 +7059,7 @@ struct testcase_t util_tests[] = {
   UTIL_TEST(monotonic_time_ratchet, TT_FORK),
   UTIL_TEST(monotonic_time_zero, 0),
   UTIL_TEST(monotonic_time_add_msec, 0),
+  UTIL_TEST(timegm_real, 0),
   UTIL_TEST(htonll, 0),
   UTIL_TEST(get_unquoted_path, 0),
   UTIL_TEST(map_anon, 0),
