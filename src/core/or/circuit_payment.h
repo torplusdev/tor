@@ -88,6 +88,7 @@ typedef struct chunk_payment_st {
 // public API
 void tp_init_lists(void);
 void tp_init(void);
+void tp_deinit(void);
 void tp_fill_stellar_address(char *dst);
 
 ssize_t circuit_payment_negotiate_parse(OR_OP_request_t **output, const uint8_t *input, const size_t len_in);

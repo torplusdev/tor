@@ -2548,7 +2548,9 @@ run_main_loop_until_done(void)
   #ifdef HAVE_SYS_RESOURCE_H
   enable_core_dump();
   #endif
+
   tp_init();
+
   int loop_result = 1;
   main_loop_should_exit = 0;
   main_loop_exit_value = 0;
@@ -2556,6 +2558,8 @@ run_main_loop_until_done(void)
   do {
     loop_result = run_main_loop_once();
   } while (loop_result == 1);
+
+  tp_deinit();
 
   if (main_loop_should_exit)
     return main_loop_exit_value;
