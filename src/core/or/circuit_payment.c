@@ -425,10 +425,17 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
     tp_circuitmux_refresh_limited_circuits();
 }
 
+static periodic_timer_t *s_limit_refresh_timer = NULL;
+
 static void tp_init_timer(void)
 {
     static const struct timeval interval = {0, 100000};
-    periodic_timer_new(tor_libevent_get_base(), &interval, tp_timer_callback, NULL);
+    s_limit_refresh_timer = periodic_timer_new(tor_libevent_get_base(), &interval, tp_timer_callback, NULL);
+}
+
+static void tp_deinit_timer(void)
+{
+    periodic_timer_free(s_limit_refresh_timer);
 }
 
 void tp_init(void)
@@ -460,6 +467,12 @@ void tp_init(void)
     }
 
     tp_init_timer();
+}
+
+void tp_deinit(void)
+{
+    tp_deinit_timer();
+    stopServer();
 }
 
 static const node_t* circuit_payment_get_nth_node(origin_circuit_t *circ, int hop) {
