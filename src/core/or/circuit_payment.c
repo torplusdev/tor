@@ -979,9 +979,11 @@ static void send_payment_request_to_client(thread_args_t* args)
         return;
     struct json_object *parsed_json = NULL;
     do {
-        parsed_json = json_tokener_parse(response);
-        if (NULL == parsed_json) {
-            log_err(LD_HTTP, "Cant parse json object from: %s", response);
+        enum json_tokener_error jerr = json_tokener_success;
+        parsed_json = json_tokener_parse_verbose(response, &jerr);
+        if (jerr != json_tokener_success) {
+            tor_assert(NULL != parsed_json);
+            log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), response);
             break;
         }
         struct json_object *session_id = NULL;

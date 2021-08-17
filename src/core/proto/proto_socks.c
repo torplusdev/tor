@@ -635,9 +635,15 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
           break;
         log_warn(LD_APP, "resolve response: %s\n", json_response);
         // Response is a json field, parse it and process
-        response = json_tokener_parse(json_response);
+        enum json_tokener_error jerr = json_tokener_success;
+        response = json_tokener_parse_verbose(json_response, &jerr);
+        if (jerr != json_tokener_success) {
+            tor_assert(NULL != response);
+            log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), json_response);
+            break;
+        }
         free(json_response);
-        if (NULL == response || json_type_object != json_object_get_type(response))
+        if (json_type_object != json_object_get_type(response))
           break;
         json_object *hostname_obj = json_object_object_get(response, "hostname");
         if (NULL == hostname_obj)
