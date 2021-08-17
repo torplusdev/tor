@@ -101,13 +101,9 @@ static void tp_get_route(const char* sessionId, tor_route *route)
         return;
     }
 
-    log_args_t log_input;
-    char nodes_str[1000];
+    char nodes_str[10000];
     const size_t resp_size = sizeof(nodes_str) - 1;
     tp_zero_mem(nodes_str, sizeof(nodes_str));
-    log_input.requestBody = nodes_str;
-    log_input.responseBody = "";
-    log_input.url = "/api/paymentRoute";
 
     route->call_back_url = s_cb_url_api_command;
     route->status_call_back_url = s_cb_url_api_paymentComplete;
@@ -166,7 +162,9 @@ static void tp_get_route(const char* sessionId, tor_route *route)
             }
         } SMARTLIST_FOREACH_END(origin_circuit);
     }
-    ship_log(PAYMENT_CALLBACK, &log_input);
+    char url[100];
+    strcat(strcat(strcpy(url, "/api/paymentRoute"), "/"), sessionId);
+    ship_log(PAYMENT_CALLBACK, url, "", nodes_str);
 }
 
 // HTTP CALLBACK
@@ -177,13 +175,7 @@ static int tp_payment_chain_completed(payment_completed* command)
         return -1;
     }
 
-    {
-        log_args_t log_input;
-        log_input.responseBody = ""; // allways empty
-        log_input.requestBody = command->json_body ? command->json_body : "(NULL)";
-        log_input.url = "/api/paymentComplete";
-        ship_log(PAYMENT_CALLBACK, &log_input);
-    }
+    ship_log(PAYMENT_CALLBACK, "/api/paymentComplete",  command->json_body ? command->json_body : "(NULL)", "");
 
     if (NULL == command->sessionId /*|| 0 > command->status*/) {
             log_notice(LD_PROTOCOL | LD_BUG, "tp_payment_chain_completed: invalid sessionId arguments");
@@ -220,13 +212,7 @@ static int tp_process_command(tor_command* command)
         return -1;
     }
 
-    {
-        log_args_t log_input;
-        log_input.responseBody = ""; // allways empty
-        log_input.requestBody = command->json_body ? command->json_body : "(NULL)";
-        log_input.url = "/api/command";
-        ship_log(PAYMENT_CALLBACK, &log_input);
-    }
+    ship_log(PAYMENT_CALLBACK, "/api/command", command->json_body ? command->json_body : "(NULL)", "");
 
     if (NULL == command->nodeId ||
         NULL == command->commandType ||
@@ -303,13 +289,7 @@ static int tp_process_command_replay(tor_command_replay* command)
         return -1;
     }
 
-    {
-        log_args_t log_input;
-        log_input.responseBody = ""; // allways empty
-        log_input.requestBody = command->json_body ? command->json_body : "(NULL)";
-        log_input.url = "/api/response";
-        ship_log(PAYMENT_CALLBACK, &log_input);
-    }
+    ship_log(PAYMENT_CALLBACK, "/api/response", command->json_body ? command->json_body : "(NULL)", "");
 
     if (NULL == command->nodeId ||
         NULL == command->sessionId ||
@@ -418,14 +398,9 @@ void tp_init_lists(void)
     global_chunks_list = smartlist_new();
 }
 
-static void tp_timer_callback(periodic_timer_t *timer, void *data)
-{
-    (void)timer;
-    (void)data;
-    tp_circuitmux_refresh_limited_circuits();
-}
-
 static periodic_timer_t *s_limit_refresh_timer = NULL;
+
+static void tp_timer_callback(periodic_timer_t *timer, void *data);
 
 static void tp_init_timer(void)
 {
@@ -1002,45 +977,51 @@ static void send_payment_request_to_client(thread_args_t* args)
     char *response = tp_create_payment_info(s_url_api_util_createPaymentInfo, &request);
     if (response == NULL)
         return;
+    struct json_object *parsed_json = NULL;
+    do {
+        parsed_json = json_tokener_parse(response);
+        if (NULL == parsed_json) {
+            log_err(LD_HTTP, "Cant parse json object from: %s", response);
+            break;
+        }
+        struct json_object *session_id = NULL;
+        json_object_object_get_ex(parsed_json, "ServiceSessionId", &session_id);
+        const char *session = json_object_get_string(session_id);
+        if (session == NULL)
+            break;
+        if (strlen(session) == 0)
+            break;
+        OR_OP_request_t input;
+        input.version = 0;
+        input.message_type = 1;
+        tp_zero_mem(input.command_id, COMMAND_ID_LEN);
+        tp_zero_mem(input.session_id, SESSION_ID_LEN);
+        input.command_id_length = 0;
+        input.session_id_length = strlen(session);
+        memcpy(input.session_id, session, SESSION_ID_LEN);
+        input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
+        tp_zero_mem(input.nickname, USER_NAME_LEN);
+        memcpy(input.nickname, nickname, USER_NAME_LEN);
+        input.nicknameLength = strlen(nickname);
+        input.is_last = 0;
+        const size_t body_len = strlen(response);
+        input.messageTotalLength = body_len;
+        const size_t part_size =  body_len / CHUNK_SIZE;
+        for (size_t g = 0; g <= part_size; g++) {
+            tp_zero_mem(input.message, MAX_MESSAGE_LEN);
+            size_t chunck_real_size = 0;
+            const char * buf_ptr = tp_get_buffer_part_number(response, body_len, CHUNK_SIZE, g, &chunck_real_size);
+            memcpy(input.message, buf_ptr, chunck_real_size);
+            input.message[chunck_real_size] = 0;
+            input.messageLength = chunck_real_size;
+            input.is_last = (g < part_size) ? 0 : 1;
+            circuit_payment_send_OR(circ, &input);
+        }
+    } while(false);
 
-    struct json_object *parsed_json = json_tokener_parse(response);
-
-    struct json_object *session_id = NULL;
-    json_object_object_get_ex(parsed_json, "ServiceSessionId", &session_id);
-    const char *session = json_object_get_string(session_id);
-
-    if (session == NULL || !strcmp(session, ""))
-        return;
-
-    OR_OP_request_t input;
-    input.version = 0;
-    input.message_type = 1;
-    tp_zero_mem(input.command_id, COMMAND_ID_LEN);
-    tp_zero_mem(input.session_id, SESSION_ID_LEN);
-    input.command_id_length = 0;
-    input.session_id_length = strlen(session);
-    memcpy(input.session_id, session, SESSION_ID_LEN);
-    input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
-    tp_zero_mem(input.nickname, USER_NAME_LEN);
-    memcpy(input.nickname, nickname, USER_NAME_LEN);
-    input.nicknameLength = strlen(nickname);
-    input.is_last = 0;
-    const size_t body_len = strlen(response);
-    input.messageTotalLength = body_len;
-    const size_t part_size =  body_len / CHUNK_SIZE;
-    for (size_t g = 0; g <= part_size; g++) {
-        tp_zero_mem(input.message, MAX_MESSAGE_LEN);
-        size_t chunck_real_size = 0;
-        const char * buf_ptr = tp_get_buffer_part_number(response, body_len, CHUNK_SIZE, g, &chunck_real_size);
-        memcpy(input.message, buf_ptr, chunck_real_size);
-        input.message[chunck_real_size] = 0;
-        input.messageLength = chunck_real_size;
-        input.is_last = (g < part_size) ? 0 : 1;
-        circuit_payment_send_OR(circ, &input);
-    }
-
+    if (parsed_json)
+        json_object_put(parsed_json);
     tor_free_(response);
-    return;
 }
 
 static int process_payment_cell(thread_args_t* args)
@@ -1139,9 +1120,12 @@ static int process_payment_command_cell_to_node(thread_args_t* args)
     return 0;
 }
 
-int tp_payment_requests_callback(time_t now, const or_options_t *options)
+static void tp_timer_callback(periodic_timer_t *timer, void *data)
 {
-    (void) now; (void) options;
+    (void) timer; (void) data;
+
+    tp_circuitmux_refresh_limited_circuits();
+
     pthread_rwlock_wrlock(&global_payment_messsages_rwlock);
     SMARTLIST_FOREACH_BEGIN(global_payment_messsages, payment_message_for_sending_t*, message) {
         payment_session_context_t *session_context = get_from_session_context_by_session_id(message->sessionId);
@@ -1194,6 +1178,11 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
 
     smartlist_clear(global_payment_messsages);
     pthread_rwlock_unlock(&global_payment_messsages_rwlock);
+}
+
+int tp_payment_requests_callback(time_t now, const or_options_t *options)
+{
+    (void) now; (void) options;
 
     SMARTLIST_FOREACH_BEGIN(global_curl_request, thread_args_t*, message) {
         switch(message->step_type) {

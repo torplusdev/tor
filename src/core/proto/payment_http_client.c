@@ -19,7 +19,7 @@ struct curl_fetch_st {
     size_t size;
 };
 
-void ship_log(const char * prefix, log_args_t* args)
+void ship_log(const char * prefix, const char *url, const char* requestBody, const char* responseBody)
 {
     const or_options_t *options = get_options();
     if( !options->EnablePaymentLog )
@@ -29,9 +29,9 @@ void ship_log(const char * prefix, log_args_t* args)
         "Payment %s: NodeNickname='%s' RequestUrl='%s' RequestBody='%s' ResponseBody='%s'",
         prefix ? prefix : "other",
         options->Nickname ? options->Nickname : "(NULL)",
-        args->url ? args->url : "(NULL)",
-        args->requestBody ? args->requestBody : "(NULL)",
-        args->responseBody ? args->responseBody : "(NULL)"
+        url ? url : "(NULL)",
+        requestBody ? requestBody : "(NULL)",
+        responseBody ? responseBody : "(NULL)"
     );
 }
 
@@ -45,15 +45,12 @@ char* tp_create_payment_info(char *url, create_payment_info_t* body)
 
     const char* request_string = json_object_to_json_string(json_request);
     char *response = tp_http_post_request(url, request_string);
-    log_args_t args;
-    args.url= url;
-    args.requestBody = request_string;
-    args.responseBody = (response == NULL) ? "" : response;
-    ship_log(PAYMENT_REQUEST, &args);
+    ship_log(PAYMENT_REQUEST, url, request_string, (response == NULL) ? "(NULL)" : response);
+    json_object_put(json_request);
     return response;
 }
 
-payment_response_t* tp_http_payment(char *url, process_payment_request_t* body, int hop_num) {
+void tp_http_payment(char *url, process_payment_request_t* body, int hop_num) {
     json_object*  json_request = json_object_new_object();
     json_object *jarray = json_object_new_array();
     for (int i = 0; i < hop_num - 1; ++i) {
@@ -72,15 +69,12 @@ payment_response_t* tp_http_payment(char *url, process_payment_request_t* body, 
 
     const char* request_string = json_object_to_json_string(json_request);
     char* response = tp_http_post_request(url, request_string);
-    log_args_t args;
-    args.url= url;
-    args.requestBody = request_string;
-    args.responseBody = (response == NULL) ? "" : response;
-    ship_log(PAYMENT_REQUEST, &args);
-    return NULL;
+    ship_log(PAYMENT_REQUEST, url, request_string, (response == NULL) ? "(NULL)" : response);
+    json_object_put(json_request);
+    free(response);
 }
 
-payment_response_t* tp_http_command(char *url, utility_command_t* body) {
+void tp_http_command(char *url, utility_command_t* body) {
     json_object*  json_request = json_object_new_object();
     /* build post data */
     json_object_object_add(json_request, "CommandType", json_object_new_int(body->command_type));
@@ -92,15 +86,12 @@ payment_response_t* tp_http_command(char *url, utility_command_t* body) {
 
     const char* request_string = json_object_to_json_string(json_request);
     char* response = tp_http_post_request(url, request_string);
-    log_args_t args;
-    args.url= url;
-    args.requestBody = request_string;
-    args.responseBody = (response == NULL) ? "" : response;
-    ship_log(PAYMENT_REQUEST, &args);
-    return NULL;
+    ship_log(PAYMENT_REQUEST, url, request_string, (response == NULL) ? "(NULL)" : response);
+    json_object_put(json_request);
+    free(response);
 }
 
-payment_response_t* tp_http_response(char *url, utility_response_t* body) {
+void tp_http_response(char *url, utility_response_t* body) {
     json_object*  json_request = json_object_new_object();
     /* build post data */
     json_object_object_add(json_request, "CommandResponse", json_object_new_string(body->response_body));
@@ -110,12 +101,8 @@ payment_response_t* tp_http_response(char *url, utility_response_t* body) {
 
     const char* request_string = json_object_to_json_string(json_request);
     char* response = tp_http_post_request(url, request_string);
-    log_args_t args;
-    args.url= url;
-    args.requestBody = request_string;
-    args.responseBody = (response == NULL) ? "" : response;
-    ship_log(PAYMENT_REQUEST, &args);
-    return NULL;
+    ship_log(PAYMENT_REQUEST, url, request_string, (response == NULL) ? "(NULL)" : response);
+    free(response);
 }
 
 /* callback for curl fetch */
@@ -238,7 +225,7 @@ char* tp_http_post_request(const char* url_input, const char* request_json)
         return curl_fetch.payload;
     } else { // error
         log_err(LD_HTTP, "Failed to populate payload");
-        free(curl_fetch.payload);
+        // free(curl_fetch.payload); // NULL pointer
         return NULL;
     }
     return NULL;

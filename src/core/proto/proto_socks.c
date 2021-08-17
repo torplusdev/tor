@@ -629,12 +629,14 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
           break;
         json_object_object_add(json_request, "hostname", json_object_new_string(hostname));
         char* request_string = (char *)json_object_to_json_string(json_request);
-        char* json_response = tp_http_post_request  (resolv_request_url, request_string);
+        char* json_response = tp_http_post_request(resolv_request_url, request_string);
+        json_object_put(json_request);
         if (NULL == json_response || 0 == strlen(json_response))
           break;
         log_warn(LD_APP, "resolve response: %s\n", json_response);
         // Response is a json field, parse it and process
         response = json_tokener_parse(json_response);
+        free(json_response);
         if (NULL == response || json_type_object != json_object_get_type(response))
           break;
         json_object *hostname_obj = json_object_object_get(response, "hostname");

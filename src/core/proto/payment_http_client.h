@@ -6,12 +6,6 @@
 #include <json-c/json.h>
 #include <src/core/or/origin_circuit_st.h>
 
-typedef struct log_args_st {
-    const char *url;
-    const char* requestBody;
-    const char* responseBody;
-} log_args_t;
-
 typedef struct  routing_node {
     char* node_id;
     char* address;
@@ -49,17 +43,11 @@ typedef struct utility_response{
     char* session_id;
 } utility_response_t;
 
-
-typedef struct payment_response_t {
-    char* response_body;
-
-} payment_response_t;
-
 char* tp_create_payment_info(char *url, create_payment_info_t* request); //1
-payment_response_t* tp_http_payment(char *url, process_payment_request_t* request, int hup_num); //2
-payment_response_t* tp_http_command(char *url, utility_command_t* request); //4
-payment_response_t* tp_http_response(char *url, utility_response_t* request); //5
-void ship_log(const char * prefix, log_args_t* args);
+void tp_http_payment(char *url, process_payment_request_t* request, int hup_num); //2
+void tp_http_command(char *url, utility_command_t* request); //4
+void tp_http_response(char *url, utility_response_t* request); //5
+void ship_log(const char * prefix, const char *url, const char* requestBody, const char* responseBody);
 json_object* tp_http_get_request(const char* url_input);
 char* tp_http_post_request(const char* url_input, const char* json);
 
