@@ -121,6 +121,7 @@ struct circuit_t {
   int deliver_window;
   uint32_t total_package_sent;
   uint32_t total_package_received;
+  int32_t cell_limit;
   /**
    * How many cells do we have until we need to send one that contains
    * sufficient randomness?  Used to ensure that authenticated SENDME cells

@@ -62,10 +62,12 @@ struct or_circuit_t {
   /** If set, this circuit carries HS traffic. Consider it in any HS
    *  statistics. */
   unsigned int circuit_carries_hs_traffic_stats : 1;
+  unsigned int is_limited : 1;
 
   /** Number of cells that were removed from circuit queue; reset every
    * time when writing buffer stats to disk. */
   uint32_t processed_cells;
+  uint32_t delay_payments_counter;
 
   /** Total time in milliseconds that cells spent in both app-ward and
    * exit-ward queues of this circuit; reset every time when writing

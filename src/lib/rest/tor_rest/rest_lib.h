@@ -52,6 +52,7 @@ int runServer(
         void (*log_function)(const char *message),
         const char *appVersionString /*= NULL*/
     );
+int stopServer(void);
 
 #ifdef __cplusplus
 }

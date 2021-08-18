@@ -27,6 +27,7 @@
 #include <src/core/or/or_circuit_st.h>
 #include "lib/version/torversion.h"
 #include <pthread.h>
+#include "lib/evloop/compat_libevent.h"
 
 #if defined(__COVERITY__) || defined(__clang_analyzer__)
 /* If we're running a static analysis tool, we don't want it to complain
@@ -57,7 +58,6 @@ typedef struct thread_args_st {
 #define payment_step_to_client 3
 
 static smartlist_t *global_payment_session_list = NULL;
-static smartlist_t *global_payment_info_list = NULL;
 static smartlist_t *global_chunks_list = NULL;
 
 static smartlist_t *global_curl_request = NULL;
@@ -410,13 +410,32 @@ static void tp_rest_log(const char * message)
     log_notice(LD_GENERAL,"Payment REST_LOG:\n%s", message);
 }
 
-void tp_init_lists()
+void tp_init_lists(void)
 {
     global_payment_messsages = smartlist_new();
     global_curl_request = smartlist_new();
     global_payment_session_list = smartlist_new();
-    global_payment_info_list = smartlist_new();
     global_chunks_list = smartlist_new();
+}
+
+static void tp_timer_callback(periodic_timer_t *timer, void *data)
+{
+    (void)timer;
+    (void)data;
+    tp_circuitmux_refresh_limited_circuits();
+}
+
+static periodic_timer_t *s_limit_refresh_timer = NULL;
+
+static void tp_init_timer(void)
+{
+    static const struct timeval interval = {0, 100000};
+    s_limit_refresh_timer = periodic_timer_new(tor_libevent_get_base(), &interval, tp_timer_callback, NULL);
+}
+
+static void tp_deinit_timer(void)
+{
+    periodic_timer_free(s_limit_refresh_timer);
 }
 
 void tp_init(void)
@@ -446,6 +465,14 @@ void tp_init(void)
         const char *server_version_string = get_version();
         runServer(ppcb_port, tp_get_route, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, server_version_string);
     }
+
+    tp_init_timer();
+}
+
+void tp_deinit(void)
+{
+    tp_deinit_timer();
+    stopServer();
 }
 
 static const node_t* circuit_payment_get_nth_node(origin_circuit_t *circ, int hop) {
@@ -839,29 +866,6 @@ void tp_store_session_context(const char* session, const char* nickname, uint64_
     }
 }
 
-void set_circuit_payment_info(uint32_t circuit_id)
-{
-    payment_info_context_t *origin = NULL;
-
-    SMARTLIST_FOREACH_BEGIN(global_payment_info_list, payment_info_context_t *, element) {
-        if (element->circuit_id == circuit_id) {
-            origin = element;
-            break;
-        }
-    } SMARTLIST_FOREACH_END(element);
-
-    if (origin == NULL) {
-        payment_info_context_t *ent = (payment_info_context_t *) tor_malloc_zero_(
-                sizeof(payment_info_context_t));
-        ent->circuit_id = circuit_id;
-        ent->delay_payments_counter = 1;
-        origin = ent;
-        smartlist_add(global_payment_info_list, ent);
-    } else {
-        origin->delay_payments_counter++;
-    }
-}
-
 payment_session_context_t* get_from_session_context_by_session_id(const char* session)
 {
     SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
@@ -873,27 +877,9 @@ payment_session_context_t* get_from_session_context_by_session_id(const char* se
     return NULL;
 }
 
-
-payment_info_context_t* get_circuit_payment_info(uint32_t circuit_id)
-{
-    SMARTLIST_FOREACH_BEGIN(global_payment_info_list, payment_info_context_t *, element) {
-        if (element->circuit_id == circuit_id) {
-            return element;
-        }
-    } SMARTLIST_FOREACH_END(element);
-
-    return NULL;
-}
-
 void remove_from_session_context(payment_session_context_t* element)
 {
     smartlist_remove(global_payment_session_list, element);
-    tor_free_(element);
-}
-
-void tp_remove_circuit_payment_info(payment_info_context_t* element)
-{
-    smartlist_remove(global_payment_info_list, element);
     tor_free_(element);
 }
 
@@ -959,10 +945,52 @@ void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number
     return;
 }
 
+static void tp_update_circ_counters(or_circuit_t *or_circut)
+{
+    tor_assert(or_circut);
+
+    or_circut->delay_payments_counter++;
+
+    if (or_circut->delay_payments_counter < 5)
+        return;
+
+    if (or_circut->is_limited)
+        return;
+
+    or_circut->is_limited = 1;
+    log_notice(LD_OR, "tp_update_circ_counters: use circuit bandwidth limitation");
+
+    circuit_t *circ = TO_CIRCUIT(or_circut);
+    if (or_circut->p_chan)
+        circuitmux_circ_set_limited(or_circut->p_chan->cmux, circ, CELL_DIRECTION_IN);
+    if (circ->n_chan)
+        circuitmux_circ_set_limited(circ->n_chan->cmux, circ, CELL_DIRECTION_OUT);
+}
+
+static void tp_circuitmux_reset_limits(circuit_t * circ)
+{
+    tor_assert(circ);
+    tor_assert(CIRCUIT_IS_ORCIRC(circ));
+    circ->cell_limit = 0;
+    or_circuit_t *or_circut = TO_OR_CIRCUIT(circ);
+    or_circut->delay_payments_counter = 0;
+    or_circut->is_limited = 0;
+    log_notice(LD_OR, "tp_circuitmux_reset_limits: reset circuit bandwidth limitation");
+
+    if (or_circut->p_chan)
+        circuitmux_circ_reset_limited(or_circut->p_chan->cmux, circ, CELL_DIRECTION_IN);
+    if (circ->n_chan)
+        circuitmux_circ_reset_limited(circ->n_chan->cmux, circ, CELL_DIRECTION_OUT);
+
+}
+
 static void send_payment_request_to_client(thread_args_t* args)
 {
     circuit_t *circ = args->circ;
+
     or_circuit_t *or_circut = TO_OR_CIRCUIT(circ);
+    tp_update_circ_counters(or_circut);
+
     const or_options_t *options = get_options();
     char *nickname = options->Nickname;
 
@@ -983,8 +1011,6 @@ static void send_payment_request_to_client(thread_args_t* args)
 
     if (session == NULL || !strcmp(session, ""))
         return;
-
-    set_circuit_payment_info(or_circut->p_circ_id);
 
     OR_OP_request_t input;
     input.version = 0;
@@ -1031,9 +1057,7 @@ static int process_payment_cell(thread_args_t* args)
 
     if(payment_request_payload->message_type == 100)
     {
-        payment_info_context_t *info = get_circuit_payment_info(TO_OR_CIRCUIT(circ)->p_circ_id);
-        if(info != NULL)
-            tp_remove_circuit_payment_info(info);
+        tp_circuitmux_reset_limits(circ);
         payment_session_context_t *session_context =
                 get_from_session_context_by_session_id(payment_request_payload->session_id);
         if(session_context != NULL)
@@ -1189,5 +1213,6 @@ int tp_payment_requests_callback(time_t now, const or_options_t *options)
     } SMARTLIST_FOREACH_END(message);
 
     smartlist_clear(global_curl_request);
+
     return 1;
 }
