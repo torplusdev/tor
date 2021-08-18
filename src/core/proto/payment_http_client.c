@@ -129,7 +129,7 @@ static size_t curl_callback (void *contents, size_t size, size_t nmemb, void *us
     /* check buffer */
     if (p->payload == NULL) {
         /* this isn't good */
-        fprintf(stderr, "ERROR: Failed to expand buffer in curl_callback");
+        log_err(LD_HTTP, "Failed to expand buffer in curl_callback");
         /* free buffer */
         free(p->payload);
         /* return */
@@ -159,7 +159,7 @@ static CURLcode curl_fetch_url(CURL *ch, const char *url, struct curl_fetch_st *
     /* check payload */
     if (fetch->payload == NULL) {
         /* log error */
-        fprintf(stderr, "ERROR: Failed to allocate payload in curl_fetch_url");
+        log_err(LD_HTTP, "Failed to allocate payload in curl_fetch_url");
         /* return error */
         return CURLE_FAILED_INIT;
     }
@@ -200,14 +200,12 @@ char* tp_http_post_request(const char* url_input, const char* request_json)
 {
     CURL *ch;                                               /* curl handle */
     CURLcode rcode;                                         /* curl result code */
-   // json_object *json;                                      /* json post body */
-    enum json_tokener_error jerr = json_tokener_success;    /* json parse error */
     struct curl_fetch_st curl_fetch;                        /* curl fetch struct */
     struct curl_slist *headers = NULL;                      /* http headers to send with request */
     /* init curl handle */
     if ((ch = curl_easy_init()) == NULL) {
         /* log error */
-        fprintf(stderr, "ERROR: Failed to create curl handle in fetch_session");
+        log_err(LD_HTTP, "Failed to create curl handle in tp_http_post_request");
         /* return error */
         return NULL;
     }
@@ -231,69 +229,34 @@ char* tp_http_post_request(const char* url_input, const char* request_json)
     /* free headers */
     curl_slist_free_all(headers);
 
-    /* free json object */
-
-
-    /* check return code */
     if (rcode != CURLE_OK) {
-        /* log error */
-        fprintf(stderr, "ERROR: Failed to fetch url (%s) - curl said: %s",
-                url_input, curl_easy_strerror(rcode));
-        /* return error */
-
+        log_err(LD_HTTP, "Failed to fetch url (%s) - curl said: %s", url_input, curl_easy_strerror(rcode));
         return NULL;
     }
 
-    /* check payload */
     if (curl_fetch.payload != NULL) {
-        /* print result */
-        //printf("url (%s) - curl said: %s:", url_input, rcode);
-        /* parse return */
-       // json = json_tokener_parse_verbose(cf->payload, &jerr);
-
         return curl_fetch.payload;
-    } else {
-        /* error */
-        fprintf(stderr, "ERROR: Failed to populate payload");
-        /* free payload */
+    } else { // error
+        log_err(LD_HTTP, "Failed to populate payload");
         free(curl_fetch.payload);
-        /* return */
         return NULL;
     }
-
-    /* check error */
-    if (jerr != json_tokener_success) {
-        /* error */
-        fprintf(stderr, "ERROR: Failed to parse json string");
-        /* free json object */
-        /* return */
-        return NULL;
-    }
-
-    /* debugging */
-
-    /* exit */
     return NULL;
 }
+
 
 json_object* tp_http_get_request(const char* url_input)
 {
     CURL *ch;                                               /* curl handle */
     CURLcode rcode;                                         /* curl result code */
-    // json_object *json;                                      /* json post body */
     enum json_tokener_error jerr = json_tokener_success;    /* json parse error */
-
     struct curl_fetch_st curl_fetch;                        /* curl fetch struct */
     struct curl_fetch_st *cf = &curl_fetch;                 /* pointer to fetch struct */
     struct curl_slist *headers = NULL;                      /* http headers to send with request */
 
-    /* url to test site */
-
     /* init curl handle */
     if ((ch = curl_easy_init()) == NULL) {
-        /* log error */
-        fprintf(stderr, "ERROR: Failed to create curl handle in fetch_session");
-        /* return error */
+        log_err(LD_HTTP, "Failed to create curl handle in tp_http_get_request");
         return NULL;
     }
 
@@ -314,44 +277,23 @@ json_object* tp_http_get_request(const char* url_input)
     /* free headers */
     curl_slist_free_all(headers);
 
-    /* check return code */
     if (rcode != CURLE_OK) {
-        /* log error */
-        fprintf(stderr, "ERROR: Failed to fetch url (%s) - curl said: %s",
-                url_input, curl_easy_strerror(rcode));
-        /* return error */
-
+        log_err(LD_HTTP, "Failed to fetch url (%s) - curl said: %s", url_input, curl_easy_strerror(rcode));
         return NULL;
     }
 
-    /* check payload */
     if (cf->payload != NULL) {
-        /* print result */
-        printf("CURL Returned: \n%s\n", cf->payload);
-        /* parse return */
+        log_notice(LD_HTTP, "CURL Returned: \n%s\n", cf->payload);
         json_object* json = json_tokener_parse_verbose(cf->payload, &jerr);
-        printf("Parsed JSON: %s\n", json_object_to_json_string(json));
+        if (jerr != json_tokener_success) { // error
+            log_err(LD_HTTP, "Failed to parse json string, parser said: %s", json_tokener_error_desc(jerr));
+            return NULL;
+        }
         return json;
-    } else {
-        /* error */
-        fprintf(stderr, "ERROR: Failed to populate payload");
-        /* free payload */
+    } else { // error
+        log_err(LD_HTTP, "Failed to populate payload");
         free(cf->payload);
-        /* return */
         return NULL;
     }
-
-    /* check error */
-    if (jerr != json_tokener_success) {
-        /* error */
-        fprintf(stderr, "ERROR: Failed to parse json string");
-        /* free json object */
-        /* return */
-        return NULL;
-    }
-
-    /* debugging */
-
-    /* exit */
     return NULL;
 }
