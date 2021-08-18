@@ -19,6 +19,19 @@ RUN apk --update add \
         curl-dev
 RUN apk add git cmake
 COPY tor tor
+WORKDIR /tor/src/lib/rest/
+RUN mkdir build && cd build && cmake -DCMAKE_CXX_FLAGS="-std=c++0x" .. && cmake --build .
+WORKDIR /tor
+RUN sh autogen.sh && \
+    autoreconf -f -i && \
+    ./configure  --disable-asciidoc && \
+    make && \
+    make install
+RUN mkdir /out
+RUN cp /usr/local/share/tor/geoip /out/
+RUN cp /usr/local/share/tor/geoip6 /out/
+RUN cp -r /usr/local/bin/ /out/
+
 #RUN apk-install make automake autoconf gcc libtool curl libevent-dev libssl1.0 musl musl-dev libgcc openssl openssl-dev openssh
 
 # RUN git clone https://github.com/json-c/json-c.git && \

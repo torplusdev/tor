@@ -1,16 +1,14 @@
-
-FROM torplus_build as build
-FROM torplusserviceregistry.azurecr.io/private/tor_plus as tor_plus
-FROM debian:10
-RUN apt-get update && \
-    apt-get install -y libevent-dev libssl-dev zlib1g-dev libcurl4 libcurl4-gnutls-dev \
-                        libjson-c-dev expect torsocks links nginx curl netcat \
-                        supervisor gettext-base net-tools jq dmidecode && \
-    rm -rf /var/lib/apt/lists/*
-# environment prod or stage
-
-# ENV self_host=
-# roel : hs_client client dirauth exit
+FROM alpine:3.1
+RUN apk update
+RUN apk --update add \
+        gcc \
+        g++ \
+        libstdc++ \
+        libevent-dev \
+        openssl-dev \
+        zlib-dev \
+        json-c-dev \
+        curl-dev
 ENV role=client
 ARG TOR_VERSION
 ENV TOR_VERSION $TOR_VERSION
@@ -24,7 +22,7 @@ RUN mkdir -p /root/tor
 COPY docker/configs configs
 COPY docker/tor.stage.cfg tor.stage.cfg
 COPY docker/tor.prod.cfg tor.prod.cfg
-COPY docker/geodata /root/geodata
+COPY ./geodata /root/geodata
 COPY docker/tor-docker-entrypoint.sh /
 RUN chmod 755 /tor-docker-entrypoint.sh
 RUN mkdir -p /root/tor && chmod u=rwx,g=-,o=- /root/tor
