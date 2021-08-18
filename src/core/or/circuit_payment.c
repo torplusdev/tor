@@ -974,6 +974,7 @@ static void send_payment_request_to_client(thread_args_t* args)
     request.commodity_type = "data";
     request.amount = 10;
 
+    // TODO: move this call into cpuworker task
     char *response = tp_create_payment_info(s_url_api_util_createPaymentInfo, &request);
     if (response == NULL)
         return;
@@ -1033,34 +1034,42 @@ static int process_payment_cell(thread_args_t* args)
     strcat(strcat(strcpy(cell_key, payment_request_payload->nickname), "|"), payment_request_payload->session_id);
     payment_chunks_t* origin = tp_store_chunk(payment_request_payload, cell_key);
 
-    if(payment_request_payload->is_last == 0)
-        return 0;
+    do {
+        if(!payment_request_payload->is_last){
+            break;
+        }
 
-    circuit_t *circ = args->circ;
+        smartlist_remove(global_chunks_list, origin);
 
-    if(payment_request_payload->message_type == 100)
-    {
-        tp_circuitmux_reset_limits(circ);
-        payment_session_context_t *session_context =
-                get_from_session_context_by_session_id(payment_request_payload->session_id);
-        if(session_context != NULL)
-            remove_from_session_context(session_context);
-        return 0;
-    }
-    utility_command_t request;
-    request.command_type = payment_request_payload->command_type;
-    request.command_body = origin->value;
-    request.node_id = payment_request_payload->nickname;
-    request.callback_url = s_cb_url_api_response;
-    request.command_id = payment_request_payload->command_id;
-    request.session_id = payment_request_payload->session_id;
-    tp_store_session_context(payment_request_payload->session_id, payment_request_payload->nickname, TO_OR_CIRCUIT(circ)->p_chan->global_identifier, TO_OR_CIRCUIT(circ)->p_circ_id);
+        circuit_t *circ = args->circ;
 
-    tp_http_command(s_url_api_util_processCommand, &request);
+        if(payment_request_payload->message_type == 100)
+        {
+            tp_circuitmux_reset_limits(circ);
+            payment_session_context_t *session_context =
+                    get_from_session_context_by_session_id(payment_request_payload->session_id);
+            if(session_context != NULL)
+                remove_from_session_context(session_context);
+        } else {
+            utility_command_t request;
+            request.command_type = payment_request_payload->command_type;
+            request.command_body = origin->value;
+            request.node_id = payment_request_payload->nickname;
+            request.callback_url = s_cb_url_api_response;
+            request.command_id = payment_request_payload->command_id;
+            request.session_id = payment_request_payload->session_id;
 
-    tor_free_(payment_request_payload);
-    smartlist_remove(global_chunks_list, origin);
-    tor_free_(origin);
+            tp_store_session_context(payment_request_payload->session_id,
+                payment_request_payload->nickname,
+                TO_OR_CIRCUIT(circ)->p_chan->global_identifier,
+                TO_OR_CIRCUIT(circ)->p_circ_id);
+            // TODO: move this call into cpuworker task
+            tp_http_command(s_url_api_util_processCommand, &request);
+        }
+        tor_free(origin);
+    } while(false);
+
+    tor_free(payment_request_payload);
     return 0;
 }
 
@@ -1071,8 +1080,11 @@ static int process_payment_command_cell_to_node(thread_args_t* args)
     strcat(strcat(strcpy(to_node_key, payment_request_payload->nickname), "|"), payment_request_payload->session_id);
     payment_chunks_t* origin = tp_store_chunk(payment_request_payload, to_node_key);
 
-    if(payment_request_payload->is_last == 0)
+    if(payment_request_payload->is_last == 0){
+        tor_free(payment_request_payload);
         return 0;
+    }
+    smartlist_remove(global_chunks_list, origin);
 
     switch(payment_request_payload->message_type){
     case 1: // Payment creation request method
@@ -1098,6 +1110,7 @@ static int process_payment_command_cell_to_node(thread_args_t* args)
             request.routing_node = nodes;
             request.call_back_url = s_cb_url_api_command;
             request.status_call_back_url = s_cb_url_api_paymentComplete;
+            // TODO: move this call into cpuworker task
             tp_http_payment(s_url_api_gw_processPayment, &request, hop_num);
             tor_free(nodes);
         }
@@ -1109,6 +1122,7 @@ static int process_payment_command_cell_to_node(thread_args_t* args)
             request.session_id = payment_request_payload->session_id;
             request.node_id = payment_request_payload->nickname;
             request.response_body = origin->value;
+            // TODO: move this call into cpuworker task
             tp_http_response(s_url_api_gw_processResponse, &request);
         }
         break;
@@ -1116,9 +1130,8 @@ static int process_payment_command_cell_to_node(thread_args_t* args)
         log_warn(LD_BUG,"Payment, unknown request type of message: %i", payment_request_payload->message_type);
     }
 
-    tor_free_(payment_request_payload);
-    smartlist_remove(global_chunks_list, origin);
-    tor_free_(origin);
+    tor_free(origin);
+    tor_free(payment_request_payload);
     return 0;
 }
 
