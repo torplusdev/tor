@@ -1389,7 +1389,6 @@ CALLBACK(save_state);
 CALLBACK(write_stats_file);
 CALLBACK(control_per_second_events);
 CALLBACK(second_elapsed);
-CALLBACK(run_tor_plus_requests);
 
 #undef CALLBACK
 
@@ -1410,8 +1409,6 @@ STATIC periodic_event_item_t mainloop_periodic_events[] = {
   /* This is a legacy catch-all callback that runs once per second if
    * we are online and active. */
   CALLBACK(second_elapsed, NET_PARTICIPANT,
-           FL(RUN_ON_DISABLE)),
-  CALLBACK(run_tor_plus_requests, NET_PARTICIPANT,
            FL(RUN_ON_DISABLE)),
 
   /* XXXX Do we have a reason to do this on a callback? Does it do any good at
@@ -1682,11 +1679,6 @@ mainloop_schedule_shutdown(int delay_sec)
     scheduled_shutdown_ev = mainloop_event_new(scheduled_shutdown_cb, NULL);
   }
   mainloop_event_schedule(scheduled_shutdown_ev, &delay_tv);
-}
-
-int run_tor_plus_requests_callback(time_t now, const or_options_t *options)
-{
- return tp_payment_requests_callback(now, options);
 }
 
 /** Perform regular maintenance tasks.  This function gets run once per

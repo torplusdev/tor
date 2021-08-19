@@ -100,7 +100,6 @@ void remove_from_session_context(payment_session_context_t* element);
 
 int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ);
 void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number);
-int tp_payment_requests_callback(time_t now, const or_options_t *options);
 int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ);
 
 #endif //__TOR_PLUS_CIRCUIT_PAYMENT_H_INCLUDED__

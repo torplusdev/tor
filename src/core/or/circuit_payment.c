@@ -28,6 +28,8 @@
 #include "lib/version/torversion.h"
 #include <pthread.h>
 #include "lib/evloop/compat_libevent.h"
+#include "core/mainloop/cpuworker.h"
+#include "lib/evloop/workqueue.h"
 
 #if defined(__COVERITY__) || defined(__clang_analyzer__)
 /* If we're running a static analysis tool, we don't want it to complain
@@ -46,21 +48,9 @@ const static int sendmecell_deadcode_dummy__ = 0;
 
 #define CHUNK_SIZE (MAX_MESSAGE_LEN - 1)
 
-typedef struct thread_args_st {
-    OR_OP_request_t *payment_request_payload;
-    circuit_t *circ;
-    int relay_type;
-    int step_type;
-} thread_args_t;
-
-#define payment_step_to_node 1
-#define payment_step_cell 2
-#define payment_step_to_client 3
-
 static smartlist_t *global_payment_session_list = NULL;
 static smartlist_t *global_chunks_list = NULL;
 
-static smartlist_t *global_curl_request = NULL;
 static smartlist_t *global_payment_messsages = NULL;
 static pthread_rwlock_t global_payment_messsages_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -393,7 +383,6 @@ static void tp_rest_log(const char * message)
 void tp_init_lists(void)
 {
     global_payment_messsages = smartlist_new();
-    global_curl_request = smartlist_new();
     global_payment_session_list = smartlist_new();
     global_chunks_list = smartlist_new();
 }
@@ -434,6 +423,7 @@ void tp_init(void)
     snprintf(s_url_api_gw_processResponse, PAYMENT_URL_LEN, "http://localhost:%d/api/gateway/processResponse", ppc_port);
 
     tp_init_lists();
+    cpu_init();
 
     const int ppcb_port = get_options()->PPChannelCallbackPort;
     if ( ppcb_port != -1 ) {
@@ -883,43 +873,6 @@ static payment_chunks_t * tp_store_chunk(const OR_OP_request_t* payment_request_
     return origin;
 }
 
-int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ)
-{
-    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-    args->circ = circ;
-    args->step_type = payment_step_to_node;
-    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
-    args->payment_request_payload = payment_request_payload;
-    smartlist_add(global_curl_request, args);
-    return 0;
-}
-
-int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ)
-{
-    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-    args->circ = circ;
-    args->step_type = payment_step_cell;
-    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
-    args->payment_request_payload = payment_request_payload;
-    smartlist_add(global_curl_request, args);
-    return 0;
-}
-
-void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number)
-{
-    circ->total_package_received = 0;
-    circ->total_package_sent = 0;
-    thread_args_t* args = tor_malloc_(sizeof(thread_args_t));
-
-    args->circ = circ;
-    args->relay_type = message_number;
-    args->step_type = payment_step_to_client;
-    args->payment_request_payload = NULL;
-
-    smartlist_add(global_curl_request, args);
-    return;
-}
-
 static void tp_update_circ_counters(or_circuit_t *or_circut)
 {
     tor_assert(or_circut);
@@ -942,6 +895,113 @@ static void tp_update_circ_counters(or_circuit_t *or_circut)
         circuitmux_circ_set_limited(circ->n_chan->cmux, circ, CELL_DIRECTION_OUT);
 }
 
+typedef struct send_payment_request_to_client_st {
+    circuit_t *circ;
+    char *response;
+    char *session;
+} send_payment_request_to_client_t;
+
+static workqueue_reply_t send_payment_request_to_client_threadfn(void *state_, void *work_)
+{
+    (void)state_;
+    create_payment_info_t request;
+    send_payment_request_to_client_t *job = work_;
+
+    request.service_type = "tor";
+    request.commodity_type = "data";
+    request.amount = 10;
+
+    job->response = tp_create_payment_info(s_url_api_util_createPaymentInfo, &request);
+    if (job->response == NULL)
+        return WQ_RPL_ERROR;
+
+    struct json_object *parsed_json = NULL;
+    do {
+        enum json_tokener_error jerr = json_tokener_success;
+        parsed_json = json_tokener_parse_verbose(job->response, &jerr);
+        if (jerr != json_tokener_success) {
+            tor_assert_nonfatal(NULL == parsed_json);
+            log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), job->response);
+            break;
+        }
+        struct json_object *session_id = NULL;
+        if (!json_object_object_get_ex(parsed_json, "ServiceSessionId", &session_id))
+            break;
+        const char *session_str = json_object_get_string(session_id);
+        if (session_str == NULL)
+            break;
+        job->session = (0 < strlen(session_str)) ?  tor_strdup(session_str): NULL;
+    } while(false);
+
+    if (parsed_json)
+        json_object_put(parsed_json);
+
+    if (NULL != job->session)
+        return WQ_RPL_REPLY;
+
+    tor_free(job->response);
+    // tor_free_(job); // used in send_payment_request_to_client_replyfn
+    return WQ_RPL_ERROR;
+}
+
+static void send_payment_request_to_client_replyfn(void * work_)
+{
+    send_payment_request_to_client_t *job = work_;
+    if (NULL == job ||
+        NULL == job->session ||
+        NULL == job ->response) {
+        tor_free(job);
+        return;
+    }
+    OR_OP_request_t input;
+    input.version = 0;
+    input.message_type = 1;
+    tp_zero_mem(input.command_id, COMMAND_ID_LEN);
+    tp_zero_mem(input.session_id, SESSION_ID_LEN);
+    input.command_id_length = 0;
+    input.session_id_length = strlen(job->session);
+    memcpy(input.session_id, job->session, SESSION_ID_LEN);
+    input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
+
+    const or_options_t *options = get_options();
+    tp_zero_mem(input.nickname, USER_NAME_LEN);
+    memcpy(input.nickname, options->Nickname, USER_NAME_LEN);
+    input.nicknameLength = strlen(options->Nickname);
+    input.is_last = 0;
+    const size_t body_len = strlen(job->response);
+    input.messageTotalLength = body_len;
+    const size_t part_size =  body_len / CHUNK_SIZE;
+    for (size_t g = 0; g <= part_size; g++) {
+        tp_zero_mem(input.message, MAX_MESSAGE_LEN);
+        size_t chunck_real_size = 0;
+        const char * buf_ptr = tp_get_buffer_part_number(job->response, body_len, CHUNK_SIZE, g, &chunck_real_size);
+        memcpy(input.message, buf_ptr, chunck_real_size);
+        input.message[chunck_real_size] = 0;
+        input.messageLength = chunck_real_size;
+        input.is_last = (g < part_size) ? 0 : 1;
+        circuit_payment_send_OR(job->circ, &input);
+    }
+    tor_free(job->response);
+    tor_free(job);
+}
+
+void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number)
+{
+    (void)message_number;
+    circ->total_package_received = 0;
+    circ->total_package_sent = 0;
+
+    tp_update_circ_counters(TO_OR_CIRCUIT(circ));
+
+    send_payment_request_to_client_t *job = tor_calloc(1, sizeof(send_payment_request_to_client_t));
+    tor_assert(NULL != job);
+    job->circ = circ;
+    workqueue_entry_t *work = 
+        cpuworker_queue_work(WQ_PRI_LOW, send_payment_request_to_client_threadfn, send_payment_request_to_client_replyfn, job);
+
+    tor_assert_nonfatal(NULL != work);
+}
+
 static void tp_circuitmux_reset_limits(circuit_t * circ)
 {
     tor_assert(circ);
@@ -959,179 +1019,178 @@ static void tp_circuitmux_reset_limits(circuit_t * circ)
 
 }
 
-static void send_payment_request_to_client(thread_args_t* args)
+typedef struct process_payment_cell_st {
+    OR_OP_request_t *payload;
+    payment_chunks_t* chunk;
+    circuit_t *circ;
+} process_payment_cell_t;
+
+static workqueue_reply_t process_payment_cell_threadfn(void *state_, void *work_)
 {
-    circuit_t *circ = args->circ;
-
-    or_circuit_t *or_circut = TO_OR_CIRCUIT(circ);
-    tp_update_circ_counters(or_circut);
-
-    const or_options_t *options = get_options();
-    char *nickname = options->Nickname;
-
-    create_payment_info_t request;
-    request.service_type = "tor";
-    request.commodity_type = "data";
-    request.amount = 10;
-
-    // TODO: move this call into cpuworker task
-    char *response = tp_create_payment_info(s_url_api_util_createPaymentInfo, &request);
-    if (response == NULL)
-        return;
-    struct json_object *parsed_json = NULL;
-    do {
-        enum json_tokener_error jerr = json_tokener_success;
-        parsed_json = json_tokener_parse_verbose(response, &jerr);
-        if (jerr != json_tokener_success) {
-            tor_assert(NULL != parsed_json);
-            log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), response);
-            break;
-        }
-        struct json_object *session_id = NULL;
-        json_object_object_get_ex(parsed_json, "ServiceSessionId", &session_id);
-        const char *session = json_object_get_string(session_id);
-        if (session == NULL)
-            break;
-        if (strlen(session) == 0)
-            break;
-        OR_OP_request_t input;
-        input.version = 0;
-        input.message_type = 1;
-        tp_zero_mem(input.command_id, COMMAND_ID_LEN);
-        tp_zero_mem(input.session_id, SESSION_ID_LEN);
-        input.command_id_length = 0;
-        input.session_id_length = strlen(session);
-        memcpy(input.session_id, session, SESSION_ID_LEN);
-        input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_ORIGIN;
-        tp_zero_mem(input.nickname, USER_NAME_LEN);
-        memcpy(input.nickname, nickname, USER_NAME_LEN);
-        input.nicknameLength = strlen(nickname);
-        input.is_last = 0;
-        const size_t body_len = strlen(response);
-        input.messageTotalLength = body_len;
-        const size_t part_size =  body_len / CHUNK_SIZE;
-        for (size_t g = 0; g <= part_size; g++) {
-            tp_zero_mem(input.message, MAX_MESSAGE_LEN);
-            size_t chunck_real_size = 0;
-            const char * buf_ptr = tp_get_buffer_part_number(response, body_len, CHUNK_SIZE, g, &chunck_real_size);
-            memcpy(input.message, buf_ptr, chunck_real_size);
-            input.message[chunck_real_size] = 0;
-            input.messageLength = chunck_real_size;
-            input.is_last = (g < part_size) ? 0 : 1;
-            circuit_payment_send_OR(circ, &input);
-        }
-    } while(false);
-
-    if (parsed_json)
-        json_object_put(parsed_json);
-    tor_free_(response);
+    process_payment_cell_t *job = (process_payment_cell_t*)work_;
+    utility_command_t request;
+    request.command_type = job->payload->command_type;
+    request.command_body = job->chunk->value;
+    request.node_id = job->payload->nickname;
+    request.callback_url = s_cb_url_api_response;
+    request.command_id = job->payload->command_id;
+    request.session_id = job->payload->session_id;
+    tp_http_command(s_url_api_util_processCommand, &request);
+    tor_free(job->payload);
+    tor_free(job->chunk);
+    tor_free(job);
+    return WQ_RPL_REPLY;
 }
 
-static int process_payment_cell(thread_args_t* args)
+static void process_payment_cell_replyfn(void * arg)
 {
-    OR_OP_request_t *payment_request_payload = args->payment_request_payload;
+    (void)arg;
+}
+
+int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ)
+{
+    OR_OP_request_t *payment_request_payload = circuit_payment_handle_payment_negotiate(cell);
     char cell_key [PAYMENT_HASH_KEY_LEN];
     strcat(strcat(strcpy(cell_key, payment_request_payload->nickname), "|"), payment_request_payload->session_id);
     payment_chunks_t* origin = tp_store_chunk(payment_request_payload, cell_key);
 
-    do {
-        if(!payment_request_payload->is_last){
-            break;
-        }
-
-        smartlist_remove(global_chunks_list, origin);
-
-        circuit_t *circ = args->circ;
-
-        if(payment_request_payload->message_type == 100)
-        {
-            tp_circuitmux_reset_limits(circ);
-            payment_session_context_t *session_context =
-                    get_from_session_context_by_session_id(payment_request_payload->session_id);
-            if(session_context != NULL)
-                remove_from_session_context(session_context);
-        } else {
-            utility_command_t request;
-            request.command_type = payment_request_payload->command_type;
-            request.command_body = origin->value;
-            request.node_id = payment_request_payload->nickname;
-            request.callback_url = s_cb_url_api_response;
-            request.command_id = payment_request_payload->command_id;
-            request.session_id = payment_request_payload->session_id;
-
-            tp_store_session_context(payment_request_payload->session_id,
-                payment_request_payload->nickname,
-                TO_OR_CIRCUIT(circ)->p_chan->global_identifier,
-                TO_OR_CIRCUIT(circ)->p_circ_id);
-            // TODO: move this call into cpuworker task
-            tp_http_command(s_url_api_util_processCommand, &request);
-        }
-        tor_free(origin);
-    } while(false);
-
-    tor_free(payment_request_payload);
-    return 0;
-}
-
-static int process_payment_command_cell_to_node(thread_args_t* args)
-{
-    OR_OP_request_t *payment_request_payload = args->payment_request_payload;
-    char to_node_key[PAYMENT_HASH_KEY_LEN];
-    strcat(strcat(strcpy(to_node_key, payment_request_payload->nickname), "|"), payment_request_payload->session_id);
-    payment_chunks_t* origin = tp_store_chunk(payment_request_payload, to_node_key);
-
-    if(payment_request_payload->is_last == 0){
+    if(!payment_request_payload->is_last) {
         tor_free(payment_request_payload);
         return 0;
     }
+
     smartlist_remove(global_chunks_list, origin);
 
-    switch(payment_request_payload->message_type){
+    if(payment_request_payload->message_type != 100) {
+        tp_store_session_context(payment_request_payload->session_id,
+            payment_request_payload->nickname,
+            TO_OR_CIRCUIT(circ)->p_chan->global_identifier,
+            TO_OR_CIRCUIT(circ)->p_circ_id);
+
+        process_payment_cell_t *job = tor_calloc(1, sizeof(process_payment_cell_t));
+        job->chunk = origin;
+        job->circ = circ;
+        job->payload = payment_request_payload;
+    
+        workqueue_entry_t *work = 
+            cpuworker_queue_work(WQ_PRI_LOW, process_payment_cell_threadfn, process_payment_cell_replyfn, job);
+        tor_assert_nonfatal(NULL != work);
+        return 0;
+    }
+
+    tp_circuitmux_reset_limits(circ);
+    payment_session_context_t *session_context =
+            get_from_session_context_by_session_id(payment_request_payload->session_id);
+    if(session_context != NULL)
+        remove_from_session_context(session_context);
+    tor_free(origin);
+    tor_free(payment_request_payload);
+    return 0;
+}
+typedef struct process_payment_command_cell_to_node_st {
+    OR_OP_request_t *request;
+    payment_chunks_t* chunk;
+    circuit_t *circ;
+    routing_node_t *nodes;
+    size_t hop_num;
+} process_payment_command_cell_to_node_t;
+
+static workqueue_reply_t process_payment_command_cell_to_node_threadfn(void *state_, void *work_)
+{
+  (void)state_;
+  process_payment_command_cell_to_node_t *job = work_;
+    switch(job->request->message_type){
     case 1: // Payment creation request method
         {
-            circuit_t *circ = args->circ;
-            origin_circuit_t* origin_circuit = TO_ORIGIN_CIRCUIT(circ);
-            int hop_num = circuit_get_num_by_nickname(origin_circuit, payment_request_payload->nickname);
-            if(hop_num == 0)
-                return 0;
-            routing_node_t *nodes = tor_calloc(sizeof(routing_node_t), hop_num);
-            crypt_path_t * next = origin_circuit->cpath;
-            for (int i = 0; i < hop_num-1; ++i) {
-                nodes[i].node_id = next->extend_info->nickname;
-                nodes[i].address = next->extend_info->stellar_address;
-                next = next->next;
-            }
-
-            tp_store_session_context(payment_request_payload->session_id, payment_request_payload->nickname, circ->n_chan->global_identifier, circ->n_circ_id);
-
             process_payment_request_t request;
-            request.payment_request = origin->value;
-            request.node_id = payment_request_payload->nickname;
-            request.routing_node = nodes;
+            request.payment_request = job->chunk->value;
+            request.node_id = job->request->nickname;
+            request.routing_node = job->nodes;
             request.call_back_url = s_cb_url_api_command;
             request.status_call_back_url = s_cb_url_api_paymentComplete;
-            // TODO: move this call into cpuworker task
-            tp_http_payment(s_url_api_gw_processPayment, &request, hop_num);
-            tor_free(nodes);
+            tp_http_payment(s_url_api_gw_processPayment, &request, job->hop_num);
         }
         break;
     case 4:
         {
             utility_response_t request;
-            request.command_id = payment_request_payload->command_id;
-            request.session_id = payment_request_payload->session_id;
-            request.node_id = payment_request_payload->nickname;
-            request.response_body = origin->value;
-            // TODO: move this call into cpuworker task
+            request.command_id = job->request->command_id;
+            request.session_id = job->request->session_id;
+            request.node_id = job->request->nickname;
+            request.response_body = job->chunk->value;
             tp_http_response(s_url_api_gw_processResponse, &request);
         }
         break;
     default:
-        log_warn(LD_BUG,"Payment, unknown request type of message: %i", payment_request_payload->message_type);
+        log_warn(LD_BUG,"Payment, unknown request type of message: %i", job->request->message_type);
     }
 
-    tor_free(origin);
-    tor_free(payment_request_payload);
+    tor_free(job->chunk);
+    tor_free(job->request);
+    tor_free(job->nodes);
+    tor_free(job);
+    return WQ_RPL_REPLY;
+}
+
+static void process_payment_command_cell_to_node_replyfn(void * arg)
+{
+    (void)arg;
+}
+
+int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ)
+{
+    OR_OP_request_t *request = circuit_payment_handle_payment_negotiate(cell);
+
+    char to_node_key[PAYMENT_HASH_KEY_LEN];
+    strcat(strcat(strcpy(to_node_key, request->nickname), "|"), request->session_id);
+
+    payment_chunks_t* origin = tp_store_chunk(request, to_node_key);
+    tor_assert(NULL != origin);
+
+    if(request->is_last == 0){
+        tor_free(request);
+        return 0;
+    }
+
+    smartlist_remove(global_chunks_list, origin);
+
+    process_payment_command_cell_to_node_t *job = tor_calloc(1, sizeof(process_payment_command_cell_to_node_t));
+    job->chunk = origin;
+    job->request = request;
+    job->circ = circ;
+    switch(job->request->message_type){
+    case 1: // Payment creation request method
+        {
+            origin_circuit_t* origin_circuit = TO_ORIGIN_CIRCUIT(circ);
+            job->hop_num = circuit_get_num_by_nickname(origin_circuit, job->request->nickname);
+            if(job->hop_num == 0) {
+                tor_free(job); //zeroed
+                break;
+
+            }
+            job->nodes = tor_calloc(sizeof(routing_node_t), job->hop_num);
+            crypt_path_t * next = origin_circuit->cpath;
+            for (int i = 0; i < job->hop_num - 1; ++i) {
+                job->nodes[i].node_id = next->extend_info->nickname;
+                job->nodes[i].address = next->extend_info->stellar_address;
+                next = next->next;
+            }
+            tp_store_session_context(job->request->session_id, job->request->nickname, circ->n_chan->global_identifier, circ->n_circ_id);
+        }
+        break;
+    case 4:
+        break;
+    default:
+        log_warn(LD_BUG,"Payment, unknown request type of message: %i", job->request->message_type);
+        tor_free(job); //zeroed
+    }
+
+    if (NULL != job) {
+        workqueue_entry_t *work = 
+            cpuworker_queue_work(WQ_PRI_LOW, process_payment_command_cell_to_node_threadfn, process_payment_command_cell_to_node_replyfn, job);
+
+        tor_assert_nonfatal(NULL != work);
+    }
     return 0;
 }
 
@@ -1193,30 +1252,4 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
 
     smartlist_clear(global_payment_messsages);
     pthread_rwlock_unlock(&global_payment_messsages_rwlock);
-}
-
-int tp_payment_requests_callback(time_t now, const or_options_t *options)
-{
-    (void) now; (void) options;
-
-    SMARTLIST_FOREACH_BEGIN(global_curl_request, thread_args_t*, message) {
-        switch(message->step_type) {
-        case payment_step_to_node:
-            process_payment_command_cell_to_node(message);
-            break;
-        case payment_step_cell:
-            process_payment_cell(message);
-            break;
-        case payment_step_to_client:
-            send_payment_request_to_client(message);
-            break;
-        default:
-            log_warn(LD_BUG,"Payment, unknown message type of step %i", message->step_type);
-        }
-        tor_free_(message);
-    } SMARTLIST_FOREACH_END(message);
-
-    smartlist_clear(global_curl_request);
-
-    return 1;
 }
