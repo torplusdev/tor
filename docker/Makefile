@@ -15,10 +15,26 @@ image_last:
                 -t torplusserviceregistry.azurecr.io/private/tor:latest \
                 -f Dockerfile ../
 
+az_pipeline_image:
+	rm -rf ../.dockerignore
+	docker build --build-arg TOR_VERSION=$(VERSION) \
+		--build-arg PP_ENV=$(PP_ENV) \
+		-t torplus \
+		-t torplusserviceregistry.azurecr.io/private/tor:$(VERSION) \
+		-t torplusserviceregistry.azurecr.io/private/tor:latest \
+		-f Dockerfile_az_pipeline ../
 push:
 	docker push torplusserviceregistry.azurecr.io/private/tor:$(VERSION)
 	docker push torplusserviceregistry.azurecr.io/private/tor:latest
-
+az_pipeline_push: az_pipeline_image
+	docker push torplusserviceregistry.azurecr.io/private/tor:$(VERSION)
+	docker push torplusserviceregistry.azurecr.io/private/tor:latest
+clean_up:
+	docker rmi --force \
+	-t torplus \
+	-t torplusserviceregistry.azurecr.io/private/tor:$(VERSION) \
+	-t torplusserviceregistry.azurecr.io/private/tor:latest
+	docker image prune --force
 run_it:
 	docker run -it --name torplus --rm --entrypoint /bin/bash torplusserviceregistry.azurecr.io/private/tor
 

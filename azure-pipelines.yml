@@ -44,6 +44,24 @@ jobs:
     workingDirectory: $(Build.SourcesDirectory)
     displayName: 'make test'
 
+  - task: Docker@1
+    inputs:
+      containerregistrytype: 'Azure Container Registry'
+      azureSubscriptionEndpoint: 'U-BTech - CSP (Georest)(8a8eed1d-a101-45a3-bb4d-34065921a9aa)'
+      azureContainerRegistry: 'torplusserviceregistry.azurecr.io'
+      command: 'login'
+    displayName: 'Docker login'
+
+  - script: |
+      make az_pipeline_push
+    workingDirectory: $(Build.SourcesDirectory)/docker
+    displayName: 'Docker build and push'
+
+  - script: |
+      make clean_up
+    workingDirectory: $(Build.SourcesDirectory)/docker
+    displayName: 'make clean_up'
+
   - template: azure-artefacts-template.yml
     parameters:
       OSName: linux
