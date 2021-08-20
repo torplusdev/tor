@@ -898,8 +898,23 @@ static void tp_update_circ_counters(or_circuit_t *or_circut)
 typedef struct send_payment_request_to_client_st {
     circuit_t *circ;
     char *response;
+    struct json_object *json;
     char *session;
 } send_payment_request_to_client_t;
+
+void free_send_payment_request_to_client_job(send_payment_request_to_client_t *job)
+{
+    if (job) {
+        tor_free(job->response);
+        tor_free(job->session);
+        job->circ = NULL;
+        if (job->json) {
+            json_object_put(job->json);
+            job->json = NULL;
+        }
+    }
+    tor_free_(job);
+}
 
 static workqueue_reply_t send_payment_request_to_client_threadfn(void *state_, void *work_)
 {
@@ -913,19 +928,18 @@ static workqueue_reply_t send_payment_request_to_client_threadfn(void *state_, v
 
     job->response = tp_create_payment_info(s_url_api_util_createPaymentInfo, &request);
     if (job->response == NULL)
-        return WQ_RPL_ERROR;
+        return WQ_RPL_REPLY;
 
-    struct json_object *parsed_json = NULL;
     do {
         enum json_tokener_error jerr = json_tokener_success;
-        parsed_json = json_tokener_parse_verbose(job->response, &jerr);
+        job->json = json_tokener_parse_verbose(job->response, &jerr);
         if (jerr != json_tokener_success) {
-            tor_assert_nonfatal(NULL == parsed_json);
+            tor_assert_nonfatal(NULL == job->json);
             log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), job->response);
             break;
         }
         struct json_object *session_id = NULL;
-        if (!json_object_object_get_ex(parsed_json, "ServiceSessionId", &session_id))
+        if (!json_object_object_get_ex(job->json, "ServiceSessionId", &session_id))
             break;
         const char *session_str = json_object_get_string(session_id);
         if (session_str == NULL)
@@ -933,15 +947,7 @@ static workqueue_reply_t send_payment_request_to_client_threadfn(void *state_, v
         job->session = (0 < strlen(session_str)) ?  tor_strdup(session_str): NULL;
     } while(false);
 
-    if (parsed_json)
-        json_object_put(parsed_json);
-
-    if (NULL != job->session)
-        return WQ_RPL_REPLY;
-
-    tor_free(job->response);
-    // tor_free_(job); // used in send_payment_request_to_client_replyfn
-    return WQ_RPL_ERROR;
+    return WQ_RPL_REPLY;
 }
 
 static void send_payment_request_to_client_replyfn(void * work_)
@@ -949,8 +955,8 @@ static void send_payment_request_to_client_replyfn(void * work_)
     send_payment_request_to_client_t *job = work_;
     if (NULL == job ||
         NULL == job->session ||
-        NULL == job ->response) {
-        tor_free(job);
+        NULL == job->response) {
+        free_send_payment_request_to_client_job(job);
         return;
     }
     OR_OP_request_t input;
@@ -981,8 +987,7 @@ static void send_payment_request_to_client_replyfn(void * work_)
         input.is_last = (g < part_size) ? 0 : 1;
         circuit_payment_send_OR(job->circ, &input);
     }
-    tor_free(job->response);
-    tor_free(job);
+    free_send_payment_request_to_client_job(job);
 }
 
 void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number)
@@ -1095,6 +1100,14 @@ typedef struct process_payment_command_cell_to_node_st {
     size_t hop_num;
 } process_payment_command_cell_to_node_t;
 
+void free_payment_command_cell_to_node_job(process_payment_command_cell_to_node_t *job)
+{
+    tor_free(job->chunk);
+    tor_free(job->request);
+    tor_free(job->nodes);
+    tor_free(job);
+}
+
 static workqueue_reply_t process_payment_command_cell_to_node_threadfn(void *state_, void *work_)
 {
   (void)state_;
@@ -1124,11 +1137,7 @@ static workqueue_reply_t process_payment_command_cell_to_node_threadfn(void *sta
     default:
         log_warn(LD_BUG,"Payment, unknown request type of message: %i", job->request->message_type);
     }
-
-    tor_free(job->chunk);
-    tor_free(job->request);
-    tor_free(job->nodes);
-    tor_free(job);
+    free_payment_command_cell_to_node_job(job);
     return WQ_RPL_REPLY;
 }
 
@@ -1164,9 +1173,9 @@ int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t 
             origin_circuit_t* origin_circuit = TO_ORIGIN_CIRCUIT(circ);
             job->hop_num = circuit_get_num_by_nickname(origin_circuit, job->request->nickname);
             if(job->hop_num == 0) {
-                tor_free(job); //zeroed
+                free_payment_command_cell_to_node_job(job);
+                job = NULL;
                 break;
-
             }
             job->nodes = tor_calloc(sizeof(routing_node_t), job->hop_num);
             crypt_path_t * next = origin_circuit->cpath;
@@ -1182,13 +1191,12 @@ int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t 
         break;
     default:
         log_warn(LD_BUG,"Payment, unknown request type of message: %i", job->request->message_type);
-        tor_free(job); //zeroed
+        free_payment_command_cell_to_node_job(job);
+        job = NULL;
     }
-
     if (NULL != job) {
         workqueue_entry_t *work = 
             cpuworker_queue_work(WQ_PRI_LOW, process_payment_command_cell_to_node_threadfn, process_payment_command_cell_to_node_replyfn, job);
-
         tor_assert_nonfatal(NULL != work);
     }
     return 0;
