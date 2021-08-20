@@ -28,8 +28,8 @@ COPY docker/geodata /root/geodata
 COPY docker/tor-docker-entrypoint.sh /
 RUN chmod 755 /tor-docker-entrypoint.sh
 RUN mkdir -p /root/tor && chmod u=rwx,g=-,o=- /root/tor
-COPY --from=build /usr/local/bin/tor /usr/local/bin/tor
-COPY --from=tor_plus /usr/local/bin/tor /usr/local/bin/tor_plus
+COPY --from=build /usr/local/bin/tor/tor /usr/local/bin/tor
+COPY --from=tor_plus /usr/local/bin/tor/tor /usr/local/bin/tor_plus
 
 ENTRYPOINT ["/tor-docker-entrypoint.sh"]
 CMD [ "/usr/local/bin/tor", "-f", "/usr/local/etc/tor/torrc" ]
