@@ -53,14 +53,12 @@ jobs:
     displayName: 'Docker login'
 
   - script: |
-      make az_pipeline_push
-    workingDirectory: $(Build.SourcesDirectory)/docker
-    displayName: 'Docker build and push'
-
-  - script: |
+      make build_image
+      make image
+      make push
       make clean_up
     workingDirectory: $(Build.SourcesDirectory)/docker
-    displayName: 'make clean_up'
+    displayName: 'Docker build, push and clean up'
 
   - template: azure-artefacts-template.yml
     parameters:
