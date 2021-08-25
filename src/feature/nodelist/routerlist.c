@@ -560,11 +560,15 @@ router_can_choose_node(const node_t *node, int flags)
   const bool direct_conn = (flags & CRN_DIRECT_CONN) != 0;
   const bool rendezvous_v3 = (flags & CRN_RENDEZVOUS_V3) != 0;
   const bool initiate_ipv6_extend = (flags & CRN_INITIATE_IPV6_EXTEND) != 0;
+  const bool home_zone_only = (flags & CRN_HOME_ZONE_PREFERRED) != 0;
 
   const or_options_t *options = get_options();
   const bool check_reach =
     !router_or_conn_should_skip_reachable_address_check(options, pref_addr);
   const bool direct_bridge = direct_conn && options->UseBridges;
+
+  if (home_zone_only && options->HomeZoneNodes && !routerset_contains_node(options->HomeZoneNodes, node))
+    return false;
 
   if (!node->is_running || !node->is_valid)
     return false;

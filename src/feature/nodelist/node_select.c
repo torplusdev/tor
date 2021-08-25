@@ -945,6 +945,7 @@ router_choose_random_node_helper(smartlist_t *excludednodes,
 {
   smartlist_t *sl=smartlist_new();
   const node_t *choice = NULL;
+  const int home_zone_only = (flags & CRN_HOME_ZONE_PREFERRED) != 0;
 
   router_add_running_nodes_to_smartlist(sl, flags);
   log_debug(LD_CIRC,
@@ -965,6 +966,9 @@ router_choose_random_node_helper(smartlist_t *excludednodes,
 
   smartlist_free(sl);
 
+  if (NULL == choice && home_zone_only) {
+    return router_choose_random_node_helper(excludednodes, excludedset, flags & ~CRN_HOME_ZONE_PREFERRED, rule);
+  }
   return choice;
 }
 

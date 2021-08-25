@@ -1580,6 +1580,7 @@ choose_good_exit_server_general(router_crn_flags_t flags)
   const node_t *selected_node=NULL;
   const int need_uptime = (flags & CRN_NEED_UPTIME) != 0;
   const int need_capacity = (flags & CRN_NEED_CAPACITY) != 0;
+  const int only_home_zone = (flags & CRN_HOME_ZONE_PREFERRED) != 0;
 
   /* We should not require guard flags on exits. */
   IF_BUG_ONCE(flags & CRN_NEED_GUARD)
@@ -1709,6 +1710,16 @@ choose_good_exit_server_general(router_crn_flags_t flags)
     smartlist_t *needed_ports, *supporting;
 
     if (best_support == -1) {
+      if (only_home_zone) {
+        log_info(LD_CIRC,
+                 "We couldn't find any live%s%s home zone routers; falling back "
+                 "to list of routers from any zone.",
+                 need_capacity?", fast":"",
+                 need_uptime?", stable":"");
+        tor_free(n_supported);
+        flags &= ~(CRN_HOME_ZONE_PREFERRED);
+        return choose_good_exit_serv8er_general(flags);
+      }
       if (need_uptime || need_capacity) {
         log_info(LD_CIRC,
                  "We couldn't find any live%s%s routers; falling back "
@@ -1856,7 +1867,8 @@ pick_restricted_middle_node(router_crn_flags_t flags,
 
   smartlist_free(allowlisted_live_middles);
   smartlist_free(all_live_nodes);
-
+  if (middle_node == NULL && (flags & CRN_HOME_ZONE_PREFERRED) != 0)
+    return pick_restricted_middle_node((flags & ~CRN_HOME_ZONE_PREFERRED), pick_from, exclude_set, exclude_list, position_hint);
   return middle_node;
 }
 
@@ -1876,6 +1888,8 @@ choose_good_exit_server(origin_circuit_t *circ,
 {
   const or_options_t *options = get_options();
   flags |= CRN_NEED_DESC;
+  if (options->HomeZoneNodes)
+    flags |= CRN_HOME_ZONE_PREFERRED;
 
   switch (TO_CIRCUIT(circ)->purpose) {
     case CIRCUIT_PURPOSE_C_HSDIR_GET:
@@ -2326,6 +2340,8 @@ choose_good_middle_server(uint8_t purpose,
   smartlist_t *excluded;
   const or_options_t *options = get_options();
   router_crn_flags_t flags = CRN_NEED_DESC;
+  if (options->HomeZoneNodes)
+    flags |= CRN_HOME_ZONE_PREFERRED;
   tor_assert(CIRCUIT_PURPOSE_MIN_ <= purpose &&
              purpose <= CIRCUIT_PURPOSE_MAX_);
 
@@ -2388,6 +2404,8 @@ choose_good_entry_server(uint8_t purpose, cpath_build_state_t *state,
   router_crn_flags_t flags = (CRN_NEED_GUARD|CRN_NEED_DESC|CRN_PREF_ADDR|
                               CRN_DIRECT_CONN);
   const node_t *node;
+  if (options->HomeZoneNodes)
+    flags |= CRN_HOME_ZONE_PREFERRED;
 
   /* Once we used this function to select a node to be a guard.  We had
    * 'state == NULL' be the signal for that.  But we don't do that any more.

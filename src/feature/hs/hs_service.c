@@ -2149,6 +2149,8 @@ pick_intro_point(unsigned int direct_conn, smartlist_t *exclude_nodes)
   router_crn_flags_t flags = CRN_NEED_UPTIME | CRN_NEED_DESC;
   /* Single onion flags. */
   router_crn_flags_t direct_flags = flags | CRN_PREF_ADDR | CRN_DIRECT_CONN;
+  if (options->HomeZoneNodes)
+    flags |= CRN_HOME_ZONE_PREFERRED;
 
   node = router_choose_random_node(exclude_nodes, options->ExcludeNodes,
                                    direct_conn ? direct_flags : flags);
