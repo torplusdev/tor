@@ -1718,7 +1718,7 @@ choose_good_exit_server_general(router_crn_flags_t flags)
                  need_uptime?", stable":"");
         tor_free(n_supported);
         flags &= ~(CRN_HOME_ZONE_PREFERRED);
-        return choose_good_exit_serv8er_general(flags);
+        return choose_good_exit_server_general(flags);
       }
       if (need_uptime || need_capacity) {
         log_info(LD_CIRC,
