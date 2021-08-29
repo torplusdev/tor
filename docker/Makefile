@@ -1,4 +1,8 @@
+
+# Build binaries
 VERSION:=$(shell git describe --tags --dirty --always)
+COMMIT_HASH:=$(shell git rev-parse --short HEAD 2>/dev/null)
+BUILD_DATE:=$(shell date "+%Y-%m-%d")
 
 build_image:
 	echo "/docker" > ../.dockerignore
@@ -10,6 +14,8 @@ image_last:
 	rm -rf ../.dockerignore
 	docker build --build-arg TOR_VERSION=$(VERSION) \
                 --build-arg PP_ENV=$(PP_ENV) \
+                --build-arg TOR_BUILD_HASH=$(COMMIT_HASH) \
+                --build-arg TOR_BUILD_DATE=$(BUILD_DATE) \
                 -t torplus \
                 -t torplusserviceregistry.azurecr.io/private/tor:$(VERSION) \
                 -t torplusserviceregistry.azurecr.io/private/tor:latest \
