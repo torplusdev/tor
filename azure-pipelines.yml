@@ -5,6 +5,7 @@
 
 trigger:
 - master
+- tor_plus_merge_v0.4.5.9-dev
 
 variables:
    major: 1
