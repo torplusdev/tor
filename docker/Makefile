@@ -6,7 +6,7 @@ BUILD_DATE:=$(shell date "+%Y-%m-%d")
 
 build_image:
 	echo "/docker" > ../.dockerignore
-	docker build -t torplus_build -f Build.Dockerfile ../
+	docker build -t tor_build -f Build.Dockerfile ../
 	rm -rf ../.dockerignore
 image:
 	make image_last

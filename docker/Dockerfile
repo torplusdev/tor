@@ -1,5 +1,5 @@
 
-FROM torplus_build as build
+FROM tor_build as build
 FROM torplusserviceregistry.azurecr.io/private/tor_plus as tor_plus
 FROM debian:10
 RUN apt-get update && \
