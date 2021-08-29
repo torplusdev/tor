@@ -24,5 +24,5 @@ COPY --from=cache /app .
 RUN sh autogen.sh && \
     autoreconf -f -i && \
     ./configure  --disable-asciidoc && \
-    make -j && \
+    make && \
     make install
