@@ -30,7 +30,7 @@
 #include "lib/geoip/geoip.h"
 
 static tor_addr_t g_last_suggested_ip = {0};
-static void update_home_zone_routersert(void);
+static void update_home_zone_routerset(void);
 /** Consider the address suggestion suggested_addr as a possible one to use as
  * our address.
  *
@@ -60,11 +60,6 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
   tor_assert(suggested_addr);
   tor_assert(peer_addr);
 
-  char ipstr[50];
-  ipstr[0] = 0;
-  tor_addr_to_str(ipstr, suggested_addr, sizeof(ipstr), 0);
-  log_notice(LD_CONFIG, "Got ip address suggestion: %s", ipstr);
-
   /* Ignore a suggestion that is an internal address or the same as the one
    * the peer address. */
   if (tor_addr_is_internal(suggested_addr, 0)) {
@@ -76,7 +71,9 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
     tor_addr_copy(&g_last_suggested_ip, suggested_addr);
     country_t cc = geoip_get_country_by_addr(suggested_addr);
     const char *country_name = geoip_get_country_name(cc);
-    log_notice(LD_CONFIG, "Suggested IP is different from previous suggestion, its country is: %i - %s", cc, country_name);
+    char ipstr[50]; ipstr[0] = 0;
+    tor_addr_to_str(ipstr, suggested_addr, sizeof(ipstr), 0);
+    log_notice(LD_CONFIG, "Got new address suggestion '%s', its country is: %i - %s", ipstr, cc, country_name);
     if (options->HomeZoneNodes) {
       if (!routerset_contains_address(options->HomeZoneNodes, suggested_addr)) {
         log_notice(LD_CONFIG, "Suggested address not belong current home zone, start cleaning and update home zone");
@@ -84,8 +81,8 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
       }
     }
     if (!options->HomeZoneNodes) {
-        log_notice(LD_CONFIG, "Start updating home zone");
-      update_home_zone_routersert();
+      log_notice(LD_CONFIG, "Start updating home zone");
+      update_home_zone_routerset();
     }
   }
 
@@ -118,7 +115,7 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
  * 
 */
 static void 
-update_home_zone_routersert(void)
+update_home_zone_routerset(void)
 {
   or_options_t *options = get_options_mutable();
   options->HomeZoneNodes = NULL;
