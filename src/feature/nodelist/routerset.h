@@ -24,6 +24,7 @@ int routerset_contains_router(const routerset_t *set, const routerinfo_t *ri,
 int routerset_contains_routerstatus(const routerset_t *set,
                                     const routerstatus_t *rs,
                                     country_t country);
+int routerset_contains_address(const routerset_t *set, const tor_addr_t *addr);
 int routerset_contains_extendinfo(const routerset_t *set,
                                   const extend_info_t *ei);
 struct bridge_info_t;

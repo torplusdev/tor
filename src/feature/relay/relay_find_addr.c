@@ -21,12 +21,15 @@
 #include "feature/nodelist/dirlist.h"
 #include "feature/nodelist/node_select.h"
 #include "feature/nodelist/nodelist.h"
+#include "feature/nodelist/routerset.h"
 #include "feature/nodelist/routerstatus_st.h"
 #include "feature/relay/relay_find_addr.h"
 #include "feature/relay/router.h"
 #include "feature/relay/routermode.h"
 
 #include "lib/geoip/geoip.h"
+
+static tor_addr_t last_suggested_ip = {0};
 
 /** Consider the address suggestion suggested_addr as a possible one to use as
  * our address.
@@ -57,11 +60,41 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
   tor_assert(suggested_addr);
   tor_assert(peer_addr);
 
+  char ipstr[50];
+  ipstr[0] = 0;
+  tor_addr_to_str(ipstr, suggested_addr, sizeof(ipstr), 0);
+  log_notice(LD_CONFIG, "Got ip address suggestion: %s", ipstr);
+
+  /* Ignore a suggestion that is an internal address or the same as the one
+   * the peer address. */
+  if (tor_addr_is_internal(suggested_addr, 0)) {
+    /* Do not believe anyone who says our address is internal. */
+    return;
+  }
+
+  if (!tor_addr_eq(&last_suggested_ip, suggested_addr)) {
+    tor_addr_copy(&last_suggested_ip, suggested_addr);
+    int cc = geoip_get_country_by_addr(suggested_addr);
+    const char *country_name = geoip_get_country_name(cc);
+    log_notice(LD_CONFIG, "Suggested IP is different from previous suggestion, its country is: %i - %s", cc, country_name);
+    if (options->HomeZoneNodes) {
+      if (!routerset_contains_address(options->HomeZoneNodes, suggested_addr)) {
+        log_notice(LD_CONFIG, "Suggested address not belong current home zone, start cleaning and update home zone");
+        get_options_mutable()->HomeZoneNodes = NULL;
+      }
+    }
+    if (!options->HomeZoneNodes) {
+        log_notice(LD_CONFIG, "Start updating home zone");
+      //TODO: try to update home zone routerset
+      // set_home_zone_by_country(cc);
+    }
+  }
+
   /* Non server should just ignore this suggestion. Clients don't need to
    * learn their address let alone cache it. */
-  // if (!server_mode(options)) {
-  //   return;
-  // }
+  if (!server_mode(options)) {
+    return;
+  }
 
   /* Is the peer a trusted source? Ignore anything coming from non trusted
    * source. In this case, we only look at trusted directory authorities. */
@@ -70,12 +103,6 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
     return;
   }
 
-  /* Ignore a suggestion that is an internal address or the same as the one
-   * the peer address. */
-  if (tor_addr_is_internal(suggested_addr, 0)) {
-    /* Do not believe anyone who says our address is internal. */
-    return;
-  }
   if (tor_addr_eq(suggested_addr, peer_addr)) {
     /* Do not believe anyone who says our address is their address. */
     log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
@@ -86,12 +113,6 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
 
   /* Save the suggestion in our cache. */
   resolved_addr_set_suggested(suggested_addr);
-
-  int cc = geoip_get_country_by_addr(suggested_addr);
-  const char *country_name = geoip_get_country_name(cc);
-  log_notice(LD_CONFIG, "Change home zone for country %i - %s", cc, country_name);
-  //TODO: update home zone
-  // set_home_zone_by_country(cc);
 }
 
 /** Find our address to be published in our descriptor. Three places are
