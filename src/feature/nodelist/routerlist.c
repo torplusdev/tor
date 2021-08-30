@@ -3289,6 +3289,9 @@ refresh_all_country_info(void)
 {
   const or_options_t *options = get_options();
 
+  if (options->HomeZoneNodesSets) {
+    SMARTLIST_FOREACH(options->HomeZoneNodesSets, routerset_t *, rs, routerset_refresh_countries(rs));
+  }
   if (options->EntryNodes)
     routerset_refresh_countries(options->EntryNodes);
   if (options->ExitNodes)

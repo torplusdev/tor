@@ -559,6 +559,7 @@ static const config_var_t option_vars_[] = {
   OBSOLETE("PredictedPortsRelevanceTime"),
   OBSOLETE("WarnUnsafeSocks"),
   VAR("NodeFamily",              LINELIST, NodeFamilies,         NULL),
+  VAR("HomeZone",                LINELIST, HomeZoneNodesLines,        NULL),
   V_IMMUTABLE(NoExec,            BOOL,     "0"),
   V(NumCPUs,                     POSINT,     "0"),
   V(NumDirectoryGuards,          POSINT,     "0"),
@@ -1008,6 +1009,11 @@ options_clear_cb(const config_mgr_t *mgr, void *opts)
   CHECK_OPTIONS_MAGIC(opts);
   or_options_t *options = opts;
 
+  if (options->HomeZoneNodesSets) {
+    SMARTLIST_FOREACH(options->HomeZoneNodesSets, routerset_t *,
+                      rs, routerset_free(rs));
+    smartlist_free(options->HomeZoneNodesSets);
+  }
   routerset_free(options->ExcludeExitNodesUnion_);
   if (options->NodeFamilySets) {
     SMARTLIST_FOREACH(options->NodeFamilySets, routerset_t *,
@@ -3384,6 +3390,18 @@ options_validate_cb(const void *old_options_, void *options_, char **msg)
       routerset_t *rs = routerset_new();
       if (routerset_parse(rs, cl->value, cl->key) == 0) {
         smartlist_add(options->NodeFamilySets, rs);
+      } else {
+        routerset_free(rs);
+      }
+    }
+  }
+
+  if (options->HomeZoneNodesLines) {
+    options->HomeZoneNodesSets = smartlist_new();
+    for (cl = options->HomeZoneNodesLines; cl; cl = cl->next) {
+      routerset_t *rs = routerset_new();
+      if (routerset_parse(rs, cl->value, cl->key) == 0) {
+        smartlist_add(options->HomeZoneNodesSets, rs);
       } else {
         routerset_free(rs);
       }

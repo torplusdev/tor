@@ -29,8 +29,8 @@
 
 #include "lib/geoip/geoip.h"
 
-static tor_addr_t last_suggested_ip = {0};
-
+static tor_addr_t g_last_suggested_ip = {0};
+static void update_home_zone_routersert(void);
 /** Consider the address suggestion suggested_addr as a possible one to use as
  * our address.
  *
@@ -72,9 +72,9 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
     return;
   }
 
-  if (!tor_addr_eq(&last_suggested_ip, suggested_addr)) {
-    tor_addr_copy(&last_suggested_ip, suggested_addr);
-    int cc = geoip_get_country_by_addr(suggested_addr);
+  if (!tor_addr_eq(&g_last_suggested_ip, suggested_addr)) {
+    tor_addr_copy(&g_last_suggested_ip, suggested_addr);
+    country_t cc = geoip_get_country_by_addr(suggested_addr);
     const char *country_name = geoip_get_country_name(cc);
     log_notice(LD_CONFIG, "Suggested IP is different from previous suggestion, its country is: %i - %s", cc, country_name);
     if (options->HomeZoneNodes) {
@@ -85,8 +85,7 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
     }
     if (!options->HomeZoneNodes) {
         log_notice(LD_CONFIG, "Start updating home zone");
-      //TODO: try to update home zone routerset
-      // set_home_zone_by_country(cc);
+      update_home_zone_routersert();
     }
   }
 
@@ -113,6 +112,31 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
 
   /* Save the suggestion in our cache. */
   resolved_addr_set_suggested(suggested_addr);
+}
+
+/***
+ * 
+*/
+static void 
+update_home_zone_routersert(void)
+{
+  or_options_t *options = get_options_mutable();
+  options->HomeZoneNodes = NULL;
+
+  if (!options->HomeZoneNodesSets) {
+    log_notice(LD_CONFIG, "Home zones not configured");
+    return;
+  }
+  
+  SMARTLIST_FOREACH_BEGIN(options->HomeZoneNodesSets, routerset_t *, rs) {
+    if (routerset_contains_address(rs, &g_last_suggested_ip)) {
+      options->HomeZoneNodes = rs;
+      log_notice(LD_CONFIG, "Home zone succesefully updated");
+      return;
+    }
+  } SMARTLIST_FOREACH_END(rs);
+
+  log_notice(LD_CONFIG, "Home zone not found");
 }
 
 /** Find our address to be published in our descriptor. Three places are
