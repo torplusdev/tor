@@ -30,7 +30,7 @@
 #include "lib/geoip/geoip.h"
 
 static tor_addr_t g_last_suggested_ip = {0};
-static void update_home_zone_routerset(void);
+static int update_home_zone_routerset(void);
 /** Consider the address suggestion suggested_addr as a possible one to use as
  * our address.
  *
@@ -82,7 +82,10 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
     }
     if (!options->HomeZoneNodes) {
       log_notice(LD_CONFIG, "Start updating home zone");
-      update_home_zone_routerset();
+      if (update_home_zone_routerset()) {
+        circuit_mark_all_unused_circs();
+        circuit_mark_all_dirty_circs_as_unusable();
+      }
     }
   }
 
@@ -114,7 +117,7 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
 /***
  * 
 */
-static void 
+static int 
 update_home_zone_routerset(void)
 {
   or_options_t *options = get_options_mutable();
@@ -122,18 +125,19 @@ update_home_zone_routerset(void)
 
   if (!options->HomeZoneNodesSets) {
     log_notice(LD_CONFIG, "Home zones not configured");
-    return;
+    return 0;
   }
   
   SMARTLIST_FOREACH_BEGIN(options->HomeZoneNodesSets, routerset_t *, rs) {
     if (routerset_contains_address(rs, &g_last_suggested_ip)) {
       options->HomeZoneNodes = rs;
       log_notice(LD_CONFIG, "Home zone succesefully updated");
-      return;
+      return 1;
     }
   } SMARTLIST_FOREACH_END(rs);
 
   log_notice(LD_CONFIG, "Home zone not found");
+  return 0;
 }
 
 /** Find our address to be published in our descriptor. Three places are
