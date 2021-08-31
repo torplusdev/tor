@@ -20,8 +20,8 @@ if [[ "${no_conf}" != "1" ]]; then
   export dirauth=$dirauth
   export data_directory="/root/tor"
   export hs_directory="/root/hidden_service"
-  if [[ "${nickname}" != "" ]]; then
-    sleep 1 && echo "Nickname not setted" && exit 1 ;;
+  if [[ "${nickname}" == "" ]]; then
+    sleep 1 && echo "Nickname not setted" && exit 1;
   fi
 
   export inventory_hostname=$nickname

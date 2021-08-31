@@ -2,6 +2,8 @@
 FROM tor_build as build
 FROM torplusserviceregistry.azurecr.io/private/tor_plus as tor_plus
 FROM debian:10
+RUN echo deb http://ftp.debian.org/debian buster-backports main >> /etc/apt/sources.list.d/backports.list
+RUN echo deb-src http://ftp.debian.org/debian buster-backports main >> /etc/apt/sources.list.d/backports.list
 RUN apt-get update && \
     apt-get install -y libevent-dev libssl-dev zlib1g-dev libcurl4 libcurl4-gnutls-dev \
                         libjson-c-dev expect torsocks links nginx curl netcat \
