@@ -2217,7 +2217,6 @@ select_entry_guard_for_circuit(guard_selection_t *gs,
                                const entry_guard_restriction_t *rst,
                                unsigned *state_out)
 {
-  //TODO: try to select guard from home zone
   entry_guard_t *chosen_guard = NULL;
   tor_assert(gs);
   tor_assert(state_out);

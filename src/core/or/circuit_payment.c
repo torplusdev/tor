@@ -1086,7 +1086,6 @@ int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ)
         return 0;
     }
 
-    tp_circuitmux_reset_limits(circ);
     payment_session_context_t *session_context =
             get_from_session_context_by_session_id(payment_request_payload->session_id);
     if(session_context != NULL)
@@ -1251,6 +1250,9 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
                         circuit_payment_send_OP(circ, hop_num, message->message);
                     } else {
                         circuit_payment_send_OR(circ, message->message);
+                        if (message->message->message_type == 4) {
+                            tp_circuitmux_reset_limits(circ);
+                        }
                     }
                 }
             }
