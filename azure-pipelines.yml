@@ -4,7 +4,7 @@
 # https://docs.microsoft.com/azure/devops/pipelines/apps/c-cpp/gcc
 
 trigger:
-- master
+- tor_plus_merge_v0.4.6-dev-home_zones
 
 variables:
    major: 1
@@ -88,7 +88,7 @@ jobs:
 - job: Tor_Plus_For_macOS
 
   pool:
-    vmImage: 'macOS-10.14'
+    vmImage: 'macOS-11'
 
   steps:
   - script: |
