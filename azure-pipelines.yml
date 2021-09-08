@@ -88,7 +88,7 @@ jobs:
 - job: Tor_Plus_For_macOS
 
   pool:
-    vmImage: 'macOS-latest'
+    vmImage : 'macOS-10.14'
 
   steps:
   - script: |
