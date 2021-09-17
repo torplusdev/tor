@@ -147,5 +147,6 @@ jobs:
       make build_image
       make image
       make push
+      make clean_up
     workingDirectory: $(Build.SourcesDirectory)/docker
     displayName: 'Docker build, push and clean up'

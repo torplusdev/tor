@@ -6,7 +6,7 @@ export dirauth=$dirauth
 export data_directory="$HOME/tor"
 export nickname="tumar123"
 export inventory_hostname=$nickname
-
+export hs_directory=$HOME/tor/hidden_service
 if [[ "${role}" = "hs_client" ]]; then
   mkdir $HOME/tor
   mkdir -p $HOME/tor/hidden_service/hsv3
