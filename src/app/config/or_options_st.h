@@ -1076,6 +1076,7 @@ struct or_options_t {
   int EnablePaymentLog;//Tor+
 
   int EnforceReachability; //Tor+
+  int PPEnableSlowing; //Tor+
 
   struct smartlist_t * PPResolvDomains;//Tor+
 

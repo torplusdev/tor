@@ -11,8 +11,8 @@ RUN echo deb-src http://ftp.debian.org/debian buster-backports main >> /etc/apt/
 RUN apt-get update && \
 apt-get install -y expect torsocks \
     links \
-    dos2unix git make cmake build-essential \
-    libevent-dev libssl-dev zlib1g-dev autotools-dev \
+    dos2unix git make cmake build-essential pkg-config \
+    libevent-dev libssl-dev zlib1g-dev liblzma-dev libzstd-dev autotools-dev \
     libcurl4 libcurl4-gnutls-dev libjson-c-dev automake && \
     rm -rf /var/lib/apt/lists/*
 

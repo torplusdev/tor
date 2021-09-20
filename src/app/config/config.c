@@ -759,6 +759,7 @@ static const config_var_t option_vars_[] = {
   V(SlowDownDataTransferRate,   BOOL,   "0"),
   V(EnablePaymentLog,   BOOL,   "1"),
   V(EnforceReachability, BOOL, "0"),
+  V(PPEnableSlowing, BOOL, "0"),
   END_OF_CONFIG_VARS
 };
 

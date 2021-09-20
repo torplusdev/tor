@@ -12,11 +12,14 @@ RUN apk --update add \
         libstdc++ \
         automake \
         autoconf \
+        pkg-config \
         libevent-dev \
         openssl-dev \
         zlib-dev \
         json-c-dev \
-        curl-dev
+        curl-dev \
+        liblzma-dev \
+        libzstd-dev
 RUN apk add git cmake
 COPY tor tor
 WORKDIR /tor/src/lib/rest/
@@ -32,7 +35,7 @@ RUN cp /usr/local/share/tor/geoip /out/
 RUN cp /usr/local/share/tor/geoip6 /out/
 RUN cp -r /usr/local/bin/ /out/
 
-#RUN apk-install make automake autoconf gcc libtool curl libevent-dev libssl1.0 musl musl-dev libgcc openssl openssl-dev openssh
+#RUN apk-install make automake autoconf gcc libtool curl pkg-config libevent-dev libssl1.0 musl musl-dev libgcc openssl openssl-dev openssh
 
 # RUN git clone https://github.com/json-c/json-c.git && \
 #     mkdir json-c-build && \

@@ -5,7 +5,7 @@ FROM debian:10
 RUN echo deb http://ftp.debian.org/debian buster-backports main >> /etc/apt/sources.list.d/backports.list
 RUN echo deb-src http://ftp.debian.org/debian buster-backports main >> /etc/apt/sources.list.d/backports.list
 RUN apt-get update && \
-    apt-get install -y libevent-dev libssl-dev zlib1g-dev libcurl4 libcurl4-gnutls-dev \
+    apt-get install -y libevent-dev pkg-config libssl-dev zlib1g-dev libcurl4 libcurl4-gnutls-dev \
                         libjson-c-dev expect torsocks links nginx curl netcat \
                         supervisor gettext-base net-tools jq dmidecode && \
     rm -rf /var/lib/apt/lists/*

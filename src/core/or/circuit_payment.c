@@ -882,6 +882,9 @@ static void tp_update_circ_counters(or_circuit_t *or_circut)
 
     or_circut->delay_payments_counter++;
 
+    if (!get_options()->PPEnableSlowing)
+        return;
+
     if (or_circut->delay_payments_counter < 5)
         return;
 

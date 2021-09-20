@@ -3,12 +3,15 @@ RUN apk update
 RUN apk --update add \
         gcc \
         g++ \
+        pkg-config \
         libstdc++ \
         libevent-dev \
         openssl-dev \
         zlib-dev \
         json-c-dev \
-        curl-dev
+        curl-dev \
+        liblzma-dev \
+        libzstd-dev
 ENV role=client
 ARG TOR_VERSION
 ENV TOR_VERSION $TOR_VERSION
