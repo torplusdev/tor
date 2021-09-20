@@ -70,12 +70,7 @@ fi
 
 if [ $# -eq 0 ]
 then
-    if [[ "${PP_ENV}" = "stage" ]]; then
-      /usr/local/bin/tor -f /usr/local/etc/tor/torrc | checkTorReady &> /opt/paidpiper/logs/tor.log
-    else
-      /usr/local/bin/tor_plus -f /usr/local/etc/tor/torrc | checkTorReady &> /opt/paidpiper/logs/tor.log
-    fi
-
+     /usr/local/bin/tor -f /usr/local/etc/tor/torrc | checkTorReady &> /opt/paidpiper/logs/tor.log
 else
     exec "$@" | checkTorReady
 fi
