@@ -1874,11 +1874,12 @@ pick_restricted_middle_node(router_crn_flags_t flags,
 
   smartlist_free(allowlisted_live_middles);
   smartlist_free(all_live_nodes);
-  if (middle_node == NULL && (flags & CRN_HOME_ZONE_PREFERRED) != 0)
+  if (middle_node == NULL && (flags & CRN_HOME_ZONE_PREFERRED) != 0) {
     log_info(LD_CIRC,
               "We couldn't find any live home zone restricted middle routers, falling back "
               "to list of routers from any zone.");
     return pick_restricted_middle_node((flags & ~CRN_HOME_ZONE_PREFERRED), pick_from, exclude_set, exclude_list, position_hint);
+  }
   return middle_node;
 }
 

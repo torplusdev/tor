@@ -351,7 +351,7 @@ routerset_contains_routerstatus(const routerset_t *set,
 int
 routerset_contains_address(const routerset_t *set, const tor_addr_t *addr)
 {
-  return routerset_contains(set, addr, NULL, NULL, NULL, -1);
+  return routerset_contains(set, addr, 0, NULL, NULL, -1);
 }
 
 /** Return true iff <b>node</b> is in <b>set</b>. */
