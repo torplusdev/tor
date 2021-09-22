@@ -559,6 +559,7 @@ static const config_var_t option_vars_[] = {
   OBSOLETE("PredictedPortsRelevanceTime"),
   OBSOLETE("WarnUnsafeSocks"),
   VAR("NodeFamily",              LINELIST, NodeFamilies,         NULL),
+  V_D(HomeZoneNodes,             ROUTERSET, NULL),
   VAR("HomeZone",                LINELIST, HomeZoneNodesLines,        NULL),
   V_IMMUTABLE(NoExec,            BOOL,     "0"),
   V(NumCPUs,                     POSINT,     "0"),

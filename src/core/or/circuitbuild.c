@@ -1694,10 +1694,10 @@ choose_good_exit_server_general(router_crn_flags_t flags)
    * at random. */
   if (best_support > 0) {
     log_info(LD_CIRC,
-              "We find live%s%s%s routers",
+              "We find live%s%s routers%s",
               need_capacity?", fast":"",
               need_uptime?", stable":"",
-              only_home_zone?"homezone":"");
+              only_home_zone?" in home zone":"");
     smartlist_t *supporting = smartlist_new();
 
     SMARTLIST_FOREACH(the_nodes, const node_t *, node, {
@@ -1718,17 +1718,19 @@ choose_good_exit_server_general(router_crn_flags_t flags)
     if (best_support == -1) {
       if (need_uptime || need_capacity) {
         log_info(LD_CIRC,
-                 "We couldn't find any live%s%s routers; falling back "
-                 "to list of all routers.",
+                 "We couldn't find any live%s%s routers%s; falling back "
+                 "to list of all routers%s.",
                  need_capacity?", fast":"",
-                 need_uptime?", stable":"");
+                 need_uptime?", stable":"",
+                 only_home_zone?", homezone":"",
+                 only_home_zone?" in homezone":"");
         tor_free(n_supported);
         flags &= ~(CRN_NEED_UPTIME|CRN_NEED_CAPACITY);
         return choose_good_exit_server_general(flags);
       }
       if (only_home_zone) {
         log_info(LD_CIRC,
-                 "We couldn't find any live%s%s home zone routers; falling back "
+                 "We couldn't find any live%s%s routers in home zone; falling back "
                  "to list of routers from any zone.",
                  need_capacity?", fast":"",
                  need_uptime?", stable":"");
@@ -1770,7 +1772,7 @@ choose_good_exit_server_general(router_crn_flags_t flags)
 
   tor_free(n_supported);
   if (selected_node) {
-    log_info(LD_CIRC, "Chose exit server '%s'", node_describe(selected_node));
+    log_info(LD_CIRC, "Chose exit server%s '%s'", only_home_zone?" in homezone":"", node_describe(selected_node));
     return selected_node;
   }
   if (options->ExitNodes) {
@@ -1811,7 +1813,7 @@ pick_restricted_middle_node(router_crn_flags_t flags,
                             const smartlist_t *exclude_list,
                             int position_hint)
 {
-  log_info(LD_CIRC, "Pick restricted middle node%s", ((flags & CRN_HOME_ZONE_PREFERRED) != 0) ? " in home zone" : "");
+  log_info(LD_CIRC, "Pick restricted middle node%s", (flags & CRN_HOME_ZONE_PREFERRED)? " in home zone" : "");
   const node_t *middle_node = NULL;
 
   smartlist_t *allowlisted_live_middles = smartlist_new();
@@ -1919,7 +1921,12 @@ choose_good_exit_server(origin_circuit_t *circ,
       {
         /* Pick a new RP */
         const node_t *rendezvous_node = pick_rendezvous_node(flags);
-        log_info(LD_REND, "Picked new RP: %s",
+        int in_home_zone = 0;
+        if (options->HomeZoneNodes) {
+          in_home_zone = routerset_contains_node(options->HomeZoneNodes, rendezvous_node);
+        }
+        log_info(LD_REND, "Picked new RP%s: %s",
+                  in_home_zone? " in home zone" : "",
                  safe_str_client(node_describe(rendezvous_node)));
         return rendezvous_node;
       }
