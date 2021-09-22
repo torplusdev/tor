@@ -131,7 +131,9 @@ update_home_zone_routerset(void)
   SMARTLIST_FOREACH_BEGIN(options->HomeZoneNodesSets, routerset_t *, rs) {
     if (routerset_contains_address(rs, &g_last_suggested_ip)) {
       options->HomeZoneNodes = rs;
-      log_notice(LD_CONFIG, "Home zone succesefully updated");
+      char * as_str = routerset_to_string(rs);
+      log_notice(LD_CONFIG, "Home zone succesefully updated: %s", as_str);
+      tor_free_(as_str);
       return 1;
     }
   } SMARTLIST_FOREACH_END(rs);
