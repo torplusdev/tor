@@ -946,6 +946,7 @@ router_choose_random_node_helper(smartlist_t *excludednodes,
   smartlist_t *sl=smartlist_new();
   const node_t *choice = NULL;
   const int home_zone_only = (flags & CRN_HOME_ZONE_PREFERRED) != 0;
+  log_info(LD_CIRC, "Choose random node%s", home_zone_only ? " in home zone" : "");
 
   router_add_running_nodes_to_smartlist(sl, flags);
   log_debug(LD_CIRC,
@@ -967,6 +968,9 @@ router_choose_random_node_helper(smartlist_t *excludednodes,
   smartlist_free(sl);
 
   if (NULL == choice && home_zone_only) {
+    log_info(LD_CIRC,
+              "We couldn't find any live home zone random routers, falling back "
+              "to list of routers from any zone.");
     return router_choose_random_node_helper(excludednodes, excludedset, flags & ~CRN_HOME_ZONE_PREFERRED, rule);
   }
   return choice;

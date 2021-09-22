@@ -1581,6 +1581,7 @@ choose_good_exit_server_general(router_crn_flags_t flags)
   const int need_uptime = (flags & CRN_NEED_UPTIME) != 0;
   const int need_capacity = (flags & CRN_NEED_CAPACITY) != 0;
   const int only_home_zone = (flags & CRN_HOME_ZONE_PREFERRED) != 0;
+  log_info(LD_CIRC, "Choose good exit server%s", only_home_zone ? " in home zone" : "");
 
   /* We should not require guard flags on exits. */
   IF_BUG_ONCE(flags & CRN_NEED_GUARD)
@@ -1692,6 +1693,11 @@ choose_good_exit_server_general(router_crn_flags_t flags)
   /* If any routers definitely support any pending connections, choose one
    * at random. */
   if (best_support > 0) {
+    log_info(LD_CIRC,
+              "We find live%s%s%s routers",
+              need_capacity?", fast":"",
+              need_uptime?", stable":"",
+              only_home_zone?"homezone":"");
     smartlist_t *supporting = smartlist_new();
 
     SMARTLIST_FOREACH(the_nodes, const node_t *, node, {
@@ -1710,16 +1716,6 @@ choose_good_exit_server_general(router_crn_flags_t flags)
     smartlist_t *needed_ports, *supporting;
 
     if (best_support == -1) {
-      if (only_home_zone) {
-        log_info(LD_CIRC,
-                 "We couldn't find any live%s%s home zone routers; falling back "
-                 "to list of routers from any zone.",
-                 need_capacity?", fast":"",
-                 need_uptime?", stable":"");
-        tor_free(n_supported);
-        flags &= ~(CRN_HOME_ZONE_PREFERRED);
-        return choose_good_exit_server_general(flags);
-      }
       if (need_uptime || need_capacity) {
         log_info(LD_CIRC,
                  "We couldn't find any live%s%s routers; falling back "
@@ -1728,6 +1724,16 @@ choose_good_exit_server_general(router_crn_flags_t flags)
                  need_uptime?", stable":"");
         tor_free(n_supported);
         flags &= ~(CRN_NEED_UPTIME|CRN_NEED_CAPACITY);
+        return choose_good_exit_server_general(flags);
+      }
+      if (only_home_zone) {
+        log_info(LD_CIRC,
+                 "We couldn't find any live%s%s home zone routers; falling back "
+                 "to list of routers from any zone.",
+                 need_capacity?", fast":"",
+                 need_uptime?", stable":"");
+        tor_free(n_supported);
+        flags &= ~(CRN_HOME_ZONE_PREFERRED);
         return choose_good_exit_server_general(flags);
       }
       log_notice(LD_CIRC, "All routers are down or won't exit%s -- "
@@ -1805,6 +1811,7 @@ pick_restricted_middle_node(router_crn_flags_t flags,
                             const smartlist_t *exclude_list,
                             int position_hint)
 {
+  log_info(LD_CIRC, "Pick restricted middle node%s", ((flags & CRN_HOME_ZONE_PREFERRED) != 0) ? " in home zone" : "");
   const node_t *middle_node = NULL;
 
   smartlist_t *allowlisted_live_middles = smartlist_new();
@@ -1868,6 +1875,9 @@ pick_restricted_middle_node(router_crn_flags_t flags,
   smartlist_free(allowlisted_live_middles);
   smartlist_free(all_live_nodes);
   if (middle_node == NULL && (flags & CRN_HOME_ZONE_PREFERRED) != 0)
+    log_info(LD_CIRC,
+              "We couldn't find any live home zone restricted middle routers, falling back "
+              "to list of routers from any zone.");
     return pick_restricted_middle_node((flags & ~CRN_HOME_ZONE_PREFERRED), pick_from, exclude_set, exclude_list, position_hint);
   return middle_node;
 }
@@ -2066,6 +2076,9 @@ onion_pick_cpath_exit(origin_circuit_t *circ, extend_info_t *exit_ei,
     exit_ei = extend_info_dup(exit_ei);
   } else { /* we have to decide one */
     router_crn_flags_t flags = CRN_NEED_DESC;
+    const or_options_t *options = get_options();
+    if (options->HomeZoneNodes)
+      flags |= CRN_HOME_ZONE_PREFERRED;
     flags |= cpath_build_state_to_crn_flags(state);
     /* Some internal exits are one hop, for example directory connections.
      * (Guards are always direct, middles are never direct.) */

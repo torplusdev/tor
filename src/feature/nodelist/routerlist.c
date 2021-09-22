@@ -567,8 +567,16 @@ router_can_choose_node(const node_t *node, int flags)
     !router_or_conn_should_skip_reachable_address_check(options, pref_addr);
   const bool direct_bridge = direct_conn && options->UseBridges;
 
-  if (home_zone_only && options->HomeZoneNodes && !routerset_contains_node(options->HomeZoneNodes, node))
-    return false;
+  if (home_zone_only && options->HomeZoneNodes) {
+    if (!routerset_contains_node(options->HomeZoneNodes, node)) {
+      log_info(LD_CIRC, "Cant choose node, not in home zone: %s", node_get_nickname(node));
+      return false;
+    } else {
+      log_info(LD_CIRC, "Node in home zone: %s", node_get_nickname(node));
+    }
+  } else {
+      log_info(LD_CIRC, "Node from any zone: %s", node_get_nickname(node));
+  }
 
   if (!node->is_running || !node->is_valid)
     return false;
