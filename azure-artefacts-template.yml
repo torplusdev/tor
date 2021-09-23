@@ -34,15 +34,15 @@ steps:
     replaceExistingArchive: true
     verbose: true
 
-- task: ArchiveFiles@2
-  inputs:
-    rootFolderOrFile: '$(Build.SourcesDirectory)/${{parameters.torDir}}'
-    includeRootFolder: true
-    archiveType: '7z'
-    sevenZipCompression: 'ultra'
-    archiveFile: '$(Build.ArtifactStagingDirectory)/tor-${{parameters.OSName}}-latest.7z'
-    replaceExistingArchive: true
-    verbose: true
+#- task: ArchiveFiles@2
+#  inputs:
+#    rootFolderOrFile: '$(Build.SourcesDirectory)/${{parameters.torDir}}'
+#    includeRootFolder: true
+#    archiveType: '7z'
+#    sevenZipCompression: 'ultra'
+#    archiveFile: '$(Build.ArtifactStagingDirectory)/tor-${{parameters.OSName}}-latest.7z'
+#    replaceExistingArchive: true
+#    verbose: true
 
 - task: PublishBuildArtifacts@1
   inputs:
