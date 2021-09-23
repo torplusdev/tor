@@ -1011,6 +1011,7 @@ options_clear_cb(const config_mgr_t *mgr, void *opts)
   CHECK_OPTIONS_MAGIC(opts);
   or_options_t *options = opts;
 
+  options->HomeZoneNodes = NULL;
   if (options->HomeZoneNodesSets) {
     SMARTLIST_FOREACH(options->HomeZoneNodesSets, routerset_t *,
                       rs, routerset_free(rs));
