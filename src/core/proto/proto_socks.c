@@ -612,8 +612,9 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
       const char *hostname = domainname_getconstarray_name(dns_name);
       const char *resolved = NULL;
       struct json_object* response = NULL;
+      const int check = check_known_domains_list(hostname) == 0;
       do {
-        if (0 != check_known_domains_list(hostname))
+        if (!check)
           break;
         log_warn(LD_APP, "resolving: %s\n", hostname);
         static char resolv_request_url[RESOLV_URL_LEN];
@@ -655,14 +656,18 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
       } while(false);
       if (resolved)
         strlcpy(req->address, resolved, sizeof(req->address));
-      else if (get_options()->PPResolvRequired) {
-          log_warn(LD_HTTP, "TorPlus name resolving required (PPResolvRequired 1) and but it's failed");
-          socks_request_set_socks5_error(req, SOCKS5_GENERAL_ERROR);
-          res = SOCKS_RESULT_INVALID;
-      } else {
-        log_warn(LD_HTTP, "TorPlus name resolving failed for: %s", hostname);
+      else {
+        if (check) {
+          if (get_options()->PPResolvRequired) {
+              log_warn(LD_HTTP, "TorPlus name resolving required (PPResolvRequired 1) and failed");
+              socks_request_set_socks5_error(req, SOCKS5_GENERAL_ERROR);
+              res = SOCKS_RESULT_INVALID;
+          } else {
+            log_warn(LD_HTTP, "TorPlus name resolving failed for: %s", hostname);
+          }
+        }
         strlcpy(req->address, hostname, sizeof(req->address));
-      }
+      } 
       if (NULL != response)
         json_object_put(response);
     }
