@@ -2038,7 +2038,7 @@ connection_handle_listener_read(connection_t *conn, int new_type)
       log_info(LD_NET, "New SOCKS AF_UNIX connection opened");
     }
     if (new_type == CONN_TYPE_CONTROL) {
-      log_notice(LD_CONTROL, "New control connection opened from %s.",
+      log_info(LD_CONTROL, "New control connection opened from %s.",
                  fmt_and_decorate_addr(&addr));
     }
     if (new_type == CONN_TYPE_METRICS) {

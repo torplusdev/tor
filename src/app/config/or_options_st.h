@@ -1071,14 +1071,13 @@ struct or_options_t {
 
   char *StellarAddress;//Tor+
 
-  int SlowDownDataTransferRate;//Tor+
-
   int EnablePaymentLog;//Tor+
 
   int EnforceReachability; //Tor+
   int PPEnableSlowing; //Tor+
 
   struct smartlist_t * PPResolvDomains;//Tor+
+  int PPResolvRequired; //Tor+
 
   /**
    * Configuration objects for individual modules.

@@ -610,6 +610,7 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
       const struct domainname_st *dns_name =
         socks5_client_request_getconst_dest_addr_domainname(trunnel_req);
       const char *hostname = domainname_getconstarray_name(dns_name);
+      const char *resolved = NULL;
       struct json_object* response = NULL;
       do {
         if (0 != check_known_domains_list(hostname))
@@ -639,24 +640,33 @@ parse_socks5_client_request(const uint8_t *raw_data, socks_request_t *req,
         response = json_tokener_parse_verbose(json_response, &jerr);
         if (jerr != json_tokener_success) {
             tor_assert(NULL != response);
-            log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), json_response);
+            log_warn(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), json_response);
             break;
         }
         free(json_response);
         if (json_type_object != json_object_get_type(response))
           break;
-        json_object *hostname_obj = json_object_object_get(response, "hostname");
+        json_object *hostname_obj = json_object_object_get(response, "resolved");
+        if (NULL == hostname_obj)
+          hostname_obj = json_object_object_get(response, "hostname");
         if (NULL == hostname_obj)
           break;
-        const char *domain = json_object_get_string(hostname_obj);
-        if(domain)
-          hostname = domain;
+        resolved = json_object_get_string(hostname_obj);
       } while(false);
-      strlcpy(req->address, hostname, sizeof(req->address));
+      if (resolved)
+        strlcpy(req->address, resolved, sizeof(req->address));
+      else if (get_options()->PPResolvRequired) {
+          log_warn(LD_HTTP, "TorPlus name resolving required (PPResolvRequired 1) and but it's failed");
+          socks_request_set_socks5_error(req, SOCKS5_GENERAL_ERROR);
+          res = SOCKS_RESULT_INVALID;
+      } else {
+        log_warn(LD_HTTP, "TorPlus name resolving failed for: %s", hostname);
+        strlcpy(req->address, hostname, sizeof(req->address));
+      }
       if (NULL != response)
         json_object_put(response);
-      // if (json_response) free ?????
-    } break;
+    }
+      break;
     case 4: {
       const uint8_t *ipv6 =
           socks5_client_request_getarray_dest_addr_ipv6(trunnel_req);

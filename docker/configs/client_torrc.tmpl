@@ -1,31 +1,20 @@
 TestingTorNetwork 1
-
-PathsNeededToBuildCircuits 0.67
-TestingDirAuthVoteExit *
-TestingDirAuthVoteHSDir *
-V3AuthNIntervalsValid 2
-CircuitsAvailableTimeout 3600
-CountPrivateBandwidth 0
-MaxCircuitDirtiness 544000
-AccountingStart day 0:00
-AccountingMax 50 GBytes
-RelayBandwidthRate 1000 KBytes
-RelayBandwidthBurst 5000 KBytes
-
-TestingDirAuthVoteGuard *
-TestingMinExitFlagThreshold 0
-
-DataDirectory ${data_directory}
 RunAsDaemon 0
-ConnLimit 60
 Nickname ${inventory_hostname}
+Address ${self_host}
+DataDirectory ${data_directory}
+PidFile ${data_directory}/pid
+
+PathsNeededToBuildCircuits 0.95
+
 ShutdownWaitLength 2
 DisableDebuggerAttachment 0
+EnforceDistinctSubnets 0
 
+SocksPort 9050
 ControlPort 9051
 ControlSocket ${data_directory}/control
 CookieAuthentication 1
-PidFile ${data_directory}/pid
 
 PPChannelCallbackPort 5817
 PPChannelPort 28080
@@ -35,12 +24,13 @@ ProtocolWarnings 1
 SafeLogging 0
 LogTimeGranularity 1
 
-Sandbox 1
+#Sandbox 1
+
+BandwidthRate 2 GByte
+BandwidthBurst 2 GByte
 
 ${dirauth}
 
-SocksPort 9050
-Address ${self_host}
-
-ExitPolicy reject *:*
-ExitPolicy reject6 *:*
+HomeZone {de},{jp},{gb},{il},{ru},{ua}
+HomeZone {us},{ca},{mx}
+HomeZone {cn},{sg},{kr}

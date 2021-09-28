@@ -753,14 +753,14 @@ static const config_var_t option_vars_[] = {
   OBSOLETE("TestingCertMaxDownloadTries"),
   VAR_INVIS("___UsingTestNetworkDefaults", BOOL, UsingTestNetworkDefaults_,
             "0"),
-  V(PPChannelCallbackPort,                    INT,   "-1"),
-  V(PPChannelPort,                    INT,   "-1"),
-  V(StellarAddress,                    STRING,   ""),
-  V(PPResolvDomains, CSV, "torplus.eth"),
-  V(SlowDownDataTransferRate,   BOOL,   "0"),
-  V(EnablePaymentLog,   BOOL,   "1"),
-  V(EnforceReachability, BOOL, "0"),
-  V(PPEnableSlowing, BOOL, "0"),
+  V(PPChannelCallbackPort,     INT,     "-1"),
+  V(PPChannelPort,             INT,     "-1"),
+  V(StellarAddress,            STRING,  ""),
+  V(PPResolvDomains,           CSV,     ""),
+  V(PPResolvRequired,          BOOL,    "0"),
+  V(EnablePaymentLog,          BOOL,    "1"),
+  V(EnforceReachability,       BOOL,    "0"),
+  V(PPEnableSlowing,           BOOL,    "0"),
   END_OF_CONFIG_VARS
 };
 
