@@ -62,7 +62,7 @@ while [ ! -f /opt/paidpiper/.pg_ready ]; do
   sleep 2 # or less like 0.2
   echo "pg not ready yet..."
 done
-
+chmod u=rwx,g=-,o=-  /root/tor
 if [[ "${role}" = "hs_client" ]]; then
   mkdir -p /root/hidden_service/hsv3
   chmod u=rwx,g=-,o=- /root/hidden_service/hsv3
