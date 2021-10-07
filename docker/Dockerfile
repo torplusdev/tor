@@ -1,6 +1,6 @@
 
 FROM tor_build as build
-FROM torplusserviceregistry.azurecr.io/private/tor_plus as tor_plus
+
 FROM debian:10
 RUN echo deb http://ftp.debian.org/debian buster-backports main >> /etc/apt/sources.list.d/backports.list
 RUN echo deb-src http://ftp.debian.org/debian buster-backports main >> /etc/apt/sources.list.d/backports.list
@@ -36,7 +36,5 @@ COPY docker/tor-docker-entrypoint.sh /
 RUN chmod 755 /tor-docker-entrypoint.sh
 RUN mkdir -p /root/tor && chmod u=rwx,g=-,o=- /root/tor
 COPY --from=build /usr/local/bin/tor /usr/local/bin/tor
-COPY --from=tor_plus /usr/local/bin/tor /usr/local/bin/tor_plus
-
 ENTRYPOINT ["/tor-docker-entrypoint.sh"]
 CMD [ "/usr/local/bin/tor", "-f", "/usr/local/etc/tor/torrc" ]
