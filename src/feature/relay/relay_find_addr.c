@@ -67,6 +67,7 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
     return;
   }
 
+  int hz_changed = 0;
   if (!tor_addr_eq(&g_last_suggested_ip, suggested_addr)) {
     tor_addr_copy(&g_last_suggested_ip, suggested_addr);
     country_t cc = geoip_get_country_by_addr(suggested_addr);
@@ -77,21 +78,23 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
     if (options->HomeZoneNodes) {
       if (!routerset_contains_address(options->HomeZoneNodes, suggested_addr)) {
         log_notice(LD_CONFIG, "Suggested address not belong current home zone, start cleaning and update home zone");
-        get_options_mutable()->HomeZoneNodes = NULL;
+        hz_changed = 1;
       }
     }
-    if (!options->HomeZoneNodes) {
+    if (options->HomeZoneNodesSets && (!options->HomeZoneNodes || hz_changed)) {
       log_notice(LD_CONFIG, "Start updating home zone");
-      if (update_home_zone_routerset()) {
-        circuit_mark_all_unused_circs();
-        circuit_mark_all_dirty_circs_as_unusable();
-      }
+      hz_changed = update_home_zone_routerset();
     }
   }
 
   /* Non server should just ignore this suggestion. Clients don't need to
    * learn their address let alone cache it. */
   if (!server_mode(options)) {
+    if (hz_changed) {
+      log_notice(LD_CONFIG, "Invalidate all circuits due to home zone change (2)");
+      circuit_mark_all_unused_circs();
+      circuit_mark_all_dirty_circs_as_unusable();
+    }
     return;
   }
 
@@ -121,6 +124,7 @@ static int
 update_home_zone_routerset(void)
 {
   or_options_t *options = get_options_mutable();
+  routerset_t *last_hz = options->HomeZoneNodes;
   options->HomeZoneNodes = NULL;
 
   if (!options->HomeZoneNodesSets) {
@@ -134,7 +138,7 @@ update_home_zone_routerset(void)
       char * as_str = routerset_to_string(rs);
       log_notice(LD_CONFIG, "Home zone succesefully updated: %s", as_str);
       tor_free_(as_str);
-      return 1;
+      return last_hz != rs;
     }
   } SMARTLIST_FOREACH_END(rs);
 

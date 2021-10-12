@@ -2743,6 +2743,7 @@ fi
 
 AC_CONFIG_COMMANDS_POST([
   echo 'Preparing the tor plus server library: making directories'
+  rm -rf src/lib/rest/build
   mkdir -p src/lib/rest/build
 
   echo 'Preparing the tor plus server library: running the cmake'
