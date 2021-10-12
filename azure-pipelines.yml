@@ -129,24 +129,24 @@ jobs:
       OSName: mac
       ExeExt: ''
 
-- job: Tor_Plus_For_Docker
+# - job: Tor_Plus_For_Docker
 
-  pool:
-    vmImage: 'ubuntu-20.04'
+#   pool:
+#     vmImage: 'ubuntu-20.04'
 
-  steps:
-  - task: Docker@1
-    inputs:
-      containerregistrytype: 'Azure Container Registry'
-      azureSubscriptionEndpoint: 'U-BTech - CSP (Georest)(8a8eed1d-a101-45a3-bb4d-34065921a9aa)'
-      azureContainerRegistry: 'torplusserviceregistry.azurecr.io'
-      command: 'login'
-    displayName: 'Docker login'
+#   steps:
+#   - task: Docker@1
+#     inputs:
+#       containerregistrytype: 'Azure Container Registry'
+#       azureSubscriptionEndpoint: 'U-BTech - CSP (Georest)(8a8eed1d-a101-45a3-bb4d-34065921a9aa)'
+#       azureContainerRegistry: 'torplusserviceregistry.azurecr.io'
+#       command: 'login'
+#     displayName: 'Docker login'
 
-  - script: |
-      make build_image
-      make image
-      make push
-      make clean_up
-    workingDirectory: $(Build.SourcesDirectory)/docker
-    displayName: 'Docker build, push and clean up'
+#   - script: |
+#       make build_image
+#       make image
+#       make push
+#       make clean_up
+#     workingDirectory: $(Build.SourcesDirectory)/docker
+#     displayName: 'Docker build, push and clean up'
