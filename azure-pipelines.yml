@@ -96,7 +96,7 @@ jobs:
 #    displayName: 'Upgrade Homebrew installed packages'
 
   - script: |
-      brew install make libevent automake json-c asciidoc gcc zstd xz zlib openssl@1.1
+      brew install make libevent automake json-c asciidoc zstd xz zlib openssl@1.1
     displayName: 'install packeges'
 
   - script: |
