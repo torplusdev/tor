@@ -88,12 +88,12 @@ jobs:
 - job: Tor_Plus_For_macOS
 
   pool:
-    vmImage: 'macOS-latest'
+    vmImage: 'macOS-10.15'
 
   steps:
-  - script: |
-      brew update && brew upgrade
-    displayName: 'Upgrade Homebrew installed packages'
+#  - script: |
+#      brew update && brew upgrade
+#    displayName: 'Upgrade Homebrew installed packages'
 
   - script: |
       brew install make libevent automake json-c asciidoc gcc zstd xz zlib openssl@1.1
