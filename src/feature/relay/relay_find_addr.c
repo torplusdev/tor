@@ -91,7 +91,7 @@ relay_address_new_suggestion(const tor_addr_t *suggested_addr,
    * learn their address let alone cache it. */
   if (!server_mode(options)) {
     if (hz_changed) {
-      log_notice(LD_CONFIG, "Invalidate all circuits due to home zone change (2)");
+      log_notice(LD_CONFIG, "Invalidate all circuits due to home zone change");
       circuit_mark_all_unused_circs();
       circuit_mark_all_dirty_circs_as_unusable();
     }

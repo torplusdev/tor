@@ -2748,7 +2748,7 @@ AC_CONFIG_COMMANDS_POST([
 
   echo 'Preparing the tor plus server library: running the cmake'
   if test "$bwin32" = "true"; then
-    cmake -S src/lib/rest -B src/lib/rest/build -G "MinGW Makefiles"
+    cmake -S src/lib/rest -B src/lib/rest/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-O3 -g0 -D__USE_MINGW_ANSI_STDIO=0 -mwindows" -DCMAKE_CXX_FLAGS="-O3 -g0 -D__USE_MINGW_ANSI_STDIO=0 -mwindows" #-G "MinGW Makefiles"
   else
     cmake -S src/lib/rest -B src/lib/rest/build
   fi

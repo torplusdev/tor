@@ -66,14 +66,19 @@ jobs:
     displayName: 'autogen'
 
   - script: |
-      "c:/msys64/usr/bin/bash" -e -c "MAKE='mingw32-make' ZSTD_CFLAGS='-L/mingw64/include' ZSTD_LIBS='-L/mingw64/lib -lzstd' ./configure --prefix=/mingw64 --build=x86_64-w64-mingw32 --host=x86_64-w64-mingw32 --with-openssl-dir=/mingw64 --disable-asciidoc --disable-gcc-hardening CFLAGS='-D__USE_MINGW_ANSI_STDIO=0 -mwindows'"
+      "c:/msys64/usr/bin/bash" -e -c "MAKE='mingw32-make' ZSTD_CFLAGS='-L/mingw64/include' ZSTD_LIBS='-L/mingw64/lib -lzstd' ./configure --prefix=/mingw64 --build=x86_64-w64-mingw32 --host=x86_64-w64-mingw32 --with-openssl-dir=/mingw64 --disable-asciidoc --disable-gcc-hardening CFLAGS='-D__USE_MINGW_ANSI_STDIO=0 -mwindows -O3 -g0' CXXFLAGS='-D__USE_MINGW_ANSI_STDIO=0 -mwindows -O3 -g0'"
     workingDirectory: $(Build.SourcesDirectory)
     displayName: 'configure'
 
   - script: |
-      "c:/msys64/usr/bin/bash" -e -c "V=1 mingw32-make -k -j %NUMBER_OF_PROCESSORS%"
+      "c:/msys64/usr/bin/bash" -e -c "V=1 mingw32-make -k CFLAGS='-D__USE_MINGW_ANSI_STDIO=0 -mwindows -O3 -g0' CXXFLAGS='-D__USE_MINGW_ANSI_STDIO=0 -mwindows -O3 -g0' -j %NUMBER_OF_PROCESSORS%"
     workingDirectory: $(Build.SourcesDirectory)
     displayName: 'make'
+
+  - script: |
+      "c:/msys64/usr/bin/strip" "src/app/tor.exe"
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'strip'
 
   - script: |
       "c:/msys64/usr/bin/bash" -e -c "V=1 mingw32-make -k test -j %NUMBER_OF_PROCESSORS% | true"
