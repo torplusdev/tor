@@ -76,7 +76,7 @@ jobs:
     displayName: 'make'
 
   - script: |
-      "c:/msys64/usr/bin/strip" "src/app/tor.exe"
+      "C:/msys64/mingw64/bin/strip" "src/app/tor.exe"
     workingDirectory: $(Build.SourcesDirectory)
     displayName: 'strip'
 
