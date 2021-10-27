@@ -31,10 +31,12 @@ std::string* tor_rest_service::route2json(tor_route *route)
 	json_builder json;
 
 	json.object();
-	if (nullptr != route->nodes && route->nodes_len >= 3) {
-		json.key("node1").value(route->nodes[0].node_id);
-		json.key("node2").value(route->nodes[1].node_id);
-		json.key("node3").value(route->nodes[1].node_id);
+	if (nullptr != route->nodes) {
+		for(size_t i = 0; i < route->nodes_len; i++) {
+			string node_name = "node";
+			node_name += std::to_string(i+1);
+			json.key(node_name).value(route->nodes[i].node_id);
+		}
 	}
     json.finish();
 

@@ -30,6 +30,7 @@
 #include "lib/evloop/compat_libevent.h"
 #include "core/mainloop/cpuworker.h"
 #include "lib/evloop/workqueue.h"
+#include <ctype.h>
 
 #if defined(__COVERITY__) || defined(__clang_analyzer__)
 /* If we're running a static analysis tool, we don't want it to complain
@@ -45,6 +46,12 @@ const static int sendmecell_deadcode_dummy__ = 0;
       goto label;                                                \
     }                                                            \
   } while (0)
+#define CHECK_VALUES(v1, v2, label)                           \
+  do {                                                           \
+    if ((v1) != (v2) OR_DEADCODE_DUMMY) {                \
+      goto label;                                                \
+    }                                                            \
+  } while (0)
 
 #define CHUNK_SIZE (MAX_MESSAGE_LEN - 1)
 
@@ -56,6 +63,7 @@ static pthread_rwlock_t global_payment_messsages_rwlock = PTHREAD_RWLOCK_INITIAL
 
 static error_t circuit_payment_send_command_to_hop(origin_circuit_t *circ, uint8_t hopnum, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
 static error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t relay_command, const uint8_t *payload, ssize_t payload_len);
+static OR_OP_request_t * payment_payload_new(void);
 
 static char s_cb_url_api_response[PAYMENT_URL_LEN];
 static char s_cb_url_api_command[PAYMENT_URL_LEN];
@@ -123,15 +131,15 @@ static void tp_get_route(const char* sessionId, tor_route *route)
                 route->nodes_len = circuit_get_length(origin_circuit);
                 route->nodes = (rest_node_t *) tor_malloc_(route->nodes_len * sizeof(rest_node_t));
                 for (size_t i = 0; i < route->nodes_len; ++i) {
-                    if (strcmp(next->extend_info->stellar_address, "") == 0) {
+                    if (is_invalid_stellar_address(next->extend_info->stellar_address)) {
                         log_notice(LD_PROTOCOL | LD_BUG, "tp_get_route: Some nodes without stellar address. nodes_count: %zu, failed_num: %zu", route->nodes_len, i);
                         tor_free_(route->nodes);
                         route->nodes = NULL;
                         route->nodes_len = 0;
                         break;
                     }
-                    route->nodes[i].node_id = tor_strdup(next->extend_info->nickname);
-                    route->nodes[i].address = tor_strdup(next->extend_info->stellar_address);
+                    strlcpy(route->nodes[i].node_id, next->extend_info->nickname, sizeof(route->nodes[i].node_id));
+                    strlcpy(route->nodes[i].address, next->extend_info->stellar_address, sizeof(route->nodes[i].address));
                     next = next->next;
                 }
                 if(0 == route->nodes_len)
@@ -174,7 +182,7 @@ static int tp_payment_chain_completed(payment_completed* command)
 
     payment_message_for_sending_t* message = tor_calloc_(1, sizeof(payment_message_for_sending_t));
     strcpy(message->nodeId, "-1");
-    strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
+    strlcpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
     message->message = NULL;
     pthread_rwlock_wrlock(&global_payment_messsages_rwlock);
     smartlist_add(global_payment_messsages, message);
@@ -242,20 +250,19 @@ static int tp_process_command(tor_command* command)
 
     for(size_t g = 0 ; g <= part_size ;g++) {
         payment_message_for_sending_t* message = tor_calloc_(1, sizeof(payment_message_for_sending_t));
-        strncpy(message->nodeId, command->nodeId, sizeof(message->nodeId) - 1);
-        strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId) - 1);
+        strlcpy(message->nodeId, command->nodeId, sizeof(message->nodeId));
+        strlcpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
 
-        OR_OP_request_t *input = tor_calloc_(1, sizeof(OR_OP_request_t));
+        OR_OP_request_t *input = payment_payload_new();
         message->message = input;
-        input->version = 0;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
         input->command_type = command_type;
 
-        strncpy(input->nickname, command->nodeId, sizeof(input->nickname));
+        strlcpy(input->nickname, command->nodeId, sizeof(input->nickname));
         input->nicknameLength = nicknameLength;
-        strncpy(input->session_id, command->sessionId, sizeof(input->session_id));
+        strlcpy(input->session_id, command->sessionId, sizeof(input->session_id));
         input->session_id_length = session_id_length;
-        strncpy(input->command_id, command->commandId, sizeof(input->command_id));
+        strlcpy(input->command_id, command->commandId, sizeof(input->command_id));
         input->command_id_length = command_id_length;
     
         size_t chunck_real_size = 0;
@@ -322,21 +329,20 @@ static int tp_process_command_replay(tor_command_replay* command)
     pthread_rwlock_wrlock(&global_payment_messsages_rwlock);
     for(size_t g = 0 ; g <= part_size ;g++) {
         payment_message_for_sending_t* message = tor_calloc_(1, sizeof(payment_message_for_sending_t));
-        strncpy(message->sessionId, command->sessionId, sizeof(message->sessionId) - 1);
-        strncpy(message->nodeId, command->nodeId, sizeof(message->nodeId) - 1);
+        strlcpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
+        strlcpy(message->nodeId, command->nodeId, sizeof(message->nodeId));
     
-        OR_OP_request_t *input = tor_calloc_(1, sizeof(OR_OP_request_t));
+        OR_OP_request_t *input = payment_payload_new();
         message->message = input;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
         input->command_type = command_type;
-        input->version = 0;
         input->message_type = 4;
 
-        strncpy(input->nickname, command->nodeId, sizeof(input->nickname));
+        strlcpy(input->nickname, command->nodeId, sizeof(input->nickname));
         input->nicknameLength = nicknameLength;
-        strncpy(input->session_id, command->sessionId, sizeof(input->session_id));
+        strlcpy(input->session_id, command->sessionId, sizeof(input->session_id));
         input->session_id_length = session_id_length;
-        strncpy(input->command_id, command->commandId, sizeof(input->command_id));
+        strlcpy(input->command_id, command->commandId, sizeof(input->command_id));
         input->command_id_length = command_id_length;
 
         size_t chunck_real_size = 0;
@@ -356,9 +362,50 @@ void tp_fill_stellar_address(char *dst)
 {
 DISABLE_GCC_WARNING("-Wunknown-warning-option")
 DISABLE_GCC_WARNING("-Wstringop-truncation")
-    strncpy(dst, get_options()->StellarAddress, STELLAR_ADDRESS_LEN);
+    strlcpy(dst, get_options()->StellarAddress, STELLAR_ADDRESS_LEN);
 ENABLE_GCC_WARNING("-Wstringop-truncation")
 ENABLE_GCC_WARNING("-Wunknown-warning-option")
+}
+
+#define VALID_STELLAR_ADDRESS_LEN 56
+
+int is_invalid_stellar_address(char *addr)
+{
+    if (!addr)
+        return -1;
+    if(0 == addr[0])
+        return -2;
+    // const int addr_len = strnlen(addr, STELLAR_ADDRESS_LEN);
+    // if (0 == addr_len)
+    //     return ;
+    // if (STELLAR_ADDRESS_LEN <= addr_len)
+    //     return ;
+    // if (VALID_STELLAR_ADDRESS_LEN != addr_len)
+    //     return ;
+    if(addr[0] != 'G')
+        return -3;
+    for (size_t i = 1; i < VALID_STELLAR_ADDRESS_LEN; i++) {
+        const char c = addr[i];
+        if (!isupper(c) || !isdigit(c))
+            return -4;
+    }
+    return 0;
+}
+
+int tp_validate_stellar_address(char *addr)
+{
+    if (!addr)
+        return -1;
+    const int rc = is_invalid_stellar_address(addr);
+    if (rc)
+        tp_zero_mem(addr, STELLAR_ADDRESS_LEN);
+    return rc;
+}
+
+int tp_copy_and_check_stellar_address(crypt_path_t *cpath, char *src)
+{
+    strlcpy(cpath->extend_info->stellar_address, src, STELLAR_ADDRESS_LEN);
+    return tp_validate_stellar_address(cpath->extend_info->stellar_address);
 }
 
 static const char* tp_get_address(void)
@@ -550,7 +597,7 @@ static OR_OP_request_t * payment_payload_new(void)
     OR_OP_request_t *val = tor_malloc_(sizeof(OR_OP_request_t));
     if (NULL == val)
         return NULL;
-    val->command = CELL_PAYMENT;
+    val->version = PAYMENT_MSG_VERSION;
     return val;
 }
 
@@ -565,7 +612,7 @@ static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const si
     CHECK_REMAINING(1, truncated);
     obj->version = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
-
+    CHECK_VALUES(obj->version, PAYMENT_MSG_VERSION, fail);
     /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
     CHECK_REMAINING(1, truncated);
     obj->command = (trunnel_get_uint8(ptr));
@@ -607,7 +654,7 @@ static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const si
     CHECK_REMAINING(2, truncated);
     obj->nicknameLength = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
-
+    CHECK_VALUES(obj->nicknameLength, USER_NAME_LEN, fail);
 
     /* Parse char name[len] */
     CHECK_REMAINING(USER_NAME_LEN, fail);

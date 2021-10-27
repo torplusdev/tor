@@ -431,7 +431,7 @@ command_process_created_cell(cell_t *cell, channel_t *chan)
     origin_circuit_t *origin_circ = TO_ORIGIN_CIRCUIT(circ);
     int err_reason = 0;
     log_debug(LD_OR,"at OP. Finishing handshake.");
-    strncpy(origin_circ->cpath->extend_info->stellar_address, extended_cell.created_cell.stellar_address, sizeof(extended_cell.created_cell.stellar_address));
+    tp_copy_and_check_stellar_address(origin_circ->cpath, extended_cell.created_cell.stellar_address);
     if ((err_reason = circuit_finish_handshake(origin_circ,
                                         &extended_cell.created_cell)) < 0) {
       circuit_mark_for_close(circ, -err_reason);
