@@ -46,9 +46,9 @@ const static int sendmecell_deadcode_dummy__ = 0;
       goto label;                                                \
     }                                                            \
   } while (0)
-#define CHECK_VALUES(v1, v2, label)                           \
+#define CHECK_EXPRESSION(expsn, label)                           \
   do {                                                           \
-    if ((v1) != (v2) OR_DEADCODE_DUMMY) {                \
+    if ((!(expsn)) OR_DEADCODE_DUMMY) {                \
       goto label;                                                \
     }                                                            \
   } while (0)
@@ -577,7 +577,7 @@ static OR_OP_request_t* circuit_payment_handle_payment_negotiate(const cell_t *c
     if (circuit_payment_negotiate_parse(&negotiate, cell->payload+RELAY_HEADER_SIZE,
                                         CELL_PAYLOAD_SIZE-RELAY_HEADER_SIZE) < 0) {
         log_fn(LOG_PROTOCOL_WARN, LD_CIRC,
-               "Received malformed PADDING_NEGOTIATE cell; dropping.");
+               "Received malformed payment negotiate cell; dropping.");
         return NULL;
     }
 
@@ -612,7 +612,7 @@ static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const si
     CHECK_REMAINING(1, truncated);
     obj->version = (trunnel_get_uint8(ptr));
     remaining -= 1; ptr += 1;
-    CHECK_VALUES(obj->version, PAYMENT_MSG_VERSION, fail);
+    CHECK_EXPRESSION(obj->version == PAYMENT_MSG_VERSION, fail);
     /* Parse u8 command IN [CELL_PAYMENT_REQUEST] */
     CHECK_REMAINING(1, truncated);
     obj->command = (trunnel_get_uint8(ptr));
@@ -654,12 +654,13 @@ static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const si
     CHECK_REMAINING(2, truncated);
     obj->nicknameLength = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
-    CHECK_VALUES(obj->nicknameLength, USER_NAME_LEN, fail);
+    CHECK_EXPRESSION((obj->nicknameLength > 0) && (obj->nicknameLength < USER_NAME_LEN), fail);
 
     /* Parse char name[len] */
     CHECK_REMAINING(USER_NAME_LEN, fail);
     memcpy(obj->nickname, ptr, USER_NAME_LEN);
     remaining -= USER_NAME_LEN; ptr += USER_NAME_LEN;
+    CHECK_EXPRESSION((obj->nicknameLength == strnlen(obj->nickname, sizeof(obj->nickname))), fail);
 
     CHECK_REMAINING(2, truncated);
     obj->messageLength = (trunnel_get_uint16(ptr));
@@ -1203,6 +1204,8 @@ static void process_payment_command_cell_to_node_replyfn(void * arg)
 int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t *circ)
 {
     OR_OP_request_t *request = circuit_payment_handle_payment_negotiate(cell);
+    if (!request)
+        return -1;
 
     char to_node_key[PAYMENT_HASH_KEY_LEN];
     strcat(strcat(strcpy(to_node_key, request->nickname), "|"), request->session_id);
