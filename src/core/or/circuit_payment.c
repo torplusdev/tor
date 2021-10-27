@@ -369,7 +369,7 @@ ENABLE_GCC_WARNING("-Wunknown-warning-option")
 
 #define VALID_STELLAR_ADDRESS_LEN 56
 
-int is_invalid_stellar_address(char *addr)
+int is_invalid_stellar_address(const char *addr)
 {
     if (!addr)
         return -1;
@@ -402,7 +402,7 @@ int tp_validate_stellar_address(char *addr)
     return rc;
 }
 
-int tp_copy_and_check_stellar_address(crypt_path_t *cpath, char *src)
+int tp_copy_and_check_stellar_address(crypt_path_t *cpath, const char *src)
 {
     strlcpy(cpath->extend_info->stellar_address, src, STELLAR_ADDRESS_LEN);
     return tp_validate_stellar_address(cpath->extend_info->stellar_address);
@@ -636,20 +636,24 @@ static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const si
     CHECK_REMAINING(2, truncated);
     obj->session_id_length = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
+    CHECK_EXPRESSION((obj->session_id_length > 0) && (obj->session_id_length < SESSION_ID_LEN), fail);
 
     /* Parse char name[len] */
     CHECK_REMAINING(SESSION_ID_LEN, fail);
     memcpy(obj->session_id, ptr, SESSION_ID_LEN);
     remaining -= SESSION_ID_LEN; ptr += SESSION_ID_LEN;
+    CHECK_EXPRESSION((obj->session_id_length == strnlen(obj->session_id, sizeof(obj->session_id))), fail);
 
     CHECK_REMAINING(2, truncated);
     obj->command_id_length = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
+    CHECK_EXPRESSION((obj->command_id_length >= 0) && (obj->command_id_length < COMMAND_ID_LEN), fail); // TODO: >=0 ?????
 
     /* Parse char name[len] */
     CHECK_REMAINING(COMMAND_ID_LEN, fail);
     memcpy(obj->command_id, ptr, COMMAND_ID_LEN);
     remaining -= COMMAND_ID_LEN; ptr += COMMAND_ID_LEN;
+    CHECK_EXPRESSION((obj->command_id_length == strnlen(obj->command_id, sizeof(obj->command_id))), fail);
 
     CHECK_REMAINING(2, truncated);
     obj->nicknameLength = (trunnel_get_uint16(ptr));
@@ -665,11 +669,13 @@ static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const si
     CHECK_REMAINING(2, truncated);
     obj->messageLength = (trunnel_get_uint16(ptr));
     remaining -= 2; ptr += 2;
+    CHECK_EXPRESSION((obj->messageLength > 0) && (obj->messageLength < MAX_MESSAGE_LEN), fail);
 
     /* Parse char name[len] */
     CHECK_REMAINING(MAX_MESSAGE_LEN, fail);
     memcpy(obj->message, ptr, MAX_MESSAGE_LEN);
     remaining -= MAX_MESSAGE_LEN; ptr += MAX_MESSAGE_LEN;
+    CHECK_EXPRESSION((obj->messageLength == strnlen(obj->message, sizeof(obj->message))), fail);
 
     CHECK_REMAINING(2, truncated);
     obj->messageTotalLength = (trunnel_get_uint16(ptr));

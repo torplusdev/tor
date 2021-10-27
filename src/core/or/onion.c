@@ -200,7 +200,7 @@ check_created_cell(const created_cell_t *cell)
       return -1;
     break;
   }
-  tp_validate_stellar_address(cell->stellar_address);
+  tp_validate_stellar_address((char *)cell->stellar_address);
   return 0;
 }
 
