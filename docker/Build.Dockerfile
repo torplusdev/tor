@@ -16,7 +16,7 @@ apt-get install -y expect torsocks \
     libcurl4 libcurl4-gnutls-dev libjson-c-dev automake && \
     rm -rf /var/lib/apt/lists/*
 
-WORKDIR /opt/paidpiper/tor_plus
+WORKDIR /opt/torplus/tor_plus
 
 # Building and installing
 COPY --from=cache /app .
