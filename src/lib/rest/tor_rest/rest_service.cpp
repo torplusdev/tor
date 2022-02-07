@@ -33,7 +33,7 @@ std::string* tor_rest_service::route2json(tor_route *route)
 	json.key("Route");
 	json.array();
 	if (nullptr != route->nodes) {
-		for (size_t n = 0; n < route->nodes_len;) {
+		for (size_t n = 0; n < route->nodes_len; n++) {
 			const rest_node_t &node = route->nodes[n];
 			json.object();
 			json.key("NodeId").value(node.node_id);
