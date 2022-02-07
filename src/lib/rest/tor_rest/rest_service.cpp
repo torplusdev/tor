@@ -29,17 +29,26 @@ static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
 std::string* tor_rest_service::route2json(tor_route *route)
 {
 	json_builder json;
-
 	json.object();
-	if (nullptr != route->nodes && route->nodes_len >= 3) {
-		json.key("node1").value(route->nodes[0].node_id);
-		json.key("node2").value(route->nodes[1].node_id);
-		json.key("node3").value(route->nodes[1].node_id);
+	json.key("Route");
+	json.array();
+	if (nullptr != route->nodes) {
+		for (size_t n = 0; n < route->nodes_len;) {
+			const rest_node_t &node = route->nodes[n];
+			json.object();
+			json.key("NodeId").value(node.node_id);
+			json.key("Address").value(node.address);
+			json.close();
+		}
 	}
+	json.close();
+	if (nullptr != route->call_back_url)
+		json.key("CallbackUrl").value(route->call_back_url);
+	if (nullptr != route->status_call_back_url)
+		json.key("StatusCallbackUrl").value(route->status_call_back_url);
     json.finish();
-
 	const auto str = json.current();
-		
+	
 	return new string(str.str,str.len);
 }
 
