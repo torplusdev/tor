@@ -50,9 +50,10 @@ static void test_payment_cell(void *arg)
 
     input->command_type = 101;
     input->command = 201;
-    input->version = 203;
+    input->version = PAYMENT_MSG_VERSION;
     input->is_last = 1;
     input->message_type = 206;
+    input->messageLength = strlen(input->message);
 
     len = circuit_payment_negotiate_encode(cell.payload, CELL_PAYLOAD_SIZE, input);
     tt_int_op(len, OP_GE, 0);

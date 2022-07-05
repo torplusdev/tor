@@ -632,10 +632,12 @@ static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const si
     CHECK_EXPRESSION((obj->messageLength > 0) && (obj->messageLength < MAX_MESSAGE_LEN), fail);
 
     /* Parse char name[len] */
-    CHECK_REMAINING(MAX_MESSAGE_LEN, fail);
-    memcpy(obj->message, ptr, MAX_MESSAGE_LEN);
-    remaining -= MAX_MESSAGE_LEN; ptr += MAX_MESSAGE_LEN;
-    CHECK_EXPRESSION((obj->messageLength == strnlen(obj->message, sizeof(obj->message))), fail);
+    CHECK_REMAINING(obj->messageLength, fail);
+    if (obj->messageLength > MAX_MESSAGE_LEN)
+        goto fail;
+    memcpy(obj->message, ptr, obj->messageLength);
+    remaining -= obj->messageLength; ptr += obj->messageLength;
+    //CHECK_EXPRESSION((obj->messageLength == strnlen(obj->message, sizeof(obj->message))), fail);
 
     CHECK_REMAINING(2, truncated);
     obj->messageTotalLength = (trunnel_get_uint16(ptr));
@@ -766,10 +768,10 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
     written += 2; ptr += 2;
 
     trunnel_assert(written <= avail);
-    if (avail - written < MAX_MESSAGE_LEN)
+    if (avail - written < obj->messageLength)
         goto truncated;
-    memcpy(ptr, obj->message, MAX_MESSAGE_LEN);
-    written += MAX_MESSAGE_LEN; ptr += MAX_MESSAGE_LEN;
+    memcpy(ptr, obj->message, obj->messageLength);
+    written += obj->messageLength; ptr += obj->messageLength;
     trunnel_assert(ptr == output + written);
 
     /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
