@@ -8,6 +8,9 @@
 #ifndef STELLAR_ADDRESS_LEN
     #define STELLAR_ADDRESS_LEN 100
 #endif
+#ifndef SESSION_ID_LEN
+    #define SESSION_ID_LEN 40
+#endif
 
 typedef struct rest_node_t {
     char node_id[MAX_HEX_NICKNAME_LEN+1];
@@ -17,6 +20,9 @@ typedef struct rest_node_t {
 typedef struct tor_route {
     rest_node_t* nodes;
     size_t nodes_len;
+    char sessionId[SESSION_ID_LEN + 1];
+    char exclude_node_id[MAX_HEX_NICKNAME_LEN + 1];
+    char exclude_address[STELLAR_ADDRESS_LEN + 1];
     const char* call_back_url; 		        // process command url
     const char* status_call_back_url; 		// process command url
 } tor_route;
@@ -51,7 +57,7 @@ extern "C" {
 
 int runServer(
         int port,
-        void (*routeFunction)(const char* targetNode, tor_route *route),
+        void (*routeFunction)(tor_route *route),
         int (*commandProcessingFunction)(tor_command *command),
         int (*commandProcessingReplayFunction)(tor_command_replay *command),
         int (*commandProcessingCompletedFunction)(payment_completed *command),

@@ -9,7 +9,7 @@
 /// Parameters:
 /// IN targetNode: the node id that the returned route should point to
 /// OUT route: the route structure, provided as a pointer to tor_route
-void getTorRoute(const char* targetNode,tor_route *route)
+void getTorRoute(tor_route *route)
 {
 	const int routeNodeLength = 57;
 	int err;

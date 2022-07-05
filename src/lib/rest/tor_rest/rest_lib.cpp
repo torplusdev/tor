@@ -9,7 +9,7 @@ static rest_server *s_server_ptr = NULL;
 
 extern "C" int runServer(
 		int port,
-		void (*routeFunction)(const char* targetNode, tor_route *route),
+		void (*routeFunction)(tor_route *route),
         int (*commandProcessingFunction)(tor_command* command),
 		int (*commandProcessingReplayFunction)(tor_command_replay* command),
 		int (*commandProcessingCompletedFunction)(payment_completed *command),

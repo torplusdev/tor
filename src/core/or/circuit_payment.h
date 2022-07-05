@@ -86,6 +86,12 @@ typedef struct chunk_payment_st {
     list_of_chunks_t list[50];
 }chunk_payment_t;
 
+typedef struct payment_message_for_routing_st {
+    void *route;
+    int done;
+} payment_message_for_routing_t;
+
+
 // public API
 void tp_init_lists(void);
 void tp_init(void);
