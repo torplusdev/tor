@@ -1,11 +1,17 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#define CONST_ROUTE_NODE_ID_LENGTH 100
+#ifndef MAX_HEX_NICKNAME_LEN
+    #define HEX_DIGEST_LEN_ 40
+    #define MAX_HEX_NICKNAME_LEN (HEX_DIGEST_LEN_+1)
+#endif
+#ifndef STELLAR_ADDRESS_LEN
+    #define STELLAR_ADDRESS_LEN 100
+#endif
 
 typedef struct rest_node_t {
-    char* node_id;
-    char* address;
+    char node_id[MAX_HEX_NICKNAME_LEN+1];
+    char address[STELLAR_ADDRESS_LEN];
 } rest_node_t;
 
 typedef struct tor_route {

@@ -13,6 +13,7 @@
 #include "lib/evloop/timers.h"
 #include <src/core/proto/payment_http_client.h>
 
+#define PAYMENT_MSG_VERSION 0
 
 struct circuit_t;
 struct origin_circuit_t;
@@ -90,6 +91,9 @@ void tp_init_lists(void);
 void tp_init(void);
 void tp_deinit(void);
 void tp_fill_stellar_address(char *dst);
+int is_invalid_stellar_address(const char *addr);
+int tp_validate_stellar_address(char *dst);
+int tp_copy_and_check_stellar_address(crypt_path_t *cpath, const char *src);
 
 ssize_t circuit_payment_negotiate_parse(OR_OP_request_t **output, const uint8_t *input, const size_t len_in);
 ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, const OR_OP_request_t *obj);
