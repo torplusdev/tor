@@ -344,7 +344,7 @@ int is_invalid_stellar_address(const char *addr)
         return -3;
     for (size_t i = 1; i < VALID_STELLAR_ADDRESS_LEN; i++) {
         const char c = addr[i];
-        if (!isupper(c) || !isdigit(c))
+        if (!isupper(c) && !isdigit(c))
             return -4;
     }
     return 0;
