@@ -637,6 +637,7 @@ static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const si
     if (obj->messageLength > MAX_MESSAGE_LEN)
         goto fail;
     memcpy(obj->message, ptr, obj->messageLength);
+    obj->message[obj->messageLength] = 0;
     remaining -= obj->messageLength; ptr += obj->messageLength;
     //CHECK_EXPRESSION((obj->messageLength == strnlen(obj->message, sizeof(obj->message))), fail);
 
