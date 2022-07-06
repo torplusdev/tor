@@ -30,6 +30,7 @@
 #include "lib/evloop/compat_libevent.h"
 #include "core/mainloop/cpuworker.h"
 #include "lib/evloop/workqueue.h"
+#include "feature/client/circpathbias.h"
 #include <ctype.h>
 
 #if defined(__COVERITY__) || defined(__clang_analyzer__)
@@ -632,10 +633,12 @@ static ssize_t payment_into(OR_OP_request_t *obj, const uint8_t *input, const si
     CHECK_EXPRESSION((obj->messageLength > 0) && (obj->messageLength < MAX_MESSAGE_LEN), fail);
 
     /* Parse char name[len] */
-    CHECK_REMAINING(MAX_MESSAGE_LEN, fail);
-    memcpy(obj->message, ptr, MAX_MESSAGE_LEN);
-    remaining -= MAX_MESSAGE_LEN; ptr += MAX_MESSAGE_LEN;
-    CHECK_EXPRESSION((obj->messageLength == strnlen(obj->message, sizeof(obj->message))), fail);
+    CHECK_REMAINING(obj->messageLength, fail);
+    if (obj->messageLength > MAX_MESSAGE_LEN)
+        goto fail;
+    memcpy(obj->message, ptr, obj->messageLength);
+    remaining -= obj->messageLength; ptr += obj->messageLength;
+    //CHECK_EXPRESSION((obj->messageLength == strnlen(obj->message, sizeof(obj->message))), fail);
 
     CHECK_REMAINING(2, truncated);
     obj->messageTotalLength = (trunnel_get_uint16(ptr));
@@ -766,10 +769,10 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
     written += 2; ptr += 2;
 
     trunnel_assert(written <= avail);
-    if (avail - written < MAX_MESSAGE_LEN)
+    if (avail - written < obj->messageLength)
         goto truncated;
-    memcpy(ptr, obj->message, MAX_MESSAGE_LEN);
-    written += MAX_MESSAGE_LEN; ptr += MAX_MESSAGE_LEN;
+    memcpy(ptr, obj->message, obj->messageLength);
+    written += obj->messageLength; ptr += obj->messageLength;
     trunnel_assert(ptr == output + written);
 
     /* Encode u8 command IN [CIRCPAD_COMMAND_START, CIRCPAD_COMMAND_STOP] */
@@ -823,14 +826,7 @@ static int circuit_get_num_by_nickname(origin_circuit_t * circ, const char* nick
 
 void tp_store_session_context(const char* session, const char* nickname, uint64_t channel_global_id, uint32_t circuit_id)
 {
-    payment_session_context_t *origin = NULL;
-
-    SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
-        if (strcmp(element->session_id, session) == 0) {
-            origin = element;
-            break;
-        }
-    } SMARTLIST_FOREACH_END(element);
+    payment_session_context_t *origin = get_from_session_context_by_session_id(session);
 
     if (origin == NULL) {
         payment_session_context_t *ent = (payment_session_context_t *) tor_malloc_zero_(
@@ -852,6 +848,18 @@ payment_session_context_t* get_from_session_context_by_session_id(const char* se
 {
     SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
         if (strcmp(element->session_id, session) == 0) {
+            return element;
+        }
+    } SMARTLIST_FOREACH_END(element);
+
+    return NULL;
+}
+
+static payment_session_context_t* get_from_session_context(uint64_t channel_global_id, circid_t circ_id)
+{
+    SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
+        if (element->circuit_id == circ_id &&
+            element->channel_global_id == channel_global_id) {
             return element;
         }
     } SMARTLIST_FOREACH_END(element);
@@ -1233,6 +1241,13 @@ static void tp_process_payment_message_for_routing(payment_message_for_routing_t
     if (!route_message)
         return;
 
+    tor_route *route = (tor_route *)route_message->route;
+    if (!route){
+        route_message->done = 1;
+        return;
+    }
+    payment_session_context_t *session_context = get_from_session_context_by_session_id(route->sessionId);
+
     smartlist_t *list = circuit_get_global_origin_circuit_list();
     if (list == NULL) {
         route_message->done = 1;
@@ -1240,59 +1255,86 @@ static void tp_process_payment_message_for_routing(payment_message_for_routing_t
     }
 
     char nodes_str[10000];
-    const size_t resp_size = sizeof(nodes_str) - 1;
-    tp_zero_mem(nodes_str, sizeof(nodes_str));
 
-    tor_route *route = (tor_route *)route_message->route;
     SMARTLIST_FOREACH_BEGIN(list, origin_circuit_t *, origin_circuit) {
-        if (origin_circuit != NULL) {
-            if (TO_CIRCUIT(origin_circuit)->state != CIRCUIT_STATE_OPEN) {
-                log_warn(LD_CHANNEL, "circuit (%d) - was not opened:",
-                        TO_CIRCUIT(origin_circuit)->n_circ_id);
+        if (origin_circuit == NULL)
+            continue;
+        circuit_t * circ = TO_CIRCUIT(origin_circuit);
+        if (NULL != session_context) {
+            if (circ->n_circ_id != session_context->circuit_id ||
+                circ->n_chan->global_identifier != session_context->channel_global_id)
                 continue;
-            }
-            if (TO_CIRCUIT(origin_circuit)->purpose != CIRCUIT_PURPOSE_C_GENERAL) {
-                log_warn(LD_CHANNEL, "circuit (%d) - purpose was not general:",
-                        TO_CIRCUIT(origin_circuit)->n_circ_id);
-                continue;
-            }
-            if (origin_circuit->path_state != PATH_STATE_BUILD_SUCCEEDED) {
-                log_warn(LD_CHANNEL, "circuit (%d) - path was not use succeeded:",
-                        TO_CIRCUIT(origin_circuit)->n_circ_id);
-                continue;
-            }
+        } else {
+            log_info(LD_CHANNEL, "get_route try check circuit (%d): %s %s %s",
+                circ->n_circ_id,
+                circuit_state_to_string(circ->state),
+                circuit_purpose_to_string(circ->purpose),
+                pathbias_state_to_string(origin_circuit->path_state));
 
-            crypt_path_t *next = origin_circuit->cpath;
-            route->nodes_len = circuit_get_length(origin_circuit);
-            route->nodes = (rest_node_t *) tor_malloc_(route->nodes_len * sizeof(rest_node_t));
-            for (size_t i = 0; i < route->nodes_len; ++i) {
-                if (is_invalid_stellar_address(next->extend_info->stellar_address)) {
-                    log_notice(LD_PROTOCOL | LD_BUG, "tp_get_route: Some nodes without stellar address. nodes_count: %zu, failed_num: %zu", route->nodes_len, i);
-                    tor_free_(route->nodes);
-                    route->nodes = NULL;
-                    route->nodes_len = 0;
-                    break;
-                }
-                strlcpy(route->nodes[i].node_id, next->extend_info->nickname, sizeof(route->nodes[i].node_id));
-                strlcpy(route->nodes[i].address, next->extend_info->stellar_address, sizeof(route->nodes[i].address));
-                next = next->next;
-            }
-            if(0 == route->nodes_len)
+            if (circ->state != CIRCUIT_STATE_OPEN) {
+                log_info(LD_CHANNEL, "circuit (%d) - was not opened:",
+                        circ->n_circ_id);
                 continue;
-
-            tp_store_session_context(route->sessionId, "nickname",
-                TO_CIRCUIT(origin_circuit)->n_chan->global_identifier,
-                TO_CIRCUIT(origin_circuit)->n_circ_id);
-
-            for (size_t i = 0; i < route->nodes_len; i++) {
-                strncat(nodes_str, (i > 0) ? ",[" : "[", resp_size);
-                strncat(nodes_str, route->nodes[i].node_id, resp_size);
-                strncat(nodes_str, ":", resp_size);
-                strncat(nodes_str, route->nodes[i].address, resp_size);
-                strncat(nodes_str, "]", resp_size);
             }
-            break;
+            if (circ->purpose != CIRCUIT_PURPOSE_C_GENERAL &&
+                circ->purpose != CIRCUIT_PURPOSE_C_REND_JOINED) {
+                log_info(LD_CHANNEL, "circuit (%d) - purpose was not general or joined rend:",
+                        circ->n_circ_id);
+                continue;
+            }
+            // if (origin_circuit->path_state != PATH_STATE_BUILD_SUCCEEDED) {
+            //     log_info(LD_CHANNEL, "circuit (%d) - path was not use succeeded:",
+            //             circ->n_circ_id);
+            //     continue;
+            // }
+            payment_session_context_t* context = get_from_session_context(circ->n_chan->global_identifier, circ->n_circ_id);
+            if (context) {
+                continue;
+            }
         }
+
+        crypt_path_t *next = origin_circuit->cpath;
+        route->nodes_len = circuit_get_length(origin_circuit);
+        route->nodes = (rest_node_t *) tor_malloc_(route->nodes_len * sizeof(rest_node_t));
+        for (size_t i = 0; i < route->nodes_len; ++i) {
+            int skip = 0;
+            if (route->exclude_address && strcmp(route->exclude_address, next->extend_info->stellar_address) == 0) {
+                log_notice(LD_HTTP, "tp_get_route: exclude nodes with address: %s, hop: %zu", route->exclude_address, i);
+                skip = 1;
+            } else if (route->exclude_node_id && strcmp(route->exclude_node_id, next->extend_info->nickname) == 0) {
+                log_notice(LD_HTTP, "tp_get_route: exclude nodes with nickname: %s, hop: %zu", route->exclude_node_id, i);
+                skip = 1;
+            } else if (is_invalid_stellar_address(next->extend_info->stellar_address)) {
+                log_notice(LD_HTTP, "tp_get_route: Some nodes without stellar address. nodes_count: %zu, hop: %zu", route->nodes_len, i);
+                skip = 1;
+            }
+            if (skip) {
+                tor_free_(route->nodes);
+                route->nodes = NULL;
+                route->nodes_len = 0;
+                break;
+            }
+            strlcpy(route->nodes[i].node_id, next->extend_info->nickname, sizeof(route->nodes[i].node_id));
+            strlcpy(route->nodes[i].address, next->extend_info->stellar_address, sizeof(route->nodes[i].address));
+            next = next->next;
+        }
+        if(0 == route->nodes_len)
+            continue;
+
+        tp_store_session_context(route->sessionId, get_options()->Nickname,
+            circ->n_chan->global_identifier,
+            circ->n_circ_id);
+
+        const size_t resp_size = sizeof(nodes_str) - 1;
+        tp_zero_mem(nodes_str, sizeof(nodes_str));
+        for (size_t i = 0; i < route->nodes_len; i++) {
+            strncat(nodes_str, (i > 0) ? ",[" : "[", resp_size);
+            strncat(nodes_str, route->nodes[i].node_id, resp_size);
+            strncat(nodes_str, ":", resp_size);
+            strncat(nodes_str, route->nodes[i].address, resp_size);
+            strncat(nodes_str, "]", resp_size);
+        }
+        break;
     } SMARTLIST_FOREACH_END(origin_circuit);
 
     char url[100];
