@@ -30,6 +30,7 @@
 #include "lib/evloop/compat_libevent.h"
 #include "core/mainloop/cpuworker.h"
 #include "lib/evloop/workqueue.h"
+#include "feature/client/circpathbias.h"
 #include <ctype.h>
 
 #if defined(__COVERITY__) || defined(__clang_analyzer__)
@@ -1264,21 +1265,28 @@ static void tp_process_payment_message_for_routing(payment_message_for_routing_t
                 circ->n_chan->global_identifier != session_context->channel_global_id)
                 continue;
         } else {
+            log_info(LD_CHANNEL, "get_route try check circuit (%d): %s %s %s",
+                circ->n_circ_id,
+                circuit_state_to_string(circ->state),
+                circuit_purpose_to_string(circ->purpose),
+                pathbias_state_to_string(origin_circuit->path_state));
+
             if (circ->state != CIRCUIT_STATE_OPEN) {
-                log_warn(LD_CHANNEL, "circuit (%d) - was not opened:",
+                log_info(LD_CHANNEL, "circuit (%d) - was not opened:",
                         circ->n_circ_id);
                 continue;
             }
-            if (circ->purpose != CIRCUIT_PURPOSE_C_GENERAL) {
-                log_warn(LD_CHANNEL, "circuit (%d) - purpose was not general:",
+            if (circ->purpose != CIRCUIT_PURPOSE_C_GENERAL &&
+                circ->purpose != CIRCUIT_PURPOSE_C_REND_JOINED) {
+                log_info(LD_CHANNEL, "circuit (%d) - purpose was not general or joined rend:",
                         circ->n_circ_id);
                 continue;
             }
-            if (origin_circuit->path_state != PATH_STATE_BUILD_SUCCEEDED) {
-                log_warn(LD_CHANNEL, "circuit (%d) - path was not use succeeded:",
-                        circ->n_circ_id);
-                continue;
-            }
+            // if (origin_circuit->path_state != PATH_STATE_BUILD_SUCCEEDED) {
+            //     log_info(LD_CHANNEL, "circuit (%d) - path was not use succeeded:",
+            //             circ->n_circ_id);
+            //     continue;
+            // }
             payment_session_context_t* context = get_from_session_context(circ->n_chan->global_identifier, circ->n_circ_id);
             if (context) {
                 continue;
