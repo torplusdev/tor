@@ -13,7 +13,7 @@ if [[ "${role}" = "hs_client" ]]; then
   chmod -R u=rwx,g=-,o=- $HOME/tor/
   chmod u=rwx,g=-,o=- $HOME/tor/hidden_service/hsv3
 fi
-cat configs/${role}_torrc.tmpl | envsubst > /usr/local/etc/tor/torrc
+#cat configs/${role}_torrc.tmpl | envsubst > /usr/local/etc/tor/torrc
 echo "SHOW CONFIG: cat /usr/local/etc/tor/torrc"
 ../src/app/tor -f /usr/local/etc/tor/torrc
 
