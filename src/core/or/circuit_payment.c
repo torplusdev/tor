@@ -47,12 +47,6 @@ const static int sendmecell_deadcode_dummy__ = 0;
       goto label;                                                \
     }                                                            \
   } while (0)
-#define CHECK_EXPRESSION(expsn, label)                           \
-  do {                                                           \
-    if ((!(expsn)) OR_DEADCODE_DUMMY) {                \
-      goto label;                                                \
-    }                                                            \
-  } while (0)
 
 #define CHUNK_SIZE (MAX_MESSAGE_LEN - 1)
 
@@ -348,22 +342,6 @@ int is_invalid_stellar_address(const char *addr)
             return -4;
     }
     return 0;
-}
-
-int tp_validate_stellar_address(char *addr)
-{
-    if (!addr)
-        return -1;
-    const int rc = is_invalid_stellar_address(addr);
-    if (rc)
-        tp_zero_mem(addr, STELLAR_ADDRESS_LEN);
-    return rc;
-}
-
-int tp_copy_and_check_stellar_address(crypt_path_t *cpath, const char *src)
-{
-    strlcpy(cpath->extend_info->stellar_address, src, STELLAR_ADDRESS_LEN);
-    return tp_validate_stellar_address(cpath->extend_info->stellar_address);
 }
 
 static const char* tp_get_address(void)

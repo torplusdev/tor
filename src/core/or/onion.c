@@ -49,7 +49,6 @@
 #include "feature/nodelist/networkstatus.h"
 
 #include "core/or/cell_st.h"
-#include "core/or/circuit_payment.h"
 
 // trunnel
 #include "trunnel/ed25519_cert.h"
@@ -200,7 +199,7 @@ check_created_cell(const created_cell_t *cell)
       return -1;
     break;
   }
-  tp_validate_stellar_address((char *)cell->stellar_address);
+
   return 0;
 }
 
