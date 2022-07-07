@@ -1264,7 +1264,9 @@ static void tp_process_payment_message_for_routing(payment_message_for_routing_t
 
         crypt_path_t *next = origin_circuit->cpath;
         route->nodes_len = circuit_get_length(origin_circuit);
-        route->nodes = (rest_node_t *) tor_malloc_(route->nodes_len * sizeof(rest_node_t));
+        if(0 == route->nodes_len)
+            continue;
+        route->nodes = (rest_node_t *) tor_malloc_zero(route->nodes_len * sizeof(rest_node_t));
         for (size_t i = 0; i < route->nodes_len; ++i) {
             int skip = 0;
             if (route->exclude_address && strcmp(route->exclude_address, next->extend_info->stellar_address) == 0) {
@@ -1278,17 +1280,22 @@ static void tp_process_payment_message_for_routing(payment_message_for_routing_t
                 skip = 1;
             }
             if (skip) {
-                tor_free_(route->nodes);
-                route->nodes = NULL;
-                route->nodes_len = 0;
-                break;
+                route->nodes_len--;
+                i--;
+                next = next->next;
+                continue;
             }
             strlcpy(route->nodes[i].node_id, next->extend_info->nickname, sizeof(route->nodes[i].node_id));
             strlcpy(route->nodes[i].address, next->extend_info->stellar_address, sizeof(route->nodes[i].address));
             next = next->next;
         }
-        if(0 == route->nodes_len)
+        if(0 == route->nodes_len) {
+            if (route->nodes) {
+                tor_free_(route->nodes);
+                route->nodes = NULL;
+            }
             continue;
+        }
 
         tp_store_session_context(route->sessionId, get_options()->Nickname,
             circ->n_chan->global_identifier,
