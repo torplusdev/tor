@@ -2484,6 +2484,10 @@ onion_extend_cpath(origin_circuit_t *circ)
   if (cur_len == state->desired_path_len - 1) { /* Picking last node */
     info = extend_info_dup(state->chosen_exit);
   } else if (cur_len == 0) { /* picking first node */
+    const or_options_t *options = get_options();
+    if (options->OneHopNodes) { // onehop tor+
+      info = extend_info_dup(state->chosen_exit);
+    } else {
     const node_t *r = choose_good_entry_server(purpose, state,
                                                &circ->guard_state);
     if (r) {
@@ -2495,11 +2499,17 @@ onion_extend_cpath(origin_circuit_t *circ)
       /* Clients can fail to find an allowed address */
       tor_assert_nonfatal(info || client);
     }
+    }
   } else {
+    const or_options_t *options = get_options();
+    if (options->OneHopNodes) { // onehop tor+
+      info = extend_info_dup(state->chosen_exit);
+    } else {
     const node_t *r =
       choose_good_middle_server(purpose, state, circ->cpath, cur_len);
     if (r) {
       info = extend_info_from_node(r, 0);
+    }
     }
   }
 

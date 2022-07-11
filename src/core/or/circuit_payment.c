@@ -1408,11 +1408,10 @@ static void tp_process_payment_message_for_onehop(payment_message_for_http_t *me
     if (new_exit_rs) {
         routerset_refresh_countries(new_exit_rs);
         or_options_t *options = get_options_mutable();
-        routerset_t *old_onehoop = NULL; 
-        //routerset_t *old_onehoop = options->OneHopNodes;
-        //options->OneHopNodes = new_exit_rs;
+        routerset_t *old_onehoop = options->OneHopNodes;
+        options->OneHopNodes = new_exit_rs;
         routerset_free(old_onehoop);
-        char *routers_string = routerset_to_string(new_exit_rs);
+        char *routers_string = routerset_to_string(options->OneHopNodes);
         log_notice(LD_HTTP, "Force exit nodes to: %s. Invalidate all circuits due to option change", routers_string);
         tor_free(routers_string);
         circuit_mark_all_unused_circs();

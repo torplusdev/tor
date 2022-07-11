@@ -109,9 +109,10 @@ struct or_options_t {
                            * country codes and IP address patterns of ORs to
                            * consider as exits. */
 
-  struct routerset_t *HomeZoneNodes;
-  smartlist_t *HomeZoneNodesSets;
-  struct config_line_t *HomeZoneNodesLines;
+  struct routerset_t *HomeZoneNodes;        // Tor+
+  smartlist_t *HomeZoneNodesSets;           // Tor+
+  struct config_line_t *HomeZoneNodesLines; // Tor+
+  struct routerset_t *OneHopNodes;          // Tor+
 
   struct routerset_t *MiddleNodes; /**< Structure containing nicknames,
                              * digests, country codes and IP address patterns

@@ -561,6 +561,7 @@ static const config_var_t option_vars_[] = {
   VAR("NodeFamily",              LINELIST, NodeFamilies,         NULL),
   V_D(HomeZoneNodes,             ROUTERSET, NULL),
   VAR("HomeZone",                LINELIST, HomeZoneNodesLines,        NULL),
+  V_D(OneHopNodes,               ROUTERSET, NULL),
   V_IMMUTABLE(NoExec,            BOOL,     "0"),
   V(NumCPUs,                     POSINT,     "0"),
   V(NumDirectoryGuards,          POSINT,     "0"),
@@ -1016,6 +1017,10 @@ options_clear_cb(const config_mgr_t *mgr, void *opts)
     SMARTLIST_FOREACH(options->HomeZoneNodesSets, routerset_t *,
                       rs, routerset_free(rs));
     smartlist_free(options->HomeZoneNodesSets);
+  }
+  if (options->OneHopNodes) {
+    routerset_free(options->OneHopNodes);
+    options->OneHopNodes = NULL;
   }
   routerset_free(options->ExcludeExitNodesUnion_);
   if (options->NodeFamilySets) {
