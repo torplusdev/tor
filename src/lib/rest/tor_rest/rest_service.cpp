@@ -277,6 +277,7 @@ bool tor_rest_service::handle(rest_request& req)
 		}
 		else if (NULL != m_handler) {
 			tor_http_api_request_t request;
+			std::memset(&request, 0, sizeof(request));
 			request.method = req.method.c_str();
 			request.url = req.url.c_str();
 			request.body = req.body.c_str();
