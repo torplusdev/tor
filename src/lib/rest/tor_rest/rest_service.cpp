@@ -57,13 +57,16 @@ tor_rest_service::tor_rest_service(void (* routeFunction)(tor_route *route),
 		int (* commandProcessingReplayFunction)(tor_command_replay* command),
 		int (*commandProcessingCompletedFunction)(payment_completed *command),
 		void (*log_function)(const char *message),
-		const char *app_version_string /*= NULL*/)
+		const char *app_version_string /*= NULL*/,
+		int (*handler)(tor_http_api_request_t *) /* = nullptr*/
+	)
 {
 	m_routeCreator = routeFunction;
 	m_commandProcessor = commandProcessingFunction;
 	m_commandProcessorReplay = commandProcessingReplayFunction;
     m_commandProcessingCompleted = commandProcessingCompletedFunction;
 	m_log_handler = log_function;
+	m_handler = handler;
 	if(NULL != app_version_string)
 		app_version = app_version_string;
 }
@@ -271,6 +274,51 @@ bool tor_rest_service::handle(rest_request& req)
 	    else if (req.url.rfind("/api/version",0) == 0) {
 
 	    	return req.respond("text/plain", app_version);
+		}
+		else if (NULL != m_handler) {
+			tor_http_api_request_t request;
+			request.method = req.method.c_str();
+			request.url = req.url.c_str();
+			request.body = req.body.c_str();
+			vector<tor_http_api_request_param_t> params;
+			if(req.params.size()) {
+				request.param_count = req.params.size();
+				params.resize(request.param_count);
+				request.params = params.data();
+				size_t i = 0;
+				for (auto& p : req.params) {
+					request.params[i].name = p.first.c_str();
+					request.params[i].value = p.second.c_str();
+					i++;
+				}
+			}
+			int rc =  m_handler(&request);
+			switch (rc){
+			case 0:
+				if (request.answer_body) {
+					return req.respond("application/json", request.answer_body);
+				} else
+				return req.respond("application/json", "{\"result\":\"success\"}");
+			case -1:
+				return req.respond("application/json", "{\"result\":\"wrong method\"}");
+			case -2:
+				return req.respond("application/json", "{\"result\":\"wrong url\"}");
+			case -3:
+				return req.respond("application/json", "{\"result\":\"wrong body\"}");
+			case -4:
+				return req.respond("application/json", "{\"result\":\"wrong json\"}");
+			case -5:
+				return req.respond("application/json", "{\"result\":\"wrong parameter\"}");
+			case -6:
+				return req.respond("application/json", "{\"result\":\"wrong empty/nil parameter\"}");
+			case -7:
+				return req.respond("application/json", "{\"result\":\"wrong parameter format\"}");
+			default:
+				return req.respond("application/json", "{\"result\":\"unknown answer\"}");
+			}
+			if(request.release && request.answer_body) {
+				request.release(request.answer_body);
+			}
 		}
         else
         {

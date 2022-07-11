@@ -17,6 +17,7 @@
 #include "core/or/circuit_st.h"
 #include "core/or/origin_circuit_st.h"
 #include "feature/nodelist/routerstatus_st.h"
+#include "feature/nodelist/routerset.h"
 #include "feature/nodelist/node_st.h"
 #include "core/or/cell_st.h"
 #include "core/or/extend_info_st.h"
@@ -54,7 +55,7 @@ static smartlist_t *global_payment_session_list = NULL;
 static smartlist_t *global_chunks_list = NULL;
 
 static smartlist_t *global_payment_messsages = NULL;
-static smartlist_t *global_payment_route_messsages = NULL;
+static smartlist_t *global_payment_api_messsages = NULL;
 static tor_mutex_t global_payment_mutex;
 static tor_cond_t global_payment_cond;
 
@@ -89,6 +90,21 @@ static int circuit_get_length(origin_circuit_t * circ)
     return n;
 }
 
+static int tp_send_http_api_request(payment_message_for_http_t *request)
+{
+    request->done = 0;
+    tor_mutex_acquire(&global_payment_mutex);
+    smartlist_add(global_payment_api_messsages, request);
+    int rc = 0;
+    while(0 == (rc = tor_cond_wait(&global_payment_cond, &global_payment_mutex, NULL))) {
+        if (request->done)
+            break;
+    }
+    tor_mutex_release(&global_payment_mutex);
+
+    return rc;
+}
+
 // HTTP CALLBACK
 static void tp_get_route(tor_route *route)
 {
@@ -101,16 +117,11 @@ static void tp_get_route(tor_route *route)
     route->status_call_back_url = s_cb_url_api_paymentComplete;
     route->nodes = NULL;
 
-    payment_message_for_routing_t message;
-    message.route = route;
-    message.done = 0;
-    tor_mutex_acquire(&global_payment_mutex);
-    smartlist_add(global_payment_route_messsages, &message);
-    while(0 == tor_cond_wait(&global_payment_cond, &global_payment_mutex, NULL)) {
-        if (message.done)
-            break;
-    }
-    tor_mutex_release(&global_payment_mutex);
+    payment_message_for_http_t message;
+    tp_zero_mem(&message, sizeof(message));
+    message.msg_type = HTTP_API_REQUEST_GET_ROUTE;
+    message.msg = route;
+    tp_send_http_api_request(&message);
 }
 
 // HTTP CALLBACK
@@ -371,7 +382,7 @@ void tp_init_lists(void)
     tor_mutex_init_for_cond(&global_payment_mutex);
     tor_cond_init(&global_payment_cond);
     global_payment_messsages = smartlist_new();
-    global_payment_route_messsages = smartlist_new();
+    global_payment_api_messsages = smartlist_new();
     global_payment_session_list = smartlist_new();
     global_chunks_list = smartlist_new();
 }
@@ -389,6 +400,92 @@ static void tp_init_timer(void)
 static void tp_deinit_timer(void)
 {
     periodic_timer_free(s_limit_refresh_timer);
+}
+
+static int tp_rest_api_versionex(tor_http_api_request_t *request)
+{
+    json_object* json = json_object_new_object();
+    json_object_object_add(json, "VersionString", json_object_new_string(get_version()));
+    json_object_object_add(json, "NodeId", json_object_new_string(get_options()->Nickname));
+    if (get_options()->StellarAddress)
+        json_object_object_add(json, "StellarAddress", json_object_new_string(get_options()->StellarAddress));
+
+    if (request->param_count) {
+        json_object* params = json_object_new_object();
+        for (size_t i = 0; i < request->param_count; i++) {
+            json_object_object_add(params, request->params[i].name, json_object_new_string(request->params[i].value));
+        }
+        json_object_object_add(json, "RequestParams", params);
+    }
+    request->answer_body = tor_strdup(json_object_to_json_string(json));
+    json_object_put(json);
+    return 0;
+}
+
+static int tp_rest_api_onehop_handler(tor_http_api_request_t *request)
+{
+    if (!request->body)
+        return -3;
+    int rc = 0;
+    log_notice(LD_HTTP, "/onehop request: %s", request->body);
+    struct json_object *json = NULL;
+    do {
+        enum json_tokener_error jerr = json_tokener_success;
+        json = json_tokener_parse_verbose(request->body, &jerr);
+        if (jerr != json_tokener_success) {
+            log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), request->body);
+            rc = -4;
+            break;
+        }
+        struct json_object *OneHopNodesObj = NULL;
+        if (!json_object_object_get_ex(json, "Nodes", &OneHopNodesObj)){
+            rc = -5;
+            break;
+        }
+        const char *OneHopNodes = json_object_get_string(OneHopNodesObj);
+        if (NULL == OneHopNodes) {
+            rc = -6;
+            break;
+        }
+        routerset_t *exit_rs = routerset_new();
+        if (routerset_parse(exit_rs, OneHopNodes, "OneHopNodes") == 0) {
+            payment_message_for_http_t request;
+            tp_zero_mem(&request, sizeof(request));
+            request.msg_type = HTTP_API_REQUEST_ONEHOP;
+            request.msg = exit_rs;
+            tp_send_http_api_request(&request);
+        } else {
+            routerset_free(exit_rs);
+            rc = -7;
+            break;
+        }
+        rc = 0;
+    } while(false);
+    if (json)
+        json_object_put(json);
+    return rc;
+}
+
+static int tp_rest_handler(tor_http_api_request_t *request)
+{
+    if (!request || !request->method)
+        return  -1;
+    if (!request->url)
+        return -2;
+    int rc = 0;
+    request->release = tor_free_;
+    if (!strcasecmp(request->method, "GET")) {
+        if (!strcasecmp(request->url, "/api/versionex"))
+            return tp_rest_api_versionex(request);
+        else
+            return -2; // wrong url
+    } else if (!strcasecmp(request->method, "POST")) {
+        if (!strcasecmp(request->url, "/api/onehop"))
+            return tp_rest_api_onehop_handler(request);
+        else
+            return -2; // wrong url
+    }
+    return -1; // wrong method
 }
 
 void tp_init(void)
@@ -417,7 +514,7 @@ void tp_init(void)
     const int ppcb_port = get_options()->PPChannelCallbackPort;
     if ( ppcb_port != -1 ) {
         const char *server_version_string = get_version();
-        runServer(ppcb_port, tp_get_route, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, server_version_string);
+        runServer(ppcb_port, tp_get_route, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, server_version_string, tp_rest_handler);
     }
 
     tp_init_timer();
@@ -1205,12 +1302,12 @@ int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t 
     return 0;
 }
 
-static void tp_process_payment_message_for_routing(payment_message_for_routing_t *route_message)
+static void tp_process_payment_message_for_routing(payment_message_for_http_t *route_message)
 {
-    if (!route_message)
+    if (!route_message || route_message->msg_type != HTTP_API_REQUEST_GET_ROUTE)
         return;
 
-    tor_route *route = (tor_route *)route_message->route;
+    tor_route *route = (tor_route *)route_message->msg;
     if (!route){
         route_message->done = 1;
         return;
@@ -1312,6 +1409,31 @@ static void tp_process_payment_message_for_routing(payment_message_for_routing_t
     route_message->done = 1;
 }
 
+static void tp_process_payment_message_for_onehop(payment_message_for_http_t *message)
+{
+    if (!message || message->msg_type != HTTP_API_REQUEST_ONEHOP)
+        return;
+
+    routerset_t *new_exit_rs = (routerset_t *)message->msg;
+
+    if (new_exit_rs) {
+        routerset_refresh_countries(new_exit_rs);
+        or_options_t *options = get_options_mutable();
+        routerset_t *old_onehoop = NULL; 
+        //routerset_t *old_onehoop = options->OneHopNodes;
+        //options->OneHopNodes = new_exit_rs;
+        routerset_free(old_onehoop);
+        char *routers_string = routerset_to_string(new_exit_rs);
+        log_notice(LD_HTTP, "Force exit nodes to: %s. Invalidate all circuits due to option change", routers_string);
+        tor_free(routers_string);
+        circuit_mark_all_unused_circs();
+        circuit_mark_all_dirty_circs_as_unusable();
+    }
+
+    message->done = 1;
+}
+
+
 static void tp_timer_callback(periodic_timer_t *timer, void *data)
 {
     (void) timer; (void) data;
@@ -1373,14 +1495,21 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
     smartlist_clear(global_payment_messsages);
 
     int done = 0;
-    SMARTLIST_FOREACH_BEGIN(global_payment_route_messsages, payment_message_for_routing_t*, route_message) {
-        tp_process_payment_message_for_routing(route_message);
-        if (route_message && route_message->done)
+    SMARTLIST_FOREACH_BEGIN(global_payment_api_messsages, payment_message_for_http_t*, http_api_message) {
+        switch (http_api_message->msg_type) {
+            case HTTP_API_REQUEST_ONEHOP:
+                tp_process_payment_message_for_onehop(http_api_message);
+                break;
+            case HTTP_API_REQUEST_GET_ROUTE:
+                tp_process_payment_message_for_routing(http_api_message);
+                break;
+        }
+        if (http_api_message) {
+            http_api_message->done = 1;
             done = 1;
-    } SMARTLIST_FOREACH_END(route_message);
-
-    smartlist_clear(global_payment_route_messsages);
-
+        }
+    } SMARTLIST_FOREACH_END(http_api_message);
+    smartlist_clear(global_payment_api_messsages);
     tor_mutex_release(&global_payment_mutex);
 
     if (done)

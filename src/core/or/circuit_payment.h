@@ -86,10 +86,17 @@ typedef struct chunk_payment_st {
     list_of_chunks_t list[50];
 }chunk_payment_t;
 
-typedef struct payment_message_for_routing_st {
-    void *route;
+
+typedef enum {
+    HTTP_API_REQUEST_GET_ROUTE,
+    HTTP_API_REQUEST_ONEHOP
+} payment_http_request_t;
+
+typedef struct payment_message_for_http_st {
+    payment_http_request_t msg_type;
+    void *msg;
     int done;
-} payment_message_for_routing_t;
+} payment_message_for_http_t;
 
 
 // public API

@@ -27,6 +27,21 @@ typedef struct tor_route {
     const char* status_call_back_url; 		// process command url
 } tor_route;
 
+typedef struct tor_http_api_request_param_st{
+    const char *name;
+    const char *value;
+} tor_http_api_request_param_t;
+
+typedef struct tor_http_api_request_st {
+    const char *method;
+    const char *url;
+    const char *body;
+    size_t param_count;
+    tor_http_api_request_param_t *params;
+    char *answer_body;
+    void(*release)(void *);
+} tor_http_api_request_t;
+
 typedef struct tor_command {
     const char * commandBody;
     const char * commandId;
@@ -62,7 +77,8 @@ int runServer(
         int (*commandProcessingReplayFunction)(tor_command_replay *command),
         int (*commandProcessingCompletedFunction)(payment_completed *command),
         void (*log_function)(const char *message),
-        const char *appVersionString /*= NULL*/
+        const char *appVersionString /*= NULL*/,
+        int (*handler)(tor_http_api_request_t *request) /* = nullptr*/
     );
 int stopServer(void);
 

@@ -111,7 +111,7 @@ static size_t curl_callback (void *contents, size_t size, size_t nmemb, void *us
     struct curl_fetch_st *p = (struct curl_fetch_st *) userp;   /* cast pointer to fetch struct */
 
     /* expand buffer */
-    p->payload = (char *) realloc(p->payload, p->size + realsize + 1);
+    p->payload = (char *) tor_realloc_(p->payload, p->size + realsize + 1);
 
     /* check buffer */
     if (p->payload == NULL) {
@@ -237,8 +237,7 @@ json_object* tp_http_get_request(const char* url_input)
     CURL *ch;                                               /* curl handle */
     CURLcode rcode;                                         /* curl result code */
     enum json_tokener_error jerr = json_tokener_success;    /* json parse error */
-    struct curl_fetch_st curl_fetch;                        /* curl fetch struct */
-    struct curl_fetch_st *cf = &curl_fetch;                 /* pointer to fetch struct */
+    struct curl_fetch_st cf;                        /* curl fetch struct */
     struct curl_slist *headers = NULL;                      /* http headers to send with request */
 
     /* init curl handle */
@@ -256,7 +255,7 @@ json_object* tp_http_get_request(const char* url_input)
     curl_easy_setopt(ch, CURLOPT_HTTPHEADER, headers);
 
     /* fetch page and capture return code */
-    rcode = curl_fetch_url(ch, url_input, cf);
+    rcode = curl_fetch_url(ch, url_input, &cf);
 
     /* cleanup curl handle */
     curl_easy_cleanup(ch);
@@ -269,9 +268,9 @@ json_object* tp_http_get_request(const char* url_input)
         return NULL;
     }
 
-    if (cf->payload != NULL) {
-        log_notice(LD_HTTP, "CURL Returned: \n%s\n", cf->payload);
-        json_object* json = json_tokener_parse_verbose(cf->payload, &jerr);
+    if (cf.payload != NULL) {
+        log_notice(LD_HTTP, "CURL Returned: \n%s\n", cf.payload);
+        json_object* json = json_tokener_parse_verbose(cf.payload, &jerr);
         if (jerr != json_tokener_success) { // error
             log_err(LD_HTTP, "Failed to parse json string, parser said: %s", json_tokener_error_desc(jerr));
             return NULL;
@@ -279,7 +278,7 @@ json_object* tp_http_get_request(const char* url_input)
         return json;
     } else { // error
         log_err(LD_HTTP, "Failed to populate payload");
-        free(cf->payload);
+        free(cf.payload);
         return NULL;
     }
     return NULL;
