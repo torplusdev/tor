@@ -404,25 +404,14 @@ static void tp_deinit_timer(void)
 
 static int tp_rest_api_versionex(tor_http_api_request_t *request)
 {
-    json_object* json = json_object_new_object();
-    json_object_object_add(json, "VersionString", json_object_new_string(get_version()));
-    json_object_object_add(json, "NodeId", json_object_new_string(get_options()->Nickname));
-    if (get_options()->StellarAddress)
-        json_object_object_add(json, "StellarAddress", json_object_new_string(get_options()->StellarAddress));
-
-    if (request->param_count) {
-        json_object* params = json_object_new_object();
-        for (size_t i = 0; i < request->param_count; i++) {
-            json_object_object_add(params, request->params[i].name, json_object_new_string(request->params[i].value));
-        }
-        json_object_object_add(json, "RequestParams", params);
-    }
-    request->answer_body = tor_strdup(json_object_to_json_string(json));
-    json_object_put(json);
-    return 0;
+    payment_message_for_http_t message;
+    tp_zero_mem(&message, sizeof(message));
+    message.msg_type = HTTP_API_REQUEST_VERSIONEX;
+    message.msg = request;
+    return tp_send_http_api_request(&message);
 }
 
-static int tp_rest_api_onehop_handler(tor_http_api_request_t *request)
+static int tp_rest_api_onehop(tor_http_api_request_t *request)
 {
     if (!request->body)
         return -3;
@@ -481,7 +470,7 @@ static int tp_rest_handler(tor_http_api_request_t *request)
             return -2; // wrong url
     } else if (!strcasecmp(request->method, "POST")) {
         if (!strcasecmp(request->url, "/api/onehop"))
-            return tp_rest_api_onehop_handler(request);
+            return tp_rest_api_onehop(request);
         else
             return -2; // wrong url
     }
@@ -1433,6 +1422,30 @@ static void tp_process_payment_message_for_onehop(payment_message_for_http_t *me
     message->done = 1;
 }
 
+static void tp_process_payment_message_for_versionex(payment_message_for_http_t *message)
+{
+    if (!message || message->msg_type != HTTP_API_REQUEST_VERSIONEX)
+        return;
+    tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
+
+    json_object* json = json_object_new_object();
+    json_object_object_add(json, "VersionString", json_object_new_string(get_version()));
+    json_object_object_add(json, "NodeId", json_object_new_string(get_options()->Nickname));
+    if (get_options()->StellarAddress)
+        json_object_object_add(json, "StellarAddress", json_object_new_string(get_options()->StellarAddress));
+
+    if (request->param_count) {
+        json_object* params = json_object_new_object();
+        for (size_t i = 0; i < request->param_count; i++) {
+            json_object_object_add(params, request->params[i].name, json_object_new_string(request->params[i].value));
+        }
+        json_object_object_add(json, "RequestParams", params);
+    }
+    request->answer_body = tor_strdup(json_object_to_json_string(json));
+    json_object_put(json);
+
+    message->done = 1;
+}
 
 static void tp_timer_callback(periodic_timer_t *timer, void *data)
 {
@@ -1502,6 +1515,9 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
                 break;
             case HTTP_API_REQUEST_GET_ROUTE:
                 tp_process_payment_message_for_routing(http_api_message);
+                break;
+            case HTTP_API_REQUEST_VERSIONEX:
+                tp_process_payment_message_for_versionex(http_api_message);
                 break;
         }
         if (http_api_message) {

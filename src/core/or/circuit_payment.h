@@ -89,7 +89,8 @@ typedef struct chunk_payment_st {
 
 typedef enum {
     HTTP_API_REQUEST_GET_ROUTE,
-    HTTP_API_REQUEST_ONEHOP
+    HTTP_API_REQUEST_ONEHOP,
+    HTTP_API_REQUEST_VERSIONEX
 } payment_http_request_t;
 
 typedef struct payment_message_for_http_st {
