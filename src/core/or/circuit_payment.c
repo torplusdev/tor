@@ -90,6 +90,27 @@ static int circuit_get_length(origin_circuit_t * circ)
     return n;
 }
 
+typedef enum {
+    HTTP_API_REQUEST_GET_ROUTE,
+    HTTP_API_REQUEST_ONEHOP,
+    HTTP_API_REQUEST_VERSIONEX,
+    HTTP_API_REQIEST_MAX
+} payment_http_request_t;
+
+typedef struct payment_message_for_http_st {
+    payment_http_request_t msg_type;
+    void *msg;
+    int done;
+} payment_message_for_http_t;
+
+typedef struct payment_message_for_http_handler_st {
+    payment_http_request_t msg_type;
+    void (*handler_fn)(payment_message_for_http_t *message);
+    int (*request_fn)(tor_http_api_request_t *request);
+    const char *method;
+    const char *url;
+} payment_message_for_http_handler_t;
+
 static int tp_send_http_api_request(payment_message_for_http_t *request)
 {
     request->done = 0;
@@ -455,27 +476,7 @@ static int tp_rest_api_onehop(tor_http_api_request_t *request)
     return rc;
 }
 
-static int tp_rest_handler(tor_http_api_request_t *request)
-{
-    if (!request || !request->method)
-        return  -1;
-    if (!request->url)
-        return -2;
-    int rc = 0;
-    request->release = tor_free_;
-    if (!strcasecmp(request->method, "GET")) {
-        if (!strcasecmp(request->url, "/api/versionex"))
-            return tp_rest_api_versionex(request);
-        else
-            return -2; // wrong url
-    } else if (!strcasecmp(request->method, "POST")) {
-        if (!strcasecmp(request->url, "/api/onehop"))
-            return tp_rest_api_onehop(request);
-        else
-            return -2; // wrong url
-    }
-    return -1; // wrong method
-}
+static int tp_rest_handler(tor_http_api_request_t *request);
 
 void tp_init(void)
 {
@@ -1446,6 +1447,40 @@ static void tp_process_payment_message_for_versionex(payment_message_for_http_t 
     message->done = 1;
 }
 
+static const  payment_message_for_http_handler_t global_http_api_handlers[] = {
+    { HTTP_API_REQUEST_ONEHOP,
+        tp_process_payment_message_for_onehop,
+        tp_rest_api_onehop,
+        "POST", "/api/onehop"  },
+    { HTTP_API_REQUEST_VERSIONEX,
+        tp_process_payment_message_for_versionex,
+        tp_rest_api_versionex,
+        "GET", "/api/versionex" },
+    { HTTP_API_REQUEST_GET_ROUTE,
+        tp_process_payment_message_for_routing,
+        NULL/*tp_rest_api_routing*/,
+        "GET", "/api/paymentRoute/" } // TODO: incomplete
+};
+
+static int tp_rest_handler(tor_http_api_request_t *request)
+{
+    if (!request || !request->method)
+        return  -1;
+    if (!request->url)
+        return -2;
+    int rc = 0;
+    for (size_t i = 0; i < HTTP_API_REQIEST_MAX; i++) {
+        if (strcasecmp(request->method, global_http_api_handlers[i].method))
+            continue;
+        if (strcasecmp(request->url, global_http_api_handlers[i].url))
+            continue;
+        if (!request->release)
+            request->release = tor_free_;
+        return global_http_api_handlers[i].request_fn(request);
+    }
+    return -2; // wrong url
+}
+
 static void tp_timer_callback(periodic_timer_t *timer, void *data)
 {
     (void) timer; (void) data;
@@ -1508,18 +1543,13 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
 
     int done = 0;
     SMARTLIST_FOREACH_BEGIN(global_payment_api_messsages, payment_message_for_http_t*, http_api_message) {
-        switch (http_api_message->msg_type) {
-            case HTTP_API_REQUEST_ONEHOP:
-                tp_process_payment_message_for_onehop(http_api_message);
-                break;
-            case HTTP_API_REQUEST_GET_ROUTE:
-                tp_process_payment_message_for_routing(http_api_message);
-                break;
-            case HTTP_API_REQUEST_VERSIONEX:
-                tp_process_payment_message_for_versionex(http_api_message);
-                break;
-        }
         if (http_api_message) {
+            for ( size_t i = 0; i < HTTP_API_REQIEST_MAX; i++ ) {
+                if (global_http_api_handlers[i].msg_type == http_api_message->msg_type) {
+                    global_http_api_handlers[i].handler_fn(http_api_message);
+                    break;
+                }
+            }
             http_api_message->done = 1;
             done = 1;
         }

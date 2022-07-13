@@ -565,10 +565,10 @@ router_can_choose_node(const node_t *node, int flags)
   const or_options_t *options = get_options();
   if (options->OneHopNodes){
     if (!routerset_contains_node(options->OneHopNodes, node)) {
-      log_info(LD_CIRC, "Cant choose node for OneHope: %s", node_get_nickname(node));
+      log_info(LD_CIRC, "Cant choose node for OneHop: %s", node_get_nickname(node));
       return false;
     } else {
-      log_info(LD_CIRC, "Node in OneHopeNodes: %s", node_get_nickname(node));
+      log_info(LD_CIRC, "Node in OneHopNodes: %s", node_get_nickname(node));
     }
   }
 
