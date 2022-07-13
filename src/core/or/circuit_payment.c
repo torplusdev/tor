@@ -92,25 +92,17 @@ static int circuit_get_length(origin_circuit_t * circ)
     return n;
 }
 
-typedef enum {
-    HTTP_API_REQUEST_ONEHOP,
-    HTTP_API_REQUEST_VERSIONEX,
-    HTTP_API_REQUEST_GET_ROUTE,
-    HTTP_API_REQIEST_MAX
-} payment_http_request_t;
-
 typedef struct payment_message_for_http_st {
-    payment_http_request_t msg_type;
+    const char *url_part;
     void *msg;
     int done;
 } payment_message_for_http_t;
 
 typedef struct payment_message_for_http_handler_st {
-    payment_http_request_t msg_type;
-    void (*handler_fn)(payment_message_for_http_t *message);
-    int (*request_fn)(tor_http_api_request_t *request);
     const char *method;
     const char *url;
+    void (*handler_fn)(payment_message_for_http_t *message);
+    int (*request_fn)(const char *url_part, tor_http_api_request_t *request);
 } payment_message_for_http_handler_t;
 
 static int tp_send_http_api_request(payment_message_for_http_t *request)
@@ -142,7 +134,7 @@ static void tp_get_route(tor_route *route)
 
     payment_message_for_http_t message;
     tp_zero_mem(&message, sizeof(message));
-    message.msg_type = HTTP_API_REQUEST_GET_ROUTE;
+    message.url_part = "/api/paymentRoute/";
     message.msg = route;
     tp_send_http_api_request(&message);
 }
@@ -425,11 +417,11 @@ static void tp_deinit_timer(void)
     periodic_timer_free(s_limit_refresh_timer);
 }
 
-static int tp_rest_api_versionex(tor_http_api_request_t *request)
+static int tp_rest_api_versionex(const char *url_part, tor_http_api_request_t *request)
 {
     payment_message_for_http_t message;
     tp_zero_mem(&message, sizeof(message));
-    message.msg_type = HTTP_API_REQUEST_VERSIONEX;
+    message.url_part = url_part;
     message.msg = request;
     return tp_send_http_api_request(&message);
 }
@@ -440,7 +432,7 @@ typedef struct tor_api_onehop_st {
     int reset;
 } tor_api_onehop_t;
 
-static int tp_rest_api_onehop(tor_http_api_request_t *request)
+static int tp_rest_api_onehop(const char *url_part, tor_http_api_request_t *request)
 {
     if (!request->body)
         return -3;
@@ -473,7 +465,7 @@ static int tp_rest_api_onehop(tor_http_api_request_t *request)
             onehop.reset = !strcmp(OneHopNodes, "");
             payment_message_for_http_t request;
             tp_zero_mem(&request, sizeof(request));
-            request.msg_type = HTTP_API_REQUEST_ONEHOP;
+            request.url_part = url_part;
             request.msg = &onehop;
             tp_send_http_api_request(&request);
         } else {
@@ -1306,7 +1298,7 @@ int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t 
 
 static void tp_process_payment_message_for_routing(payment_message_for_http_t *route_message)
 {
-    if (!route_message || route_message->msg_type != HTTP_API_REQUEST_GET_ROUTE)
+    if (!route_message)
         return;
 
     tor_route *route = (tor_route *)route_message->msg;
@@ -1413,7 +1405,7 @@ static void tp_process_payment_message_for_routing(payment_message_for_http_t *r
 
 static void tp_process_payment_message_for_onehop(payment_message_for_http_t *message)
 {
-    if (!message || message->msg_type != HTTP_API_REQUEST_ONEHOP)
+    if (!message)
         return;
 
     tor_api_onehop_t *onehop = (tor_api_onehop_t *)message->msg;
@@ -1442,7 +1434,7 @@ static void tp_process_payment_message_for_onehop(payment_message_for_http_t *me
 
 static void tp_process_payment_message_for_versionex(payment_message_for_http_t *message)
 {
-    if (!message || message->msg_type != HTTP_API_REQUEST_VERSIONEX)
+    if (!message)
         return;
     tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
 
@@ -1466,18 +1458,15 @@ static void tp_process_payment_message_for_versionex(payment_message_for_http_t 
 }
 
 static const  payment_message_for_http_handler_t global_http_api_handlers[] = {
-    { HTTP_API_REQUEST_ONEHOP,
+    { "POST", "/api/onehop",
         tp_process_payment_message_for_onehop,
-        tp_rest_api_onehop,
-        "POST", "/api/onehop"  },
-    { HTTP_API_REQUEST_VERSIONEX,
+        tp_rest_api_onehop },
+    { "GET", "/api/versionex",
         tp_process_payment_message_for_versionex,
-        tp_rest_api_versionex,
-        "GET", "/api/versionex" },
-    { HTTP_API_REQUEST_GET_ROUTE,
+        tp_rest_api_versionex },
+    { "GET", "/api/paymentRoute/",
         tp_process_payment_message_for_routing,
-        NULL/*tp_rest_api_routing*/,
-        "GET", "/api/paymentRoute/" } // TODO: incomplete
+        NULL/*tp_rest_api_routing*/ } // TODO: incomplete
 };
 
 static int tp_rest_handler(tor_http_api_request_t *request)
@@ -1494,7 +1483,7 @@ static int tp_rest_handler(tor_http_api_request_t *request)
             continue;
         if (!request->release)
             request->release = tor_free_;
-        return global_http_api_handlers[i].request_fn(request);
+        return global_http_api_handlers[i].request_fn(global_http_api_handlers[i].url, request);
     }
     return -2; // wrong url
 }
@@ -1563,7 +1552,7 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
     SMARTLIST_FOREACH_BEGIN(global_payment_api_messsages, payment_message_for_http_t*, http_api_message) {
         if (http_api_message) {
             for ( size_t i = 0; i < NELEMS(global_http_api_handlers); i++ ) {
-                if (global_http_api_handlers[i].msg_type == http_api_message->msg_type) {
+                if (!strcasecmp(global_http_api_handlers[i].url, http_api_message->url_part)) {
                     global_http_api_handlers[i].handler_fn(http_api_message);
                     break;
                 }
