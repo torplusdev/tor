@@ -49,6 +49,8 @@ const static int sendmecell_deadcode_dummy__ = 0;
     }                                                            \
   } while (0)
 
+#define NELEMS(x)  (sizeof(x) / sizeof((x)[0]))
+
 #define CHUNK_SIZE (MAX_MESSAGE_LEN - 1)
 
 static smartlist_t *global_payment_session_list = NULL;
@@ -91,9 +93,9 @@ static int circuit_get_length(origin_circuit_t * circ)
 }
 
 typedef enum {
-    HTTP_API_REQUEST_GET_ROUTE,
     HTTP_API_REQUEST_ONEHOP,
     HTTP_API_REQUEST_VERSIONEX,
+    HTTP_API_REQUEST_GET_ROUTE,
     HTTP_API_REQIEST_MAX
 } payment_http_request_t;
 
@@ -432,6 +434,12 @@ static int tp_rest_api_versionex(tor_http_api_request_t *request)
     return tp_send_http_api_request(&message);
 }
 
+typedef struct tor_api_onehop_st {
+    tor_http_api_request_t *request;
+    routerset_t *nodes;
+    int reset;
+} tor_api_onehop_t;
+
 static int tp_rest_api_onehop(tor_http_api_request_t *request)
 {
     if (!request->body)
@@ -459,10 +467,14 @@ static int tp_rest_api_onehop(tor_http_api_request_t *request)
         }
         routerset_t *exit_rs = routerset_new();
         if (routerset_parse(exit_rs, OneHopNodes, "OneHopNodes") == 0) {
+            tor_api_onehop_t onehop;
+            tp_zero_mem(&onehop, sizeof(onehop));
+            onehop.nodes = exit_rs;
+            onehop.reset = !strcmp(OneHopNodes, "");
             payment_message_for_http_t request;
             tp_zero_mem(&request, sizeof(request));
             request.msg_type = HTTP_API_REQUEST_ONEHOP;
-            request.msg = exit_rs;
+            request.msg = &onehop;
             tp_send_http_api_request(&request);
         } else {
             routerset_free(exit_rs);
@@ -1404,21 +1416,27 @@ static void tp_process_payment_message_for_onehop(payment_message_for_http_t *me
     if (!message || message->msg_type != HTTP_API_REQUEST_ONEHOP)
         return;
 
-    routerset_t *new_exit_rs = (routerset_t *)message->msg;
-
-    if (new_exit_rs) {
-        routerset_refresh_countries(new_exit_rs);
-        or_options_t *options = get_options_mutable();
-        routerset_t *old_onehoop = options->OneHopNodes;
-        options->OneHopNodes = new_exit_rs;
-        routerset_free(old_onehoop);
-        char *routers_string = routerset_to_string(options->OneHopNodes);
-        log_notice(LD_HTTP, "Force exit nodes to: %s. Invalidate all circuits due to option change", routers_string);
-        tor_free(routers_string);
-        circuit_mark_all_unused_circs();
-        circuit_mark_all_dirty_circs_as_unusable();
+    tor_api_onehop_t *onehop = (tor_api_onehop_t *)message->msg;
+    or_options_t *options = get_options_mutable();
+    routerset_t *old_onehoop = options->OneHopNodes;
+    routerset_free(old_onehoop);
+    if (onehop->reset) {
+        options->OneHopNodes = NULL;
+        if (onehop->nodes)
+            routerset_free(onehop->nodes);
+        log_notice(LD_HTTP, "Invalidate all circuits due to OneHopNodes option change");
+    } else {
+        if (onehop->nodes) {
+            routerset_refresh_countries(onehop->nodes);
+            options->OneHopNodes = onehop->nodes;
+            char *routers_string = routerset_to_string(options->OneHopNodes);
+            log_notice(LD_HTTP, "Force exit nodes to: %s. Invalidate all circuits due to option change", routers_string);
+            tor_free(routers_string);
+        }
     }
-
+    onehop->nodes = NULL;
+    circuit_mark_all_unused_circs();
+    circuit_mark_all_dirty_circs_as_unusable();
     message->done = 1;
 }
 
@@ -1469,10 +1487,10 @@ static int tp_rest_handler(tor_http_api_request_t *request)
     if (!request->url)
         return -2;
     int rc = 0;
-    for (size_t i = 0; i < HTTP_API_REQIEST_MAX; i++) {
+    for (size_t i = 0; i < NELEMS(global_http_api_handlers); i++) {
         if (strcasecmp(request->method, global_http_api_handlers[i].method))
             continue;
-        if (strcasecmp(request->url, global_http_api_handlers[i].url))
+        if (strncasecmp(request->url, global_http_api_handlers[i].url, strlen(global_http_api_handlers[i].url)))
             continue;
         if (!request->release)
             request->release = tor_free_;
@@ -1544,7 +1562,7 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
     int done = 0;
     SMARTLIST_FOREACH_BEGIN(global_payment_api_messsages, payment_message_for_http_t*, http_api_message) {
         if (http_api_message) {
-            for ( size_t i = 0; i < HTTP_API_REQIEST_MAX; i++ ) {
+            for ( size_t i = 0; i < NELEMS(global_http_api_handlers); i++ ) {
                 if (global_http_api_handlers[i].msg_type == http_api_message->msg_type) {
                     global_http_api_handlers[i].handler_fn(http_api_message);
                     break;
