@@ -417,7 +417,7 @@ static void tp_deinit_timer(void)
     periodic_timer_free(s_limit_refresh_timer);
 }
 
-static int tp_rest_api_versionex(const char *url_part, tor_http_api_request_t *request)
+static int tp_rest_api_direct(const char *url_part, tor_http_api_request_t *request)
 {
     payment_message_for_http_t message;
     tp_zero_mem(&message, sizeof(message));
@@ -1457,13 +1457,56 @@ static void tp_process_payment_message_for_versionex(payment_message_for_http_t 
     message->done = 1;
 }
 
+static void tp_process_payment_message_for_circuits(payment_message_for_http_t *message)
+{
+    if (!message)
+        return;
+    tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
+    json_object* json = json_object_new_object();
+    json_object* circuits_array = json_object_new_array();
+    smartlist_t *list = circuit_get_global_origin_circuit_list();
+    SMARTLIST_FOREACH_BEGIN(list, origin_circuit_t *, origin_circuit) {
+        if (origin_circuit == NULL)
+            continue;
+        circuit_t * circ = TO_CIRCUIT(origin_circuit);
+        json_object* circuit_json = json_object_new_object();
+        json_object* circuit_path = json_object_new_array();
+        crypt_path_t *cpath, *cpath_next = NULL;
+        for (cpath = origin_circuit->cpath;
+             cpath->state == CPATH_STATE_OPEN && cpath_next != origin_circuit->cpath;
+             cpath = cpath_next) {
+            cpath_next = cpath->next;
+            if(cpath_next->extend_info == NULL)
+                break;
+            json_object* node_json = json_object_new_object();
+            json_object_object_add(node_json, "nodeid", json_object_new_string(cpath->extend_info->nickname));
+            json_object_object_add(node_json, "stellaraddress", json_object_new_string(cpath->extend_info->stellar_address));
+            json_object_array_add(circuit_path, node_json);
+        }
+        json_object_object_add(circuit_json, "path", circuit_path);
+        json_object_object_add(circuit_json, "gid", json_object_new_int64(circ->n_chan->global_identifier));
+        json_object_object_add(circuit_json, "cid", json_object_new_int64(circ->n_circ_id));
+        json_object_object_add(circuit_json, "state", json_object_new_string(circuit_state_to_string(circ->state)));
+        json_object_object_add(circuit_json, "purpose", json_object_new_string(circuit_purpose_to_string(circ->purpose)));
+        json_object_object_add(circuit_json, "pathstate", json_object_new_string(pathbias_state_to_string(origin_circuit->path_state)));
+        json_object_array_add(circuits_array, circuit_json);
+    } SMARTLIST_FOREACH_END(origin_circuit);
+    json_object_object_add(json, "origin", circuits_array);
+    request->answer_body = tor_strdup(json_object_to_json_string(json));
+    json_object_put(json);
+    message->done = 1;
+}
+
 static const  payment_message_for_http_handler_t global_http_api_handlers[] = {
     { "POST", "/api/onehop",
         tp_process_payment_message_for_onehop,
         tp_rest_api_onehop },
     { "GET", "/api/versionex",
         tp_process_payment_message_for_versionex,
-        tp_rest_api_versionex },
+        tp_rest_api_direct },
+    { "GET", "/api/circuits",
+        tp_process_payment_message_for_circuits,
+        tp_rest_api_direct },
     { "GET", "/api/paymentRoute/",
         tp_process_payment_message_for_routing,
         NULL/*tp_rest_api_routing*/ } // TODO: incomplete
