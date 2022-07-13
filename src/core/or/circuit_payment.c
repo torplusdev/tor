@@ -1473,14 +1473,16 @@ static void tp_process_payment_message_for_circuits(payment_message_for_http_t *
         json_object* circuit_path = json_object_new_array();
         crypt_path_t *cpath, *cpath_next = NULL;
         for (cpath = origin_circuit->cpath;
-             cpath->state == CPATH_STATE_OPEN && cpath_next != origin_circuit->cpath;
+             cpath_next != origin_circuit->cpath;
              cpath = cpath_next) {
             cpath_next = cpath->next;
-            if(cpath_next->extend_info == NULL)
-                break;
             json_object* node_json = json_object_new_object();
-            json_object_object_add(node_json, "nodeid", json_object_new_string(cpath->extend_info->nickname));
-            json_object_object_add(node_json, "stellaraddress", json_object_new_string(cpath->extend_info->stellar_address));
+            
+            json_object_object_add(node_json, "state", json_object_new_string(cpath->state == CPATH_STATE_OPEN ? "opened" : "closed"));
+            if(cpath->extend_info != NULL) {
+                json_object_object_add(node_json, "nodeid", json_object_new_string(cpath->extend_info->nickname));
+                json_object_object_add(node_json, "stellaraddress", json_object_new_string(cpath->extend_info->stellar_address));
+            }
             json_object_array_add(circuit_path, node_json);
         }
         json_object_object_add(circuit_json, "path", circuit_path);
