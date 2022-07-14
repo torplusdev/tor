@@ -99,6 +99,7 @@ ssize_t circuit_payment_negotiate_encode(uint8_t *output, const size_t avail, co
 void tp_store_session_context(const char* session, const char* nickname, uint64_t channel_global_id, uint32_t circuit_id);
 payment_session_context_t* get_from_session_context_by_session_id(const char* session);
 void remove_from_session_context(payment_session_context_t* element);
+void tp_free_session_context(uint64_t channel_global_id, circid_t circ_id);
 
 int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ);
 void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number);

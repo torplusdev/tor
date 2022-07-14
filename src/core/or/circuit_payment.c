@@ -13,6 +13,7 @@
 #include "core/or/relay.h"
 #include "core/or/channel.h"
 #include "lib/crypt_ops/crypto_rand.h"
+#include "lib/crypt_ops/crypto_format.h"
 #include "core/or/crypt_path_st.h"
 #include "core/or/circuit_st.h"
 #include "core/or/origin_circuit_st.h"
@@ -933,6 +934,25 @@ void remove_from_session_context(payment_session_context_t* element)
     tor_free_(element);
 }
 
+static void tp_get_sessions(smartlist_t *remove_list, uint64_t channel_global_id, circid_t circ_id)
+{
+    SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
+        if (element->circuit_id == circ_id && element->channel_global_id == channel_global_id) {
+            smartlist_add(remove_list, element);
+        }
+    } SMARTLIST_FOREACH_END(element);
+}
+
+void tp_free_session_context(uint64_t channel_global_id, circid_t circ_id)
+{
+    smartlist_t *remove_list = smartlist_new();
+    tp_get_sessions(remove_list, channel_global_id, circ_id);
+    SMARTLIST_FOREACH_BEGIN(remove_list, payment_session_context_t *, element) {
+        remove_from_session_context(element);
+    } SMARTLIST_FOREACH_END(element);
+    smartlist_free(remove_list);
+}
+
 static payment_chunks_t * tp_store_chunk(const OR_OP_request_t* payment_request_payload, const char* key)
 {
     payment_chunks_t *origin = NULL;
@@ -1477,11 +1497,12 @@ static void tp_process_payment_message_for_circuits(payment_message_for_http_t *
              cpath = cpath_next) {
             cpath_next = cpath->next;
             json_object* node_json = json_object_new_object();
-            
             json_object_object_add(node_json, "state", json_object_new_string(cpath->state == CPATH_STATE_OPEN ? "opened" : "closed"));
             if(cpath->extend_info != NULL) {
                 json_object_object_add(node_json, "nodeid", json_object_new_string(cpath->extend_info->nickname));
                 json_object_object_add(node_json, "stellaraddress", json_object_new_string(cpath->extend_info->stellar_address));
+                json_object_object_add(node_json, "digest", json_object_new_string(hex_str(cpath->extend_info->identity_digest, DIGEST_LEN)));
+                json_object_object_add(node_json, "ed", json_object_new_string(ed25519_fmt(&cpath->extend_info->ed_identity)));
             }
             json_object_array_add(circuit_path, node_json);
         }
