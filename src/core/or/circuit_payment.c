@@ -1499,6 +1499,28 @@ static void tp_process_payment_message_for_circuits(payment_message_for_http_t *
     message->done = 1;
 }
 
+static void tp_process_payment_message_for_sessions(payment_message_for_http_t *message)
+{
+    if (!message)
+        return;
+    tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
+    json_object* json = json_object_new_object();
+    json_object* sessions_array = json_object_new_array();
+    SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, session) {
+        if (session == NULL)
+            continue;
+        json_object* session_json = json_object_new_object();
+        json_object_object_add(session_json, "gid", json_object_new_int64(session->channel_global_id));
+        json_object_object_add(session_json, "cid", json_object_new_int64(session->circuit_id));
+        json_object_object_add(session_json, "sessionid", json_object_new_string(session->session_id));
+        json_object_array_add(sessions_array, session_json);
+    } SMARTLIST_FOREACH_END(session);
+    json_object_object_add(json, "sessions", sessions_array);
+    request->answer_body = tor_strdup(json_object_to_json_string(json));
+    json_object_put(json);
+    message->done = 1;
+}
+
 static const  payment_message_for_http_handler_t global_http_api_handlers[] = {
     { "POST", "/api/onehop",
         tp_process_payment_message_for_onehop,
@@ -1508,6 +1530,9 @@ static const  payment_message_for_http_handler_t global_http_api_handlers[] = {
         tp_rest_api_direct },
     { "GET", "/api/circuits",
         tp_process_payment_message_for_circuits,
+        tp_rest_api_direct },
+    { "GET", "/api/sessions",
+        tp_process_payment_message_for_sessions,
         tp_rest_api_direct },
     { "GET", "/api/paymentRoute/",
         tp_process_payment_message_for_routing,
