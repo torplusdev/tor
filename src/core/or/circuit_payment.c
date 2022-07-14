@@ -1513,6 +1513,7 @@ static void tp_process_payment_message_for_sessions(payment_message_for_http_t *
         json_object_object_add(session_json, "gid", json_object_new_int64(session->channel_global_id));
         json_object_object_add(session_json, "cid", json_object_new_int64(session->circuit_id));
         json_object_object_add(session_json, "sessionid", json_object_new_string(session->session_id));
+        json_object_object_add(session_json, "nodeid", json_object_new_string(session->nickname));
         json_object_array_add(sessions_array, session_json);
     } SMARTLIST_FOREACH_END(session);
     json_object_object_add(json, "sessions", sessions_array);
