@@ -3455,3 +3455,9 @@ channel_update_bad_for_new_circs(const char *digest, int force)
     channel_rsa_id_group_set_badness(&(*iter)->channel_list, force);
   }
 }
+
+smartlist_t *
+channel_all_channels()
+{
+  return all_channels;
+}

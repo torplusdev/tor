@@ -772,4 +772,6 @@ HANDLE_DECL(channel, channel_t,)
   FREE_AND_NULL(channel_handle_t, channel_handle_free_, (h))
 #undef tor_timer_t
 
+smartlist_t *channel_all_channels(void);
+
 #endif /* !defined(TOR_CHANNEL_H) */

@@ -1543,7 +1543,30 @@ static void tp_process_payment_message_for_sessions(payment_message_for_http_t *
     message->done = 1;
 }
 
-static const  payment_message_for_http_handler_t global_http_api_handlers[] = {
+static void tp_process_payment_message_for_channels(payment_message_for_http_t *message)
+{
+    if (!message)
+        return;
+    tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
+    json_object* json = json_object_new_object();
+    json_object* channels_array = json_object_new_array();
+    smartlist_t *channels = channel_all_channels();
+    SMARTLIST_FOREACH_BEGIN(channels, channel_t *, chan) {
+        json_object* chan_json = json_object_new_object();
+        json_object_object_add(chan_json, "gid", json_object_new_int64(chan->global_identifier));
+        if (chan->describe_peer)
+            json_object_object_add(chan_json, "describepeer", json_object_new_string(chan->describe_peer(chan)));
+        if (chan->describe_transport)
+            json_object_object_add(chan_json, "describetransport", json_object_new_string(chan->describe_transport(chan)));
+        json_object_array_add(channels_array, chan_json);
+    } SMARTLIST_FOREACH_END(chan);
+    json_object_object_add(json, "channels", channels_array);
+    request->answer_body = tor_strdup(json_object_to_json_string(json));
+    json_object_put(json);
+    message->done = 1;
+}
+
+static const payment_message_for_http_handler_t global_http_api_handlers[] = {
     { "POST", "/api/onehop",
         tp_process_payment_message_for_onehop,
         tp_rest_api_onehop },
@@ -1555,6 +1578,9 @@ static const  payment_message_for_http_handler_t global_http_api_handlers[] = {
         tp_rest_api_direct },
     { "GET", "/api/sessions",
         tp_process_payment_message_for_sessions,
+        tp_rest_api_direct },
+    { "GET", "/api/channels",
+        tp_process_payment_message_for_channels,
         tp_rest_api_direct },
     { "GET", "/api/paymentRoute/",
         tp_process_payment_message_for_routing,
