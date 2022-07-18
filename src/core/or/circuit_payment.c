@@ -420,7 +420,9 @@ static int tp_rest_api_direct(const char *url_part, tor_http_api_request_t *requ
     tp_zero_mem(&message, sizeof(message));
     message.url_part = url_part;
     message.msg = request;
-    return tp_send_http_api_request(&message);
+    int rc =  tp_send_http_api_request(&message);
+    ship_log(PAYMENT_CALLBACK, request->url, request->body, request->answer_body);
+    return rc;
 }
 
 typedef struct tor_api_onehop_st {
@@ -1353,6 +1355,7 @@ static int tp_rest_api_paymentRoute(const char *url_part, tor_http_api_request_t
             json_object_object_add(json, "StatusCallbackUrl", json_object_new_string(route.status_call_back_url));
         request->answer_body = tor_strdup(json_object_to_json_string(json));
         json_object_put(json);
+        ship_log(PAYMENT_CALLBACK, request->url, request->body, request->answer_body);
         return 0;
     }
     return -1;
@@ -1375,8 +1378,6 @@ static void tp_process_payment_message_for_routing(payment_message_for_http_t *r
         route_message->done = 1;
         return;
     }
-
-    char nodes_str[10000];
 
     SMARTLIST_FOREACH_BEGIN(list, origin_circuit_t *, origin_circuit) {
         if (origin_circuit == NULL)
@@ -1442,26 +1443,12 @@ static void tp_process_payment_message_for_routing(payment_message_for_http_t *r
         }
         if(0 == route->nodes_len)
             continue;
-
-        tp_store_session_context(route->sessionId, get_options()->Nickname,
+        tp_store_session_context(
+            route->sessionId, get_options()->Nickname,
             circ->n_chan->global_identifier,
             circ->n_circ_id);
-
-        const size_t resp_size = sizeof(nodes_str) - 1;
-        tp_zero_mem(nodes_str, sizeof(nodes_str));
-        for (size_t i = 0; i < route->nodes_len; i++) {
-            strncat(nodes_str, (i > 0) ? ",[" : "[", resp_size);
-            strncat(nodes_str, route->nodes[i].node_id, resp_size);
-            strncat(nodes_str, ":", resp_size);
-            strncat(nodes_str, route->nodes[i].address, resp_size);
-            strncat(nodes_str, "]", resp_size);
-        }
         break;
     } SMARTLIST_FOREACH_END(origin_circuit);
-
-    char url[100];
-    strcat(strcpy(url, "/api/paymentRoute/"), route->sessionId);
-    ship_log(PAYMENT_CALLBACK, url, "", nodes_str);
     route_message->done = 1;
 }
 
