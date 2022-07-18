@@ -276,7 +276,7 @@ static int tp_rest_api_onehop(const char *url_part, tor_http_api_request_t *requ
 {
     if (!request->body)
         return TOR_HTTP_RESULT_WRONG_BODY;
-    int rc = TOR_HTTP_RESULT_OK;
+    int rc = TOR_HTTP_RESULT_UNKNOWN;
     log_notice(LD_HTTP, "/onehop request: %s", request->body);
     struct json_object *json = NULL;
     do {
@@ -1193,7 +1193,8 @@ static int tp_rest_api_paymentRoute(const char *url_part, tor_http_api_request_t
     tp_zero_mem(&message, sizeof(message));
     message.url_part = url_part;
     message.msg = &route;
-    if (!tp_send_http_api_request(&message)) {
+    int rc = tp_send_http_api_request(&message);
+    if (rc == TOR_HTTP_RESULT_OK) {
         json_object* json = json_object_new_object();
         json_object* json_route = json_object_new_array();
 		for (size_t n = 0; n < route.nodes_len; n++) {
@@ -1210,9 +1211,8 @@ static int tp_rest_api_paymentRoute(const char *url_part, tor_http_api_request_t
         request->answer_body = tor_strdup(json_object_to_json_string(json));
         json_object_put(json);
         ship_log(PAYMENT_CALLBACK, request->url, request->body, request->answer_body);
-        return TOR_HTTP_RESULT_OK;
     }
-    return TOR_HTTP_RESULT_UNKNOWN;
+    return rc;
 }
 
 static int tp_process_payment_message_for_paymentRoute(payment_message_for_http_t *route_message)
@@ -1633,11 +1633,10 @@ static int tp_rest_api_command(const char *url_part, tor_http_api_request_t *req
     tp_zero_mem(&message, sizeof(message));
     message.url_part = url_part;
     message.msg = &cmd;
-    tp_send_http_api_request(&message);
-
+    int rc = tp_send_http_api_request(&message);
     if (json)
         json_object_put(json);
-    return TOR_HTTP_RESULT_OK;
+    return rc;
 }
 
 static int tp_process_payment_message_for_response(payment_message_for_http_t *message)
@@ -1802,11 +1801,10 @@ static int tp_rest_api_paymentComplete(const char *url_part, tor_http_api_reques
     tp_zero_mem(&message, sizeof(message));
     message.url_part = url_part;
     message.msg = &cmd;
-    tp_send_http_api_request(&message);
-
+    int rc = tp_send_http_api_request(&message);
     if (json)
         json_object_put(json);
-    return message.result;
+    return rc;
 }
 
 static const payment_message_for_http_handler_t global_http_api_handlers[] = {
