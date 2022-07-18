@@ -119,12 +119,13 @@ typedef struct payment_message_for_http_st {
     const char *url_part;
     void *msg;
     int done;
+    int result;
 } payment_message_for_http_t;
 
 typedef struct payment_message_for_http_handler_st {
     const char *method;
     const char *url;
-    void (*handler_fn)(payment_message_for_http_t *message);
+    int (*handler_fn)(payment_message_for_http_t *message);
     int (*request_fn)(const char *url_part, tor_http_api_request_t *request);
 } payment_message_for_http_handler_t;
 
@@ -135,12 +136,14 @@ static int tp_send_http_api_request(payment_message_for_http_t *request)
     smartlist_add(global_payment_api_messsages, request);
     int rc = 0;
     while(0 == (rc = tor_cond_wait(&global_payment_cond, &global_payment_mutex, NULL))) {
-        if (request->done)
+        if (request->done) {
             break;
+        }
     }
     tor_mutex_release(&global_payment_mutex);
-
-    return rc;
+    if (rc)
+        return TOR_HTTP_RESULT_UNKNOWN;
+    return request->result;
 }
 
 typedef struct rest_node_t {
@@ -160,29 +163,6 @@ typedef struct tor_route {
 
 static void tp_process_payment_for_sending(payment_message_for_sending_t* message);
 
-// HTTP CALLBACK
-static int tp_payment_chain_completed(payment_completed* command)
-{
-    if (NULL == command) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_payment_chain_completed: invalid arguments");
-        return -1;
-    }
-
-    ship_log(PAYMENT_CALLBACK, "/api/paymentComplete",  command->json_body ? command->json_body : "(NULL)", "");
-
-    if (NULL == command->sessionId /*|| 0 > command->status*/) {
-            log_notice(LD_PROTOCOL | LD_BUG, "tp_payment_chain_completed: invalid sessionId arguments");
-            return -2;
-    }
-
-    payment_message_for_sending_t message;
-    tp_zero_mem(&message, sizeof(message));
-    strcpy(message.nodeId, "-1");
-    strlcpy(message.sessionId, command->sessionId, sizeof(message.sessionId));
-    tp_process_payment_for_sending(&message);
-    return 0;
-}
-
 static const char* tp_get_buffer_part_number(const char * buffer, size_t buffer_size, size_t part_size, size_t part_number, size_t *real_part_size)
 {
     const size_t part_offset = part_number * part_size;
@@ -193,162 +173,6 @@ static const char* tp_get_buffer_part_number(const char * buffer, size_t buffer_
         *real_part_size = part_size;
 
     return buf_ptr;
-}
-
-// HTTP CALLBACK
-static int tp_process_command(tor_command* command)
-{
-    if (NULL == command) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: invalid arguments");
-        return -1;
-    }
-
-    ship_log(PAYMENT_CALLBACK, "/api/command", command->json_body ? command->json_body : "(NULL)", "");
-
-    if (NULL == command->nodeId ||
-        NULL == command->commandType ||
-        NULL == command->commandId ||
-        NULL == command->sessionId ||
-        NULL == command->commandBody) {
-            log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: invalid arguments");
-            return -2;
-    }
-    
-    const size_t command_type_length = strlen(command->commandType);
-    const int command_type = atoi(command->commandType);
-    const size_t nicknameLength = strlen(command->nodeId);
-    const size_t session_id_length = strlen(command->sessionId);
-    const size_t command_id_length = strlen(command->commandId);
-
-    if(0 == command_type_length || 0 > command_type) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: argument 'commandType' invalid string length: %zu, value:%s", command_type_length, command->commandType);
-        return -3;
-    }
-    if(nicknameLength > USER_NAME_LEN || 0 == nicknameLength) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: argument 'nodeId' invalid string length: %zu, value:%s", nicknameLength, command->nodeId);
-        return -3;
-    }
-    if(session_id_length > SESSION_ID_LEN || 0 ==session_id_length) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: argument 'sessionId' invalid string length: %zu, value:%s", session_id_length, command->sessionId);
-        return -3;
-    }
-    if(command_id_length > COMMAND_ID_LEN || 0 ==command_id_length) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command: argument 'commandId' invalid string length: %zu, value:%s", command_id_length, command->commandId);
-        return -3;
-    }
-    const size_t body_len = strlen(command->commandBody);
-    const size_t part_size = body_len / CHUNK_SIZE;
-
-    for(size_t g = 0 ; g <= part_size ;g++) {
-        payment_message_for_sending_t message;
-        tp_zero_mem(&message, sizeof(message));
-        strlcpy(message.nodeId, command->nodeId, sizeof(message.nodeId));
-        strlcpy(message.sessionId, command->sessionId, sizeof(message.sessionId));
-
-        OR_OP_request_t *input = payment_payload_new();
-        if (NULL == input)
-            break;
-        message.message = input;
-        input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-        input->command_type = command_type;
-
-        strlcpy(input->nickname, command->nodeId, sizeof(input->nickname));
-        input->nicknameLength = nicknameLength;
-        strlcpy(input->session_id, command->sessionId, sizeof(input->session_id));
-        input->session_id_length = session_id_length;
-        strlcpy(input->command_id, command->commandId, sizeof(input->command_id));
-        input->command_id_length = command_id_length;
-    
-        size_t chunck_real_size = 0;
-        const char * buf_ptr = tp_get_buffer_part_number(command->commandBody, body_len, CHUNK_SIZE, g, &chunck_real_size);
-        strncpy(input->message, buf_ptr, chunck_real_size);
-        input->message[chunck_real_size] = '\0';
-        input->messageLength = chunck_real_size;
-        input->is_last = (g < part_size) ? 0 : 1;
-
-        tp_process_payment_for_sending(&message);
-    }
-    return 0;
-}
-
-// HTTP CALLBACK
-static int tp_process_command_replay(tor_command_replay* command)
-{
-    if (NULL == command) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: invalid arguments");
-        return -1;
-    }
-
-    ship_log(PAYMENT_CALLBACK, "/api/response", command->json_body ? command->json_body : "(NULL)", "");
-
-    if (NULL == command->nodeId ||
-        NULL == command->sessionId ||
-        NULL == command->commandId ||
-        NULL == command->commandResponse ||
-        NULL == command->commandType) {
-            log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: invalid arguments");
-            return -2;
-    }
-
-    const size_t nicknameLength = strlen(command->nodeId);
-    const size_t session_id_length = strlen(command->sessionId);
-    const size_t command_id_length = strlen(command->commandId);
-    const size_t command_type_length = strlen(command->commandType);
-    const int command_type = atoi(command->commandType);
-
-    if(nicknameLength > USER_NAME_LEN || 0 == nicknameLength) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'nodeId' invalid string length: %zu, value:%s", nicknameLength, command->nodeId);
-        return -3;
-    }
-    if(session_id_length > SESSION_ID_LEN || 0 ==session_id_length) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'sessionId' invalid string length: %zu, value:%s", session_id_length, command->sessionId);
-        return -3;
-    }
-    if(command_id_length > COMMAND_ID_LEN || 0 ==command_id_length) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'commandId' invalid string length: %zu, value:%s", command_id_length, command->commandId);
-        return -3;
-    }
-    if(0 == command_type_length ) {
-        log_debug(LD_PROTOCOL, "tp_process_command_replay: argument 'commandType' empty string");
-    }
-    if (0 > command_type) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_command_replay: argument 'commandType' invalid string length: %zu, value:%s", command_type_length, command->commandType);
-        return -3;
-    }
-
-    const size_t body_len = strlen(command->commandResponse);
-    const size_t part_size = body_len / CHUNK_SIZE;
-    for(size_t g = 0 ; g <= part_size ;g++) {
-        payment_message_for_sending_t message;
-        tp_zero_mem(&message, sizeof(message));
-        strlcpy(message.sessionId, command->sessionId, sizeof(message.sessionId));
-        strlcpy(message.nodeId, command->nodeId, sizeof(message.nodeId));
-    
-        OR_OP_request_t *input = payment_payload_new();
-        if (NULL == input)
-            break;
-        message.message = input;
-        input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-        input->command_type = command_type;
-        input->message_type = 4;
-
-        strlcpy(input->nickname, command->nodeId, sizeof(input->nickname));
-        input->nicknameLength = nicknameLength;
-        strlcpy(input->session_id, command->sessionId, sizeof(input->session_id));
-        input->session_id_length = session_id_length;
-        strlcpy(input->command_id, command->commandId, sizeof(input->command_id));
-        input->command_id_length = command_id_length;
-
-        size_t chunck_real_size = 0;
-        const char * buf_ptr = tp_get_buffer_part_number(command->commandResponse, body_len, CHUNK_SIZE, g, &chunck_real_size);
-        strncpy(input->message, buf_ptr, chunck_real_size);
-        input->message[chunck_real_size] = '\0';
-        input->messageLength = chunck_real_size;
-        input->is_last = (g < part_size) ? 0 : 1;
-    
-        tp_process_payment_for_sending(&message);
-    }
-    return 0;
 }
 
 void tp_fill_stellar_address(char *dst)
@@ -451,8 +275,8 @@ typedef struct tor_api_onehop_st {
 static int tp_rest_api_onehop(const char *url_part, tor_http_api_request_t *request)
 {
     if (!request->body)
-        return -3;
-    int rc = 0;
+        return TOR_HTTP_RESULT_WRONG_BODY;
+    int rc = TOR_HTTP_RESULT_OK;
     log_notice(LD_HTTP, "/onehop request: %s", request->body);
     struct json_object *json = NULL;
     do {
@@ -460,17 +284,17 @@ static int tp_rest_api_onehop(const char *url_part, tor_http_api_request_t *requ
         json = json_tokener_parse_verbose(request->body, &jerr);
         if (jerr != json_tokener_success) {
             log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), request->body);
-            rc = -4;
+            rc = TOR_HTTP_RESULT_WRONG_JSON;
             break;
         }
         struct json_object *OneHopNodesObj = NULL;
         if (!json_object_object_get_ex(json, "Nodes", &OneHopNodesObj)){
-            rc = -5;
+            rc = TOR_HTTP_RESULT_WRONG_JSON;
             break;
         }
         const char *OneHopNodes = json_object_get_string(OneHopNodesObj);
         if (NULL == OneHopNodes) {
-            rc = -6;
+            rc = TOR_HTTP_RESULT_WRONG_PARAMETER;
             break;
         }
         routerset_t *exit_rs = routerset_new();
@@ -483,13 +307,11 @@ static int tp_rest_api_onehop(const char *url_part, tor_http_api_request_t *requ
             tp_zero_mem(&request, sizeof(request));
             request.url_part = url_part;
             request.msg = &onehop;
-            tp_send_http_api_request(&request);
+            rc = tp_send_http_api_request(&request);
         } else {
             routerset_free(exit_rs);
-            rc = -7;
-            break;
+            rc = TOR_HTTP_RESULT_WRONG_PARAMETER;
         }
-        rc = 0;
     } while(false);
     if (json)
         json_object_put(json);
@@ -1343,6 +1165,10 @@ int copy_parameter(tor_http_api_request_t *request, const char *param_name, char
 
 static int tp_rest_api_paymentRoute(const char *url_part, tor_http_api_request_t *request)
 {
+    if (!request)
+        return TOR_HTTP_RESULT_UNKNOWN;
+    if(!url_part || !request->url)
+        return TOR_HTTP_RESULT_WRONG_PARAMETER;
     tor_route route;
     tp_zero_mem(&route, sizeof(route));
     const size_t url_part_len = strlen(url_part);
@@ -1384,27 +1210,27 @@ static int tp_rest_api_paymentRoute(const char *url_part, tor_http_api_request_t
         request->answer_body = tor_strdup(json_object_to_json_string(json));
         json_object_put(json);
         ship_log(PAYMENT_CALLBACK, request->url, request->body, request->answer_body);
-        return 0;
+        return TOR_HTTP_RESULT_OK;
     }
-    return -1;
+    return TOR_HTTP_RESULT_UNKNOWN;
 }
 
-static void tp_process_payment_message_for_paymentRoute(payment_message_for_http_t *route_message)
+static int tp_process_payment_message_for_paymentRoute(payment_message_for_http_t *route_message)
 {
     if (!route_message)
-        return;
+        return TOR_HTTP_RESULT_UNKNOWN;
 
     tor_route *route = (tor_route *)route_message->msg;
     if (!route){
         route_message->done = 1;
-        return;
+        return TOR_HTTP_RESULT_UNKNOWN;
     }
     payment_session_context_t *session_context = get_from_session_context_by_session_id(route->sessionId);
 
     smartlist_t *list = circuit_get_global_origin_circuit_list();
     if (list == NULL) {
         route_message->done = 1;
-        return;
+        return TOR_HTTP_RESULT_UNKNOWN;
     }
 
     SMARTLIST_FOREACH_BEGIN(list, origin_circuit_t *, origin_circuit) {
@@ -1478,12 +1304,13 @@ static void tp_process_payment_message_for_paymentRoute(payment_message_for_http
         break;
     } SMARTLIST_FOREACH_END(origin_circuit);
     route_message->done = 1;
+    return TOR_HTTP_RESULT_OK;
 }
 
-static void tp_process_payment_message_for_onehop(payment_message_for_http_t *message)
+static int tp_process_payment_message_for_onehop(payment_message_for_http_t *message)
 {
     if (!message)
-        return;
+        return TOR_HTTP_RESULT_UNKNOWN;
 
     tor_api_onehop_t *onehop = (tor_api_onehop_t *)message->msg;
     or_options_t *options = get_options_mutable();
@@ -1507,12 +1334,13 @@ static void tp_process_payment_message_for_onehop(payment_message_for_http_t *me
     circuit_mark_all_unused_circs();
     circuit_mark_all_dirty_circs_as_unusable();
     message->done = 1;
+    return TOR_HTTP_RESULT_OK;
 }
 
-static void tp_process_payment_message_for_versionex(payment_message_for_http_t *message)
+static int tp_process_payment_message_for_versionex(payment_message_for_http_t *message)
 {
     if (!message)
-        return;
+        return TOR_HTTP_RESULT_UNKNOWN;
     tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
 
     if (!strcasecmp(request->url, "/api/version")) {
@@ -1535,15 +1363,17 @@ static void tp_process_payment_message_for_versionex(payment_message_for_http_t 
         request->answer_body = tor_strdup(json_object_to_json_string(json));
         json_object_put(json);
     } else {
-        //TODO: error code?
+        message->done = 1;
+        return TOR_HTTP_RESULT_WRONG_URL;
     }
     message->done = 1;
+    return TOR_HTTP_RESULT_OK;
 }
 
-static void tp_process_payment_message_for_circuits(payment_message_for_http_t *message)
+static int tp_process_payment_message_for_circuits(payment_message_for_http_t *message)
 {
     if (!message)
-        return;
+        return TOR_HTTP_RESULT_UNKNOWN;
     tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
     json_object* json = json_object_new_object();
     json_object* circuits_array = json_object_new_array();
@@ -1581,12 +1411,13 @@ static void tp_process_payment_message_for_circuits(payment_message_for_http_t *
     request->answer_body = tor_strdup(json_object_to_json_string(json));
     json_object_put(json);
     message->done = 1;
+    return TOR_HTTP_RESULT_OK;
 }
 
-static void tp_process_payment_message_for_sessions(payment_message_for_http_t *message)
+static int tp_process_payment_message_for_sessions(payment_message_for_http_t *message)
 {
     if (!message)
-        return;
+        return TOR_HTTP_RESULT_UNKNOWN;
     tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
     json_object* json = json_object_new_object();
     json_object* sessions_array = json_object_new_array();
@@ -1604,12 +1435,13 @@ static void tp_process_payment_message_for_sessions(payment_message_for_http_t *
     request->answer_body = tor_strdup(json_object_to_json_string(json));
     json_object_put(json);
     message->done = 1;
+    return TOR_HTTP_RESULT_OK;
 }
 
-static void tp_process_payment_message_for_channels(payment_message_for_http_t *message)
+static int tp_process_payment_message_for_channels(payment_message_for_http_t *message)
 {
     if (!message)
-        return;
+        return TOR_HTTP_RESULT_UNKNOWN;
     tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
     json_object* json = json_object_new_object();
     json_object* channels_array = json_object_new_array();
@@ -1627,6 +1459,7 @@ static void tp_process_payment_message_for_channels(payment_message_for_http_t *
     request->answer_body = tor_strdup(json_object_to_json_string(json));
     json_object_put(json);
     message->done = 1;
+    return TOR_HTTP_RESULT_OK;
 }
 
 const char * get_json_string_value(struct json_object *json, const char *value_name)
@@ -1653,7 +1486,7 @@ static void tp_process_payment_for_sending(payment_message_for_sending_t* messag
         channel_t *chan = channel_find_by_global_id(session_context->channel_global_id);
         /* Get the circuit */
         circuit_t *circ = circuit_get_by_circid_channel_even_if_marked(session_context->circuit_id, chan);
-        if(message->message == NULL) { // from tp_payment_chain_completed
+        if(message->message == NULL) { // from tp_process_payment_message_for_paymentcomplete
             OR_OP_request_t input;
             memset(&input, 0, sizeof(input));
 
@@ -1696,23 +1529,96 @@ static void tp_process_payment_for_sending(payment_message_for_sending_t* messag
         tor_free_(message->message);
 }
 
-static void tp_process_payment_message_for_command(payment_message_for_http_t *message)
+static int tp_process_payment_message_for_command(payment_message_for_http_t *message)
 {
+    if (!message)
+        return TOR_HTTP_RESULT_UNKNOWN;
     tor_command* command = (tor_command* ) message->msg;
-    tp_process_command(command);
+    if (NULL == command) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_command: invalid arguments");
+        return TOR_HTTP_RESULT_UNKNOWN;
+    }
+
+    ship_log(PAYMENT_CALLBACK, message->url_part, command->json_body ? command->json_body : "(NULL)", "");
+
+    if (NULL == command->nodeId ||
+        NULL == command->commandType ||
+        NULL == command->commandId ||
+        NULL == command->sessionId ||
+        NULL == command->commandBody) {
+            log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_command: invalid arguments");
+            return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+    
+    const size_t command_type_length = strlen(command->commandType);
+    const int command_type = atoi(command->commandType);
+    const size_t nicknameLength = strlen(command->nodeId);
+    const size_t session_id_length = strlen(command->sessionId);
+    const size_t command_id_length = strlen(command->commandId);
+
+    if(0 == command_type_length || 0 > command_type) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_command: argument 'commandType' invalid string length: %zu, value:%s", command_type_length, command->commandType);
+        return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+    if(nicknameLength > USER_NAME_LEN || 0 == nicknameLength) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_command: argument 'nodeId' invalid string length: %zu, value:%s", nicknameLength, command->nodeId);
+        return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+    if(session_id_length > SESSION_ID_LEN || 0 ==session_id_length) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_command: argument 'sessionId' invalid string length: %zu, value:%s", session_id_length, command->sessionId);
+        return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+    if(command_id_length > COMMAND_ID_LEN || 0 ==command_id_length) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_command: argument 'commandId' invalid string length: %zu, value:%s", command_id_length, command->commandId);
+        return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+    const size_t body_len = strlen(command->commandBody);
+    const size_t part_size = body_len / CHUNK_SIZE;
+
+    for(size_t g = 0 ; g <= part_size ;g++) {
+        payment_message_for_sending_t tp_message;
+        tp_zero_mem(&tp_message, sizeof(tp_message));
+        strlcpy(tp_message.nodeId, command->nodeId, sizeof(tp_message.nodeId));
+        strlcpy(tp_message.sessionId, command->sessionId, sizeof(tp_message.sessionId));
+
+        OR_OP_request_t *input = payment_payload_new();
+        if (NULL == input)
+            break;
+        tp_message.message = input;
+        input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
+        input->command_type = command_type;
+
+        strlcpy(input->nickname, command->nodeId, sizeof(input->nickname));
+        input->nicknameLength = nicknameLength;
+        strlcpy(input->session_id, command->sessionId, sizeof(input->session_id));
+        input->session_id_length = session_id_length;
+        strlcpy(input->command_id, command->commandId, sizeof(input->command_id));
+        input->command_id_length = command_id_length;
+    
+        size_t chunck_real_size = 0;
+        const char * buf_ptr = tp_get_buffer_part_number(command->commandBody, body_len, CHUNK_SIZE, g, &chunck_real_size);
+        strncpy(input->message, buf_ptr, chunck_real_size);
+        input->message[chunck_real_size] = '\0';
+        input->messageLength = chunck_real_size;
+        input->is_last = (g < part_size) ? 0 : 1;
+        tp_process_payment_for_sending(&tp_message);
+    }
+    return TOR_HTTP_RESULT_OK;
 }
 
 static int tp_rest_api_command(const char *url_part, tor_http_api_request_t *request)
 {
+    if (!request)
+        return TOR_HTTP_RESULT_UNKNOWN;
     if (!request->body)
-        return -3;
+        return TOR_HTTP_RESULT_WRONG_BODY;
     log_notice(LD_HTTP, "/command request: %s", request->body);
     struct json_object *json = NULL;
     enum json_tokener_error jerr = json_tokener_success;
     json = json_tokener_parse_verbose(request->body, &jerr);
     if (jerr != json_tokener_success) {
         log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), request->body);
-        return -4;
+        return TOR_HTTP_RESULT_WRONG_JSON;
     }
     tor_command cmd;
     tp_zero_mem(&cmd, sizeof(cmd));
@@ -1731,26 +1637,104 @@ static int tp_rest_api_command(const char *url_part, tor_http_api_request_t *req
 
     if (json)
         json_object_put(json);
-    return 0;
+    return TOR_HTTP_RESULT_OK;
 }
 
-static void tp_process_payment_message_for_response(payment_message_for_http_t *message)
+static int tp_process_payment_message_for_response(payment_message_for_http_t *message)
 {
+    if (!message)
+        return TOR_HTTP_RESULT_UNKNOWN;
     tor_command_replay* command = (tor_command_replay* ) message->msg;
-    tp_process_command_replay(command);
+    if (!command) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_response: invalid arguments");
+        return TOR_HTTP_RESULT_UNKNOWN;
+    }
+
+    ship_log(PAYMENT_CALLBACK, "/api/response", command->json_body ? command->json_body : "(NULL)", "");
+
+    if (NULL == command->nodeId ||
+        NULL == command->sessionId ||
+        NULL == command->commandId ||
+        NULL == command->commandResponse ||
+        NULL == command->commandType) {
+            log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_response: invalid arguments");
+            return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+
+    const size_t nicknameLength = strlen(command->nodeId);
+    const size_t session_id_length = strlen(command->sessionId);
+    const size_t command_id_length = strlen(command->commandId);
+    const size_t command_type_length = strlen(command->commandType);
+    const int command_type = atoi(command->commandType);
+
+    if(nicknameLength > USER_NAME_LEN || 0 == nicknameLength) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_response: argument 'nodeId' invalid string length: %zu, value:%s", nicknameLength, command->nodeId);
+        return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+    if(session_id_length > SESSION_ID_LEN || 0 ==session_id_length) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_response: argument 'sessionId' invalid string length: %zu, value:%s", session_id_length, command->sessionId);
+        return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+    if(command_id_length > COMMAND_ID_LEN || 0 ==command_id_length) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_response: argument 'commandId' invalid string length: %zu, value:%s", command_id_length, command->commandId);
+        return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+    if(0 == command_type_length ) {
+        log_debug(LD_PROTOCOL, "tp_process_payment_message_for_response: argument 'commandType' empty string");
+    }
+    if (0 > command_type) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_response: argument 'commandType' invalid string length: %zu, value:%s", command_type_length, command->commandType);
+        return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+
+    const size_t body_len = strlen(command->commandResponse);
+    const size_t part_size = body_len / CHUNK_SIZE;
+    for(size_t g = 0 ; g <= part_size ;g++) {
+        payment_message_for_sending_t message;
+        tp_zero_mem(&message, sizeof(message));
+        strlcpy(message.sessionId, command->sessionId, sizeof(message.sessionId));
+        strlcpy(message.nodeId, command->nodeId, sizeof(message.nodeId));
+    
+        OR_OP_request_t *input = payment_payload_new();
+        if (NULL == input)
+            break;
+        message.message = input;
+        input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
+        input->command_type = command_type;
+        input->message_type = 4;
+
+        strlcpy(input->nickname, command->nodeId, sizeof(input->nickname));
+        input->nicknameLength = nicknameLength;
+        strlcpy(input->session_id, command->sessionId, sizeof(input->session_id));
+        input->session_id_length = session_id_length;
+        strlcpy(input->command_id, command->commandId, sizeof(input->command_id));
+        input->command_id_length = command_id_length;
+
+        size_t chunck_real_size = 0;
+        const char * buf_ptr = tp_get_buffer_part_number(command->commandResponse, body_len, CHUNK_SIZE, g, &chunck_real_size);
+        strncpy(input->message, buf_ptr, chunck_real_size);
+        input->message[chunck_real_size] = '\0';
+        input->messageLength = chunck_real_size;
+        input->is_last = (g < part_size) ? 0 : 1;
+    
+        tp_process_payment_for_sending(&message);
+    }
+    return TOR_HTTP_RESULT_OK;
 }
 
 static int tp_rest_api_response(const char *url_part, tor_http_api_request_t *request)
 {
+    if (!request)
+        return TOR_HTTP_RESULT_UNKNOWN;
     if (!request->body)
-        return -3;
+        return TOR_HTTP_RESULT_WRONG_BODY;
     log_notice(LD_HTTP, "/response request: %s", request->body);
     struct json_object *json = NULL;
     enum json_tokener_error jerr = json_tokener_success;
     json = json_tokener_parse_verbose(request->body, &jerr);
     if (jerr != json_tokener_success) {
         log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), request->body);
-        return -4;
+        return TOR_HTTP_RESULT_WRONG_JSON;
     }
     tor_command_replay cmd;
     tp_zero_mem(&cmd, sizeof(cmd));
@@ -1765,30 +1749,48 @@ static int tp_rest_api_response(const char *url_part, tor_http_api_request_t *re
     tp_zero_mem(&message, sizeof(message));
     message.url_part = url_part;
     message.msg = &cmd;
-    tp_send_http_api_request(&message);
-
+    int rc = tp_send_http_api_request(&message);
     if (json)
         json_object_put(json);
-    return 0;
+    return rc;
 }
 
-static void tp_process_payment_message_for_paymentComplete(payment_message_for_http_t *message)
+static int tp_process_payment_message_for_paymentComplete(payment_message_for_http_t *message)
 {
     payment_completed* command = (payment_completed* ) message->msg;
-    tp_payment_chain_completed(command);
+    if (NULL == command) {
+        log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_paymentcomplete: invalid arguments");
+        return TOR_HTTP_RESULT_UNKNOWN;
+    }
+
+    ship_log(PAYMENT_CALLBACK, "/api/paymentComplete",  command->json_body ? command->json_body : "(NULL)", "");
+
+    if (NULL == command->sessionId /*|| 0 > command->status*/) {
+            log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_paymentcomplete: invalid sessionId arguments");
+            return TOR_HTTP_RESULT_WRONG_PARAMETER;
+    }
+
+    payment_message_for_sending_t tp_message;
+    tp_zero_mem(&tp_message, sizeof(tp_message));
+    strcpy(tp_message.nodeId, "-1");
+    strlcpy(tp_message.sessionId, command->sessionId, sizeof(tp_message.sessionId));
+    tp_process_payment_for_sending(&tp_message);
+    return TOR_HTTP_RESULT_OK;
 }
 
 static int tp_rest_api_paymentComplete(const char *url_part, tor_http_api_request_t *request)
 {
+    if(!request)
+        return TOR_HTTP_RESULT_UNKNOWN;
     if (!request->body)
-        return -3;
-    log_notice(LD_HTTP, "/response request: %s", request->body);
+        return TOR_HTTP_RESULT_WRONG_BODY;
+    log_notice(LD_HTTP, "/paymentComplete request: %s", request->body);
     struct json_object *json = NULL;
     enum json_tokener_error jerr = json_tokener_success;
     json = json_tokener_parse_verbose(request->body, &jerr);
     if (jerr != json_tokener_success) {
         log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), request->body);
-        return -4;
+        return TOR_HTTP_RESULT_WRONG_JSON;
     }
     payment_completed cmd;
     tp_zero_mem(&cmd, sizeof(cmd));
@@ -1804,7 +1806,7 @@ static int tp_rest_api_paymentComplete(const char *url_part, tor_http_api_reques
 
     if (json)
         json_object_put(json);
-    return 0;
+    return message.result;
 }
 
 static const payment_message_for_http_handler_t global_http_api_handlers[] = {
@@ -1868,7 +1870,7 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
         if (http_api_message) {
             for ( size_t i = 0; i < NELEMS(global_http_api_handlers); i++ ) {
                 if (!strcasecmp(global_http_api_handlers[i].url, http_api_message->url_part)) {
-                    global_http_api_handlers[i].handler_fn(http_api_message);
+                    http_api_message->result = global_http_api_handlers[i].handler_fn(http_api_message);
                     break;
                 }
             }

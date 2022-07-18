@@ -1,3 +1,6 @@
+#ifndef __REST_LIB_H_INCLUDDED__
+#define __REST_LIB_H_INCLUDDED__
+
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -17,6 +20,16 @@ typedef struct tor_http_api_request_st {
     void(*release)(void *);
 } tor_http_api_request_t;
 
+typedef enum {
+    TOR_HTTP_RESULT_OK                  = 0,
+    TOR_HTTP_RESULT_WRONG_METHOD        = -1,
+    TOR_HTTP_RESULT_WRONG_URL           = -2,
+    TOR_HTTP_RESULT_WRONG_BODY          = -3,
+    TOR_HTTP_RESULT_WRONG_JSON          = -4,
+    TOR_HTTP_RESULT_WRONG_PARAMETER     = -5,
+    TOR_HTTP_RESULT_UNKNOWN             = -6
+} tor_http_result_code_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,4 +43,6 @@ int stopServer(void);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

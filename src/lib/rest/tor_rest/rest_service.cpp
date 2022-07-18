@@ -12,6 +12,8 @@
 #include "tor_rest_service.h"
 #include <sstream>
 
+#include "rest_lib.h"
+
 using namespace std;
 using namespace ufal::microrestd;
 
@@ -75,27 +77,24 @@ bool tor_rest_service::handle(rest_request& req)
 			}
 			int rc =  m_handler(&request);
 			switch (rc){
-			case 0:
+			case TOR_HTTP_RESULT_OK:
 				if (request.answer_body) {
 					return req.respond(request.answer_plain_text ? "text/plain": "application/json", request.answer_body);
 				} else
-				return req.respond("application/json", "{\"result\":\"success\"}");
-			case -1:
+				return req.respond("application/json", "{}");
+			case TOR_HTTP_RESULT_WRONG_METHOD:
 				return req.respond("application/json", "{\"result\":\"wrong method\"}");
-			case -2:
+			case TOR_HTTP_RESULT_WRONG_URL:
 				return req.respond("application/json", "{\"result\":\"wrong url\"}");
-			case -3:
+			case TOR_HTTP_RESULT_WRONG_BODY:
 				return req.respond("application/json", "{\"result\":\"wrong body\"}");
-			case -4:
+			case TOR_HTTP_RESULT_WRONG_JSON:
 				return req.respond("application/json", "{\"result\":\"wrong json\"}");
-			case -5:
+			case TOR_HTTP_RESULT_WRONG_PARAMETER:
 				return req.respond("application/json", "{\"result\":\"wrong parameter\"}");
-			case -6:
-				return req.respond("application/json", "{\"result\":\"wrong empty/nil parameter\"}");
-			case -7:
-				return req.respond("application/json", "{\"result\":\"wrong parameter format\"}");
+			case TOR_HTTP_RESULT_UNKNOWN:
 			default:
-				return req.respond("application/json", "{\"result\":\"unknown answer\"}");
+				return req.respond("application/json", "{\"result\":\"unknown\"}");
 			}
 			if(request.release && request.answer_body) {
 				request.release(request.answer_body);
