@@ -12,21 +12,6 @@
     #define SESSION_ID_LEN 40
 #endif
 
-typedef struct rest_node_t {
-    char node_id[MAX_HEX_NICKNAME_LEN+1];
-    char address[STELLAR_ADDRESS_LEN];
-} rest_node_t;
-
-typedef struct tor_route {
-    rest_node_t* nodes;
-    size_t nodes_len;
-    char sessionId[SESSION_ID_LEN + 1];
-    char exclude_node_id[MAX_HEX_NICKNAME_LEN + 1];
-    char exclude_address[STELLAR_ADDRESS_LEN + 1];
-    const char* call_back_url; 		        // process command url
-    const char* status_call_back_url; 		// process command url
-} tor_route;
-
 typedef struct tor_http_api_request_param_st{
     const char *name;
     const char *value;
@@ -72,7 +57,6 @@ extern "C" {
 
 int runServer(
         int port,
-        void (*routeFunction)(tor_route *route),
         int (*commandProcessingFunction)(tor_command *command),
         int (*commandProcessingReplayFunction)(tor_command_replay *command),
         int (*commandProcessingCompletedFunction)(payment_completed *command),

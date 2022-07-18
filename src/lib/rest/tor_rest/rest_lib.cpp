@@ -9,7 +9,6 @@ static rest_server *s_server_ptr = NULL;
 
 extern "C" int runServer(
 		int port,
-		void (*routeFunction)(tor_route *route),
         int (*commandProcessingFunction)(tor_command* command),
 		int (*commandProcessingReplayFunction)(tor_command_replay* command),
 		int (*commandProcessingCompletedFunction)(payment_completed *command),
@@ -22,7 +21,6 @@ extern "C" int runServer(
 	int connection_limit = 100;
 
 	s_service_ptr = new tor_rest_service(
-		routeFunction,
 		commandProcessingFunction,
 		commandProcessingReplayFunction,
 		commandProcessingCompletedFunction,

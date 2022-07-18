@@ -121,24 +121,20 @@ static int tp_send_http_api_request(payment_message_for_http_t *request)
     return rc;
 }
 
-// HTTP CALLBACK
-static void tp_get_route(tor_route *route)
-{
-    if (NULL == route || NULL == route->sessionId) {
-        log_notice(LD_PROTOCOL | LD_BUG, "tp_get_route: invalid arguments");
-        return;
-    }
+typedef struct rest_node_t {
+    char node_id[MAX_HEX_NICKNAME_LEN + 1];
+    char address[STELLAR_ADDRESS_LEN + 1];
+} rest_node_t;
 
-    route->call_back_url = s_cb_url_api_command;
-    route->status_call_back_url = s_cb_url_api_paymentComplete;
-    route->nodes = NULL;
-
-    payment_message_for_http_t message;
-    tp_zero_mem(&message, sizeof(message));
-    message.url_part = "/api/paymentRoute/";
-    message.msg = route;
-    tp_send_http_api_request(&message);
-}
+typedef struct tor_route {
+    rest_node_t* nodes;
+    size_t nodes_len;
+    char sessionId[SESSION_ID_LEN + 1];
+    char exclude_node_id[MAX_HEX_NICKNAME_LEN + 1];
+    char exclude_address[STELLAR_ADDRESS_LEN + 1];
+    const char* call_back_url;
+    const char* status_call_back_url;
+} tor_route;
 
 // HTTP CALLBACK
 static int tp_payment_chain_completed(payment_completed* command)
@@ -509,7 +505,7 @@ void tp_init(void)
     const int ppcb_port = get_options()->PPChannelCallbackPort;
     if ( ppcb_port != -1 ) {
         const char *server_version_string = get_version();
-        runServer(ppcb_port, tp_get_route, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, server_version_string, tp_rest_handler);
+        runServer(ppcb_port, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, server_version_string, tp_rest_handler);
     }
 
     tp_init_timer();
@@ -1316,6 +1312,53 @@ int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t 
     return 0;
 }
 
+int copy_parameter(tor_http_api_request_t *request, const char *param_name, char *value, size_t max_value_length)
+{
+    for (size_t i = 0; i < request->param_count; i++) {
+        if (!strcasecmp(request->params[i].name, param_name)) {
+            strlcpy(value, request->params[i].value, max_value_length);
+            return 0;
+        }
+    }
+    return -1;
+}
+
+static int tp_rest_api_paymentRoute(const char *url_part, tor_http_api_request_t *request)
+{
+    tor_route route;
+    tp_zero_mem(&route, sizeof(route));
+    const size_t url_part_len = strlen(url_part);
+    const char *session_id = request->url + url_part_len;
+    strlcpy(route.sessionId, session_id, sizeof(route.sessionId));
+    copy_parameter(request, "exclude_node_id", route.exclude_node_id, sizeof(route.exclude_node_id));
+    copy_parameter(request, "exclude_address", route.exclude_address, sizeof(route.exclude_address));
+    log_notice(LD_HTTP, "%s request : %s, excluding node with node_id:%s or address:%s", url_part, request->url, route.exclude_node_id, route.exclude_address);
+
+    payment_message_for_http_t message;
+    tp_zero_mem(&message, sizeof(message));
+    message.url_part = url_part;
+    message.msg = &route;
+    if (!tp_send_http_api_request(&message)) {
+        json_object* json = json_object_new_object();
+        json_object* json_route = json_object_new_array();
+		for (size_t n = 0; n < route.nodes_len; n++) {
+            json_object* json_node = json_object_new_object();
+            json_object_object_add(json_node, "NodeId", json_object_new_string(route.nodes[n].node_id));
+            json_object_object_add(json_node, "Address", json_object_new_string(route.nodes[n].address));
+            json_object_array_add(json_route, json_node);
+		}
+        json_object_object_add(json, "Route", json_route);
+        if (route.call_back_url)
+            json_object_object_add(json, "CallbackUrl", json_object_new_string(route.call_back_url));
+        if (route.status_call_back_url)
+            json_object_object_add(json, "StatusCallbackUrl", json_object_new_string(route.status_call_back_url));
+        request->answer_body = tor_strdup(json_object_to_json_string(json));
+        json_object_put(json);
+        return 0;
+    }
+    return -1;
+}
+
 static void tp_process_payment_message_for_routing(payment_message_for_http_t *route_message)
 {
     if (!route_message)
@@ -1418,7 +1461,7 @@ static void tp_process_payment_message_for_routing(payment_message_for_http_t *r
     } SMARTLIST_FOREACH_END(origin_circuit);
 
     char url[100];
-    strcat(strcat(strcpy(url, "/api/paymentRoute"), "/"), route->sessionId);
+    strcat(strcpy(url, "/api/paymentRoute/"), route->sessionId);
     ship_log(PAYMENT_CALLBACK, url, "", nodes_str);
     route_message->done = 1;
 }
@@ -1584,7 +1627,7 @@ static const payment_message_for_http_handler_t global_http_api_handlers[] = {
         tp_rest_api_direct },
     { "GET", "/api/paymentRoute/",
         tp_process_payment_message_for_routing,
-        NULL/*tp_rest_api_routing*/ } // TODO: incomplete
+        tp_rest_api_paymentRoute }
 };
 
 static int tp_rest_handler(tor_http_api_request_t *request)

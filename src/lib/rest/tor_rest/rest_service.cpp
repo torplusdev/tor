@@ -26,34 +26,7 @@ static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
   return -1;
 }
 
-std::string tor_rest_service::route2json(tor_route *route)
-{
-	json_builder json;
-	json.object();
-	json.key("Route");
-	json.array();
-	if (nullptr != route->nodes) {
-		for (size_t n = 0; n < route->nodes_len; n++) {
-			const rest_node_t &node = route->nodes[n];
-			json.object();
-			json.key("NodeId").value(node.node_id);
-			json.key("Address").value(node.address);
-			json.close();
-		}
-	}
-	json.close();
-	if (nullptr != route->call_back_url)
-		json.key("CallbackUrl").value(route->call_back_url);
-	if (nullptr != route->status_call_back_url)
-		json.key("StatusCallbackUrl").value(route->status_call_back_url);
-    json.finish();
-	const auto str = json.current();
-	
-	return string(str.str,str.len);
-}
-
-tor_rest_service::tor_rest_service(void (* routeFunction)(tor_route *route),
-        int (* commandProcessingFunction)(tor_command* command),
+tor_rest_service::tor_rest_service(int (* commandProcessingFunction)(tor_command* command),
 		int (* commandProcessingReplayFunction)(tor_command_replay* command),
 		int (*commandProcessingCompletedFunction)(payment_completed *command),
 		void (*log_function)(const char *message),
@@ -61,7 +34,6 @@ tor_rest_service::tor_rest_service(void (* routeFunction)(tor_route *route),
 		int (*handler)(tor_http_api_request_t *) /* = nullptr*/
 	)
 {
-	m_routeCreator = routeFunction;
 	m_commandProcessor = commandProcessingFunction;
 	m_commandProcessorReplay = commandProcessingReplayFunction;
     m_commandProcessingCompleted = commandProcessingCompletedFunction;
@@ -94,17 +66,6 @@ void tor_rest_service::req_log(rest_request& req)
 	m_log_handler(tmp.c_str());
 }
 
-bool copy_parameter(const std::unordered_map<std::string, std::string> &params, const char *param_name, char *value, size_t max_value_length)
-{
-	auto it = params.find(param_name);
-	if ( params.end() != it ) {
-		std::strncpy(value, it->second.c_str(), max_value_length);
-		if ( it->second.length() > max_value_length )
-			return false;
-	}
-	return true;
-}
-
 bool tor_rest_service::handle(rest_request& req)
 {
 	req_log(req);
@@ -116,26 +77,7 @@ bool tor_rest_service::handle(rest_request& req)
         return req.respond_method_not_allowed("HEAD, GET, POST");
 
     if (!req.url.empty()) {
-		string strRoutePrefix = string("/api/paymentRoute/");
-	    if (0 == req.url.find(strRoutePrefix)) {
-	    	const size_t index = strRoutePrefix.length();
-	    	string SessionId = req.url.substr(index);
-
-	    	if (SessionId.length() < 5 || SessionId.length() > SESSION_ID_LEN)
-				return req.respond_error("Session id string is too short or too long");
-
-	    	tor_route route;
-			memset(&route, 0, sizeof(route));
-			std::strncpy(route.sessionId, SessionId.c_str(), SESSION_ID_LEN);
-			copy_parameter(req.params, "exclude_node_id", route.exclude_node_id, MAX_HEX_NICKNAME_LEN);
-			copy_parameter(req.params, "exclude_address", route.exclude_address, STELLAR_ADDRESS_LEN);
-	    	m_routeCreator(&route);
-	    	string str = route2json(&route);
-			//TODO: free tor_route.nodes
-
-	    	return req.respond("application/json", str);  
-	    }
-	    else if (req.url.rfind("/api/command",0) == 0)
+		if (req.url.rfind("/api/command",0) == 0)
 		{
 	    	const char* jsonRequest = req.body.c_str();
 	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
