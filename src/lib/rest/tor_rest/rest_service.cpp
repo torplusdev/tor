@@ -30,7 +30,6 @@ tor_rest_service::tor_rest_service(int (* commandProcessingFunction)(tor_command
 		int (* commandProcessingReplayFunction)(tor_command_replay* command),
 		int (*commandProcessingCompletedFunction)(payment_completed *command),
 		void (*log_function)(const char *message),
-		const char *app_version_string /*= NULL*/,
 		int (*handler)(tor_http_api_request_t *) /* = nullptr*/
 	)
 {
@@ -39,8 +38,6 @@ tor_rest_service::tor_rest_service(int (* commandProcessingFunction)(tor_command
     m_commandProcessingCompleted = commandProcessingCompletedFunction;
 	m_log_handler = log_function;
 	m_handler = handler;
-	if(NULL != app_version_string)
-		app_version = app_version_string;
 }
 
 void tor_rest_service::log(const char *message)
@@ -213,10 +210,6 @@ bool tor_rest_service::handle(rest_request& req)
 
 	    	return req.respond("application/json", "OK");
 	    }
-	    else if (req.url.rfind("/api/version",0) == 0) {
-
-	    	return req.respond("text/plain", app_version);
-		}
 		else if (NULL != m_handler) {
 			tor_http_api_request_t request;
 			std::memset(&request, 0, sizeof(request));
@@ -239,7 +232,7 @@ bool tor_rest_service::handle(rest_request& req)
 			switch (rc){
 			case 0:
 				if (request.answer_body) {
-					return req.respond("application/json", request.answer_body);
+					return req.respond(request.answer_plain_text ? "text/plain": "application/json", request.answer_body);
 				} else
 				return req.respond("application/json", "{\"result\":\"success\"}");
 			case -1:

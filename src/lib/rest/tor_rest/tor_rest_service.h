@@ -15,7 +15,6 @@ private:
 	int  (*m_commandProcessor) (tor_command* command);
 	int  (*m_commandProcessorReplay) (tor_command_replay * command);
 	int  (*m_commandProcessingCompleted) (payment_completed * command);
-	std::string app_version = "undefined";
 	void (*m_log_handler)(const char *message);
 	int (*m_handler)(tor_http_api_request_t *);
 	void log(const char *message);
@@ -27,7 +26,6 @@ private:
         int (*commandProcessingReplayFunction)(tor_command_replay * command),
         int (*commandProcessingCompletedFunction)(payment_completed *command),
 		void (*log_function)(const char *message),
-		const char *app_version_string = NULL,
 		int (*handler)(tor_http_api_request_t *request) = nullptr
 	);
 

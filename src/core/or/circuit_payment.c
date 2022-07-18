@@ -504,8 +504,7 @@ void tp_init(void)
 
     const int ppcb_port = get_options()->PPChannelCallbackPort;
     if ( ppcb_port != -1 ) {
-        const char *server_version_string = get_version();
-        runServer(ppcb_port, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, server_version_string, tp_rest_handler);
+        runServer(ppcb_port, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, tp_rest_handler);
     }
 
     tp_init_timer();
@@ -1501,22 +1500,28 @@ static void tp_process_payment_message_for_versionex(payment_message_for_http_t 
         return;
     tor_http_api_request_t *request = (tor_http_api_request_t *)message->msg;
 
-    json_object* json = json_object_new_object();
-    json_object_object_add(json, "VersionString", json_object_new_string(get_version()));
-    json_object_object_add(json, "NodeId", json_object_new_string(get_options()->Nickname));
-    if (get_options()->StellarAddress)
-        json_object_object_add(json, "StellarAddress", json_object_new_string(get_options()->StellarAddress));
+    if (!strcasecmp(request->url, "/api/version")) {
+        request->answer_body = tor_strdup(get_version());
+        request->answer_plain_text = 1;
+    } else if (!strcasecmp(request->url, "/api/versionex")) {
+        json_object* json = json_object_new_object();
+        json_object_object_add(json, "VersionString", json_object_new_string(get_version()));
+        json_object_object_add(json, "NodeId", json_object_new_string(get_options()->Nickname));
+        if (get_options()->StellarAddress)
+            json_object_object_add(json, "StellarAddress", json_object_new_string(get_options()->StellarAddress));
 
-    if (request->param_count) {
-        json_object* params = json_object_new_object();
-        for (size_t i = 0; i < request->param_count; i++) {
-            json_object_object_add(params, request->params[i].name, json_object_new_string(request->params[i].value));
+        if (request->param_count) {
+            json_object* params = json_object_new_object();
+            for (size_t i = 0; i < request->param_count; i++) {
+                json_object_object_add(params, request->params[i].name, json_object_new_string(request->params[i].value));
+            }
+            json_object_object_add(json, "RequestParams", params);
         }
-        json_object_object_add(json, "RequestParams", params);
+        request->answer_body = tor_strdup(json_object_to_json_string(json));
+        json_object_put(json);
+    } else {
+        //TODO: error code?
     }
-    request->answer_body = tor_strdup(json_object_to_json_string(json));
-    json_object_put(json);
-
     message->done = 1;
 }
 
@@ -1613,7 +1618,7 @@ static const payment_message_for_http_handler_t global_http_api_handlers[] = {
     { "POST", "/api/onehop",
         tp_process_payment_message_for_onehop,
         tp_rest_api_onehop },
-    { "GET", "/api/versionex",
+    { "GET", "/api/version",
         tp_process_payment_message_for_versionex,
         tp_rest_api_direct },
     { "GET", "/api/circuits",

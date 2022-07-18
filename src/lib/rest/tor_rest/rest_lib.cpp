@@ -13,7 +13,6 @@ extern "C" int runServer(
 		int (*commandProcessingReplayFunction)(tor_command_replay* command),
 		int (*commandProcessingCompletedFunction)(payment_completed *command),
 		void (*log_function)(const char *message),
-		const char *appVersionString /*= NULL*/,
 		int (*handler)(tor_http_api_request_t *request) /*= nullptr*/
 	)
 {	  
@@ -25,7 +24,6 @@ extern "C" int runServer(
 		commandProcessingReplayFunction,
 		commandProcessingCompletedFunction,
 		log_function,
-		static_cast<const char *>(appVersionString),
 		handler);
 
 	s_server_ptr = new rest_server();

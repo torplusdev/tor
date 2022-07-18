@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	int port = atoi(argv[1]);
-	runServer(port, processCommand, processCommandReplay, processPaymentCompete, NULL, NULL, NULL);
+	runServer(port, processCommand, processCommandReplay, processPaymentCompete, NULL, NULL);
 	getchar();
 
   return 0;

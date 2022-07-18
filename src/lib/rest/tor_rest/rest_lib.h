@@ -24,6 +24,7 @@ typedef struct tor_http_api_request_st {
     size_t param_count;
     tor_http_api_request_param_t *params;
     char *answer_body;
+    int answer_plain_text;
     void(*release)(void *);
 } tor_http_api_request_t;
 
@@ -61,7 +62,6 @@ int runServer(
         int (*commandProcessingReplayFunction)(tor_command_replay *command),
         int (*commandProcessingCompletedFunction)(payment_completed *command),
         void (*log_function)(const char *message),
-        const char *appVersionString /*= NULL*/,
         int (*handler)(tor_http_api_request_t *request) /* = nullptr*/
     );
 int stopServer(void);
