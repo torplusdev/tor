@@ -57,7 +57,6 @@ const static int sendmecell_deadcode_dummy__ = 0;
 static smartlist_t *global_payment_session_list = NULL;
 static smartlist_t *global_chunks_list = NULL;
 
-static smartlist_t *global_payment_messsages = NULL;
 static smartlist_t *global_payment_api_messsages = NULL;
 static tor_mutex_t global_payment_mutex;
 static tor_cond_t global_payment_cond;
@@ -76,6 +75,29 @@ static char s_url_api_util_processCommand[PAYMENT_URL_LEN];
 static char s_url_api_gw_processPayment[PAYMENT_URL_LEN];
 static char s_url_api_gw_processResponse[PAYMENT_URL_LEN];
 
+typedef struct tor_command {
+    const char * commandBody;
+    const char * commandId;
+    const char * commandType;
+    const char * nodeId;
+    const char * sessionId;
+    const char * json_body;
+} tor_command;
+
+typedef struct payment_completed {
+    const char * sessionId;
+    int status;
+    const char * json_body;
+} payment_completed;
+
+typedef struct tor_command_replay {
+    const char * commandResponse;
+    const char * commandId;
+    const char * nodeId;
+    const char * sessionId;
+    const char * json_body;
+    const char * commandType;
+} tor_command_replay;
 
 static int circuit_get_length(origin_circuit_t * circ)
 {
@@ -136,6 +158,8 @@ typedef struct tor_route {
     const char* status_call_back_url;
 } tor_route;
 
+static void tp_process_payment_for_sending(payment_message_for_sending_t* message);
+
 // HTTP CALLBACK
 static int tp_payment_chain_completed(payment_completed* command)
 {
@@ -151,13 +175,11 @@ static int tp_payment_chain_completed(payment_completed* command)
             return -2;
     }
 
-    payment_message_for_sending_t* message = tor_calloc_(1, sizeof(payment_message_for_sending_t));
-    strcpy(message->nodeId, "-1");
-    strlcpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
-    message->message = NULL;
-    tor_mutex_acquire(&global_payment_mutex);
-    smartlist_add(global_payment_messsages, message);
-    tor_mutex_release(&global_payment_mutex);
+    payment_message_for_sending_t message;
+    tp_zero_mem(&message, sizeof(message));
+    strcpy(message.nodeId, "-1");
+    strlcpy(message.sessionId, command->sessionId, sizeof(message.sessionId));
+    tp_process_payment_for_sending(&message);
     return 0;
 }
 
@@ -217,17 +239,16 @@ static int tp_process_command(tor_command* command)
     const size_t body_len = strlen(command->commandBody);
     const size_t part_size = body_len / CHUNK_SIZE;
 
-    tor_mutex_acquire(&global_payment_mutex);
-
     for(size_t g = 0 ; g <= part_size ;g++) {
-        payment_message_for_sending_t* message = tor_calloc_(1, sizeof(payment_message_for_sending_t));
-        strlcpy(message->nodeId, command->nodeId, sizeof(message->nodeId));
-        strlcpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
+        payment_message_for_sending_t message;
+        tp_zero_mem(&message, sizeof(message));
+        strlcpy(message.nodeId, command->nodeId, sizeof(message.nodeId));
+        strlcpy(message.sessionId, command->sessionId, sizeof(message.sessionId));
 
         OR_OP_request_t *input = payment_payload_new();
         if (NULL == input)
             break;
-        message->message = input;
+        message.message = input;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
         input->command_type = command_type;
 
@@ -245,9 +266,8 @@ static int tp_process_command(tor_command* command)
         input->messageLength = chunck_real_size;
         input->is_last = (g < part_size) ? 0 : 1;
 
-        smartlist_add(global_payment_messsages, message);
+        tp_process_payment_for_sending(&message);
     }
-    tor_mutex_release(&global_payment_mutex);
     return 0;
 }
 
@@ -298,17 +318,16 @@ static int tp_process_command_replay(tor_command_replay* command)
 
     const size_t body_len = strlen(command->commandResponse);
     const size_t part_size = body_len / CHUNK_SIZE;
-
-    tor_mutex_acquire(&global_payment_mutex);
     for(size_t g = 0 ; g <= part_size ;g++) {
-        payment_message_for_sending_t* message = tor_calloc_(1, sizeof(payment_message_for_sending_t));
-        strlcpy(message->sessionId, command->sessionId, sizeof(message->sessionId));
-        strlcpy(message->nodeId, command->nodeId, sizeof(message->nodeId));
+        payment_message_for_sending_t message;
+        tp_zero_mem(&message, sizeof(message));
+        strlcpy(message.sessionId, command->sessionId, sizeof(message.sessionId));
+        strlcpy(message.nodeId, command->nodeId, sizeof(message.nodeId));
     
         OR_OP_request_t *input = payment_payload_new();
         if (NULL == input)
             break;
-        message->message = input;
+        message.message = input;
         input->command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
         input->command_type = command_type;
         input->message_type = 4;
@@ -327,9 +346,8 @@ static int tp_process_command_replay(tor_command_replay* command)
         input->messageLength = chunck_real_size;
         input->is_last = (g < part_size) ? 0 : 1;
     
-        smartlist_add(global_payment_messsages, message);
+        tp_process_payment_for_sending(&message);
     }
-    tor_mutex_release(&global_payment_mutex);
     return 0;
 }
 
@@ -393,7 +411,6 @@ void tp_init_lists(void)
 {
     tor_mutex_init_for_cond(&global_payment_mutex);
     tor_cond_init(&global_payment_cond);
-    global_payment_messsages = smartlist_new();
     global_payment_api_messsages = smartlist_new();
     global_payment_session_list = smartlist_new();
     global_chunks_list = smartlist_new();
@@ -506,7 +523,7 @@ void tp_init(void)
 
     const int ppcb_port = get_options()->PPChannelCallbackPort;
     if ( ppcb_port != -1 ) {
-        runServer(ppcb_port, tp_process_command, tp_process_command_replay, tp_payment_chain_completed, tp_rest_log, tp_rest_handler);
+        runServer(ppcb_port, tp_rest_log, tp_rest_handler);
     }
 
     tp_init_timer();
@@ -1330,7 +1347,18 @@ static int tp_rest_api_paymentRoute(const char *url_part, tor_http_api_request_t
     tp_zero_mem(&route, sizeof(route));
     const size_t url_part_len = strlen(url_part);
     const char *session_id = request->url + url_part_len;
-    strlcpy(route.sessionId, session_id, sizeof(route.sessionId));
+    const char *parameters = strchr(session_id, '?');
+    if (!parameters)
+        parameters = strchr(session_id, '&');
+    if (!parameters)
+        strlcpy(route.sessionId, session_id, sizeof(route.sessionId));
+    else {
+        int session_id_len =  parameters - session_id + 1;
+        if (session_id_len > SESSION_ID_LEN)
+            session_id_len = SESSION_ID_LEN;
+        strlcpy(route.sessionId, session_id, session_id_len);
+    }
+
     copy_parameter(request, "exclude_node_id", route.exclude_node_id, sizeof(route.exclude_node_id));
     copy_parameter(request, "exclude_address", route.exclude_address, sizeof(route.exclude_address));
     log_notice(LD_HTTP, "%s request : %s, excluding node with node_id:%s or address:%s", url_part, request->url, route.exclude_node_id, route.exclude_address);
@@ -1361,7 +1389,7 @@ static int tp_rest_api_paymentRoute(const char *url_part, tor_http_api_request_t
     return -1;
 }
 
-static void tp_process_payment_message_for_routing(payment_message_for_http_t *route_message)
+static void tp_process_payment_message_for_paymentRoute(payment_message_for_http_t *route_message)
 {
     if (!route_message)
         return;
@@ -1601,6 +1629,184 @@ static void tp_process_payment_message_for_channels(payment_message_for_http_t *
     message->done = 1;
 }
 
+const char * get_json_string_value(struct json_object *json, const char *value_name)
+{
+    struct json_object *obj = NULL;
+    if (!json_object_object_get_ex(json, value_name, &obj))
+        return NULL;
+    return json_object_get_string(obj);
+}
+
+const int get_json_int_value(struct json_object *json, const char *value_name)
+{
+    struct json_object *obj = NULL;
+    if (!json_object_object_get_ex(json, value_name, &obj))
+        return 0;
+    return json_object_get_int(obj);
+}
+
+static void tp_process_payment_for_sending(payment_message_for_sending_t* message)
+{
+    payment_session_context_t *session_context = get_from_session_context_by_session_id(message->sessionId);
+    if(session_context != NULL) {
+        /* Get the channel */
+        channel_t *chan = channel_find_by_global_id(session_context->channel_global_id);
+        /* Get the circuit */
+        circuit_t *circ = circuit_get_by_circid_channel_even_if_marked(session_context->circuit_id, chan);
+        if(message->message == NULL) { // from tp_payment_chain_completed
+            OR_OP_request_t input;
+            memset(&input, 0, sizeof(input));
+
+            memcpy(input.session_id, message->sessionId, sizeof(input.session_id));
+            input.session_id_length = strlen(message->sessionId);
+
+            input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
+            input.is_last = 1;
+            input.message_type = 100;
+            input.command_type = 0;
+            input.version = 0;
+            input.messageTotalLength = 0;
+            input.messageLength = 0;
+            input.command_id_length = 0;
+            input.nicknameLength = 0;
+            if (circ != NULL) {
+                origin_circuit_t *origin_circuit = TO_ORIGIN_CIRCUIT(circ);
+                int length = circuit_get_length(origin_circuit);
+                for (int i = 1; i < length + 1; ++i) {
+                    circuit_payment_send_OP(circ, i, &input);
+                }
+                remove_from_session_context(session_context);
+            }
+        } else {
+            if (circ != NULL) {
+                if (CIRCUIT_IS_ORIGIN(circ)) {
+                    origin_circuit_t *origin_circuit = TO_ORIGIN_CIRCUIT(circ);
+                    int hop_num = circuit_get_num_by_nickname(origin_circuit, message->nodeId);
+                    circuit_payment_send_OP(circ, hop_num, message->message);
+                } else {
+                    circuit_payment_send_OR(circ, message->message);
+                    if (message->message->message_type == 4) {
+                        tp_circuitmux_reset_limits(circ);
+                    }
+                }
+            }
+        }
+    }
+    if (NULL != message->message)
+        tor_free_(message->message);
+}
+
+static void tp_process_payment_message_for_command(payment_message_for_http_t *message)
+{
+    tor_command* command = (tor_command* ) message->msg;
+    tp_process_command(command);
+}
+
+static int tp_rest_api_command(const char *url_part, tor_http_api_request_t *request)
+{
+    if (!request->body)
+        return -3;
+    log_notice(LD_HTTP, "/command request: %s", request->body);
+    struct json_object *json = NULL;
+    enum json_tokener_error jerr = json_tokener_success;
+    json = json_tokener_parse_verbose(request->body, &jerr);
+    if (jerr != json_tokener_success) {
+        log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), request->body);
+        return -4;
+    }
+    tor_command cmd;
+    tp_zero_mem(&cmd, sizeof(cmd));
+    cmd.commandBody = get_json_string_value(json, "CommandBody");
+    cmd.commandId = get_json_string_value(json, "CommandId");
+    cmd.commandType = get_json_string_value(json, "CommandType");
+    cmd.nodeId = get_json_string_value(json, "NodeId");
+    cmd.sessionId = get_json_string_value(json, "SessionId");
+    cmd.json_body = request->body;
+
+    payment_message_for_http_t message;
+    tp_zero_mem(&message, sizeof(message));
+    message.url_part = url_part;
+    message.msg = &cmd;
+    tp_send_http_api_request(&message);
+
+    if (json)
+        json_object_put(json);
+    return 0;
+}
+
+static void tp_process_payment_message_for_response(payment_message_for_http_t *message)
+{
+    tor_command_replay* command = (tor_command_replay* ) message->msg;
+    tp_process_command_replay(command);
+}
+
+static int tp_rest_api_response(const char *url_part, tor_http_api_request_t *request)
+{
+    if (!request->body)
+        return -3;
+    log_notice(LD_HTTP, "/response request: %s", request->body);
+    struct json_object *json = NULL;
+    enum json_tokener_error jerr = json_tokener_success;
+    json = json_tokener_parse_verbose(request->body, &jerr);
+    if (jerr != json_tokener_success) {
+        log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), request->body);
+        return -4;
+    }
+    tor_command_replay cmd;
+    tp_zero_mem(&cmd, sizeof(cmd));
+    cmd.commandResponse = get_json_string_value(json, "CommandResponse");
+    cmd.commandId = get_json_string_value(json, "CommandId");
+    cmd.commandType = get_json_string_value(json, "CommandType");
+    cmd.nodeId = get_json_string_value(json, "NodeId");
+    cmd.sessionId = get_json_string_value(json, "SessionId");
+    cmd.json_body = request->body;
+
+    payment_message_for_http_t message;
+    tp_zero_mem(&message, sizeof(message));
+    message.url_part = url_part;
+    message.msg = &cmd;
+    tp_send_http_api_request(&message);
+
+    if (json)
+        json_object_put(json);
+    return 0;
+}
+
+static void tp_process_payment_message_for_paymentComplete(payment_message_for_http_t *message)
+{
+    payment_completed* command = (payment_completed* ) message->msg;
+    tp_payment_chain_completed(command);
+}
+
+static int tp_rest_api_paymentComplete(const char *url_part, tor_http_api_request_t *request)
+{
+    if (!request->body)
+        return -3;
+    log_notice(LD_HTTP, "/response request: %s", request->body);
+    struct json_object *json = NULL;
+    enum json_tokener_error jerr = json_tokener_success;
+    json = json_tokener_parse_verbose(request->body, &jerr);
+    if (jerr != json_tokener_success) {
+        log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), request->body);
+        return -4;
+    }
+    payment_completed cmd;
+    tp_zero_mem(&cmd, sizeof(cmd));
+    cmd.status = get_json_int_value(json, "Status");
+    cmd.sessionId = get_json_string_value(json, "SessionId");
+    cmd.json_body = request->body;
+
+    payment_message_for_http_t message;
+    tp_zero_mem(&message, sizeof(message));
+    message.url_part = url_part;
+    message.msg = &cmd;
+    tp_send_http_api_request(&message);
+
+    if (json)
+        json_object_put(json);
+    return 0;
+}
+
 static const payment_message_for_http_handler_t global_http_api_handlers[] = {
     { "POST", "/api/onehop",
         tp_process_payment_message_for_onehop,
@@ -1618,8 +1824,17 @@ static const payment_message_for_http_handler_t global_http_api_handlers[] = {
         tp_process_payment_message_for_channels,
         tp_rest_api_direct },
     { "GET", "/api/paymentRoute/",
-        tp_process_payment_message_for_routing,
-        tp_rest_api_paymentRoute }
+        tp_process_payment_message_for_paymentRoute,
+        tp_rest_api_paymentRoute },
+    { "POST", "/api/command",
+        tp_process_payment_message_for_command,
+        tp_rest_api_command },
+    { "POST", "/api/response",
+        tp_process_payment_message_for_response,
+        tp_rest_api_response },
+    { "POST", "/api/paymentComplete",
+        tp_process_payment_message_for_paymentComplete,
+        tp_rest_api_paymentComplete }
 };
 
 static int tp_rest_handler(tor_http_api_request_t *request)
@@ -1648,59 +1863,6 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
     tp_circuitmux_refresh_limited_circuits();
 
     tor_mutex_acquire(&global_payment_mutex);
-    SMARTLIST_FOREACH_BEGIN(global_payment_messsages, payment_message_for_sending_t*, message) {
-        payment_session_context_t *session_context = get_from_session_context_by_session_id(message->sessionId);
-        if(session_context != NULL) {
-            /* Get the channel */
-            channel_t *chan = channel_find_by_global_id(session_context->channel_global_id);
-            /* Get the circuit */
-            circuit_t *circ = circuit_get_by_circid_channel_even_if_marked(session_context->circuit_id, chan);
-            if(message->message == NULL) { // from tp_payment_chain_completed
-                OR_OP_request_t input;
-                memset(&input, 0, sizeof(input));
-
-                memcpy(input.session_id, message->sessionId, sizeof(input.session_id));
-                input.session_id_length = strlen(message->sessionId);
-
-                input.command = RELAY_COMMAND_PAYMENT_COMMAND_TO_NODE;
-                input.is_last = 1;
-                input.message_type = 100;
-                input.command_type = 0;
-                input.version = 0;
-                input.messageTotalLength = 0;
-                input.messageLength = 0;
-                input.command_id_length = 0;
-                input.nicknameLength = 0;
-                if (circ != NULL) {
-                    origin_circuit_t *origin_circuit = TO_ORIGIN_CIRCUIT(circ);
-                    int length = circuit_get_length(origin_circuit);
-                    for (int i = 1; i < length + 1; ++i) {
-                        circuit_payment_send_OP(circ, i, &input);
-                    }
-                    remove_from_session_context(session_context);
-                }
-            } else {
-                if (circ != NULL) {
-                    if (CIRCUIT_IS_ORIGIN(circ)) {
-                        origin_circuit_t *origin_circuit = TO_ORIGIN_CIRCUIT(circ);
-                        int hop_num = circuit_get_num_by_nickname(origin_circuit, message->nodeId);
-                        circuit_payment_send_OP(circ, hop_num, message->message);
-                    } else {
-                        circuit_payment_send_OR(circ, message->message);
-                        if (message->message->message_type == 4) {
-                            tp_circuitmux_reset_limits(circ);
-                        }
-                    }
-                }
-            }
-        }
-        if (NULL != message->message)
-            tor_free_(message->message);
-        tor_free_(message);
-    } SMARTLIST_FOREACH_END(message);
-
-    smartlist_clear(global_payment_messsages);
-
     int done = 0;
     SMARTLIST_FOREACH_BEGIN(global_payment_api_messsages, payment_message_for_http_t*, http_api_message) {
         if (http_api_message) {

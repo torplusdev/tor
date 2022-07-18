@@ -1,6 +1,5 @@
 #include "rest_lib.h"
 #define JSMN_HEADER
-#include "jsmn.h"
 #include "tor_rest_service.h"
 #include <sstream>
 
@@ -9,9 +8,6 @@ static rest_server *s_server_ptr = NULL;
 
 extern "C" int runServer(
 		int port,
-        int (*commandProcessingFunction)(tor_command* command),
-		int (*commandProcessingReplayFunction)(tor_command_replay* command),
-		int (*commandProcessingCompletedFunction)(payment_completed *command),
 		void (*log_function)(const char *message),
 		int (*handler)(tor_http_api_request_t *request) /*= nullptr*/
 	)
@@ -20,9 +16,6 @@ extern "C" int runServer(
 	int connection_limit = 100;
 
 	s_service_ptr = new tor_rest_service(
-		commandProcessingFunction,
-		commandProcessingReplayFunction,
-		commandProcessingCompletedFunction,
 		log_function,
 		handler);
 

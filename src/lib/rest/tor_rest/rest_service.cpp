@@ -9,33 +9,18 @@
 
 #include "microrestd.h"
 #include "rest_lib.h"
-#include "jsmn.h"
 #include "tor_rest_service.h"
-#include "route_generator.h"
 #include <sstream>
 
 using namespace std;
 using namespace ufal::microrestd;
 
 
-static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
-  if (tok->type == JSMN_STRING && (int)strlen(s) == tok->end - tok->start &&
-      strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
-    return 0;
-  }
-  return -1;
-}
-
-tor_rest_service::tor_rest_service(int (* commandProcessingFunction)(tor_command* command),
-		int (* commandProcessingReplayFunction)(tor_command_replay* command),
-		int (*commandProcessingCompletedFunction)(payment_completed *command),
+tor_rest_service::tor_rest_service(
 		void (*log_function)(const char *message),
 		int (*handler)(tor_http_api_request_t *) /* = nullptr*/
 	)
 {
-	m_commandProcessor = commandProcessingFunction;
-	m_commandProcessorReplay = commandProcessingReplayFunction;
-    m_commandProcessingCompleted = commandProcessingCompletedFunction;
 	m_log_handler = log_function;
 	m_handler = handler;
 }
@@ -66,151 +51,11 @@ void tor_rest_service::req_log(rest_request& req)
 bool tor_rest_service::handle(rest_request& req)
 {
 	req_log(req);
-	const int ConstMaxJsonTokens = 1280;
-	jsmntok_t t[ConstMaxJsonTokens];
-	jsmn_parser jsonParser;
-    jsmn_init(&jsonParser);
     if (req.method != "HEAD" && req.method != "GET" && req.method != "POST") 
         return req.respond_method_not_allowed("HEAD, GET, POST");
 
     if (!req.url.empty()) {
-		if (req.url.rfind("/api/command",0) == 0)
-		{
-	    	const char* jsonRequest = req.body.c_str();
-	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
-
-            if (r < 0)
-	    		return req.respond_error("Couldn't parse json");
-
-	    	std::string commandBody, commandId, commandType, nodeId, sessionId;
-			for (int i = 1; i < r; i++) 
-			{
-				const jsmntok_t* pt = &t[i + 1];
-				if (jsoneq(jsonRequest, &t[i], "CommandBody") == 0) {
-					commandBody = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-				else if (jsoneq(jsonRequest, &t[i], "CommandId") == 0)
-				{
-					commandId = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-				else if (jsoneq(jsonRequest, &t[i], "CommandType") == 0)
-				{
-					commandType = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-				else if (jsoneq(jsonRequest, &t[i], "NodeId") == 0)
-				{
-					nodeId =std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-				else if (jsoneq(jsonRequest, &t[i], "SessionId") == 0)
-				{
-					sessionId = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-			}
-	    	tor_command cmd;
-			cmd.json_body = jsonRequest;
-			cmd.commandBody = commandBody.c_str();
-			cmd.commandId = commandId.c_str();
-			cmd.commandType = commandType.c_str();
-			cmd.nodeId = nodeId.c_str();
-			cmd.sessionId = sessionId.c_str();
-
-	    	int code = m_commandProcessor(&cmd);
-	    	if (code < 0)
-	    		return req.respond_error("Couldn't parse json or mandatory fields not present");
-
-	    	return req.respond_201("application/json", "");
-	    }
-	    else if (req.url.rfind("/api/response",0) == 0)
-		{
-	    	const char* jsonRequest = req.body.c_str();
-	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
-
-	    	if (r < 0)
-	    		return req.respond_error("Couldn't parse json");
-
-	    	std::string commandResponse, commandId, nodeId, sessionId, commandType;
-			for (int i = 1; i < r; i++)
-			{
-				const jsmntok_t* pt = &t[i + 1];
-				if (jsoneq(jsonRequest, &t[i], "CommandResponse") == 0) {
-					commandResponse = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-				else if (jsoneq(jsonRequest, &t[i], "CommandId") == 0)
-				{
-					commandId = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-				else if (jsoneq(jsonRequest, &t[i], "NodeId") == 0)
-				{
-					nodeId = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-				else if (jsoneq(jsonRequest, &t[i], "SessionId") == 0)
-				{
-					sessionId = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-				else if (jsoneq(jsonRequest, &t[i], "CommandType") == 0)
-				{
-					commandType = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-			}
-
-	    	tor_command_replay cmd;
-			cmd.json_body = jsonRequest;
-			cmd.commandId = commandId.c_str();
-			cmd.nodeId = nodeId.c_str();
-			cmd.sessionId = sessionId.c_str();
-			cmd.commandResponse = commandResponse.c_str();
-			cmd.commandType = commandType.c_str();
-
-	    	int code = m_commandProcessorReplay(&cmd);
-	    	if (code < 0)
-	    		return req.respond_error("Couldn't parse json or mandatory fields not present");
-
-	    	return req.respond_201("application/json", "");
-	    }
-	    else if (req.url.rfind("/api/paymentComplete",0) == 0)
-		{
-	    	const char* jsonRequest = req.body.c_str();
-	    	auto r = jsmn_parse(&jsonParser, jsonRequest, req.body.size(), t, sizeof(t) / sizeof(t[0]));
-
-	    	if (r < 0)
-	    		return req.respond_error("Couldn't parse json");
-
-	    	std::string status, sessionId;
-			for (int i = 1; i < r; i++)
-			{
-				const jsmntok_t* pt = &t[i + 1];
-				if (jsoneq(jsonRequest, &t[i], "SessionId") == 0) {
-					sessionId = std::string(jsonRequest + pt->start, pt->end - pt->start);
-					i++;
-				}
-				else if (jsoneq(jsonRequest, &t[i], "Status") == 0) {
-					status = std::string(jsonRequest + pt->start, pt->end - pt->start);;
-					i++;
-				}
-			}
-
-            payment_completed cmd;
-			cmd.json_body = jsonRequest;
-			cmd.sessionId = sessionId.c_str();
-			cmd.status = (status.size() > 0) ? atoi(status.c_str()) : -1;
-
-	    	int code = m_commandProcessingCompleted(&cmd);
-	    	if (code < 0)
-	    		return req.respond_error("Couldn't parse json or mandatory fields not present");
-
-	    	return req.respond("application/json", "OK");
-	    }
-		else if (NULL != m_handler) {
+		if (NULL != m_handler) {
 			tor_http_api_request_t request;
 			std::memset(&request, 0, sizeof(request));
 			request.method = req.method.c_str();
