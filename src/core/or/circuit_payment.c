@@ -228,7 +228,7 @@ static void tp_rest_log(const char * message)
 {
     if(!get_options()->EnablePaymentLog)
         return;
-    log_notice(LD_GENERAL,"Payment REST_LOG:\n%s", message);
+    log_info(LD_HTTP,"Payment REST_LOG:\n%s", message);
 }
 
 void tp_init_lists(void)
@@ -277,7 +277,7 @@ static int tp_rest_api_onehop(const char *url_part, tor_http_api_request_t *requ
     if (!request->body)
         return TOR_HTTP_RESULT_WRONG_BODY;
     int rc = TOR_HTTP_RESULT_UNKNOWN;
-    log_notice(LD_HTTP, "/onehop request: %s", request->body);
+    log_notice(LD_HTTP, "%s request: %s", url_part, request->body);
     struct json_object *json = NULL;
     do {
         enum json_tokener_error jerr = json_tokener_success;
@@ -1210,6 +1210,7 @@ static int tp_rest_api_paymentRoute(const char *url_part, tor_http_api_request_t
             json_object_object_add(json, "StatusCallbackUrl", json_object_new_string(route.status_call_back_url));
         request->answer_body = tor_strdup(json_object_to_json_string(json));
         json_object_put(json);
+        tor_free(route.nodes);
         ship_log(PAYMENT_CALLBACK, request->url, request->body, request->answer_body);
     }
     return rc;
@@ -1539,8 +1540,6 @@ static int tp_process_payment_message_for_command(payment_message_for_http_t *me
         return TOR_HTTP_RESULT_UNKNOWN;
     }
 
-    ship_log(PAYMENT_CALLBACK, message->url_part, command->json_body ? command->json_body : "(NULL)", "");
-
     if (NULL == command->nodeId ||
         NULL == command->commandType ||
         NULL == command->commandId ||
@@ -1612,7 +1611,7 @@ static int tp_rest_api_command(const char *url_part, tor_http_api_request_t *req
         return TOR_HTTP_RESULT_UNKNOWN;
     if (!request->body)
         return TOR_HTTP_RESULT_WRONG_BODY;
-    log_notice(LD_HTTP, "/command request: %s", request->body);
+    log_notice(LD_HTTP, "%s request: %s", url_part, request->body);
     struct json_object *json = NULL;
     enum json_tokener_error jerr = json_tokener_success;
     json = json_tokener_parse_verbose(request->body, &jerr);
@@ -1648,8 +1647,6 @@ static int tp_process_payment_message_for_response(payment_message_for_http_t *m
         log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_response: invalid arguments");
         return TOR_HTTP_RESULT_UNKNOWN;
     }
-
-    ship_log(PAYMENT_CALLBACK, "/api/response", command->json_body ? command->json_body : "(NULL)", "");
 
     if (NULL == command->nodeId ||
         NULL == command->sessionId ||
@@ -1727,7 +1724,7 @@ static int tp_rest_api_response(const char *url_part, tor_http_api_request_t *re
         return TOR_HTTP_RESULT_UNKNOWN;
     if (!request->body)
         return TOR_HTTP_RESULT_WRONG_BODY;
-    log_notice(LD_HTTP, "/response request: %s", request->body);
+    log_notice(LD_HTTP, "%s request: %s", url_part, request->body);
     struct json_object *json = NULL;
     enum json_tokener_error jerr = json_tokener_success;
     json = json_tokener_parse_verbose(request->body, &jerr);
@@ -1762,8 +1759,6 @@ static int tp_process_payment_message_for_paymentComplete(payment_message_for_ht
         return TOR_HTTP_RESULT_UNKNOWN;
     }
 
-    ship_log(PAYMENT_CALLBACK, "/api/paymentComplete",  command->json_body ? command->json_body : "(NULL)", "");
-
     if (NULL == command->sessionId /*|| 0 > command->status*/) {
             log_notice(LD_PROTOCOL | LD_BUG, "tp_process_payment_message_for_paymentcomplete: invalid sessionId arguments");
             return TOR_HTTP_RESULT_WRONG_PARAMETER;
@@ -1783,7 +1778,7 @@ static int tp_rest_api_paymentComplete(const char *url_part, tor_http_api_reques
         return TOR_HTTP_RESULT_UNKNOWN;
     if (!request->body)
         return TOR_HTTP_RESULT_WRONG_BODY;
-    log_notice(LD_HTTP, "/paymentComplete request: %s", request->body);
+    log_notice(LD_HTTP, "%s request: %s", url_part, request->body);
     struct json_object *json = NULL;
     enum json_tokener_error jerr = json_tokener_success;
     json = json_tokener_parse_verbose(request->body, &jerr);
@@ -1840,10 +1835,9 @@ static const payment_message_for_http_handler_t global_http_api_handlers[] = {
 static int tp_rest_handler(tor_http_api_request_t *request)
 {
     if (!request || !request->method)
-        return  -1;
+        return TOR_HTTP_RESULT_UNKNOWN;
     if (!request->url)
-        return -2;
-    int rc = 0;
+        return TOR_HTTP_RESULT_WRONG_URL;
     for (size_t i = 0; i < NELEMS(global_http_api_handlers); i++) {
         if (strcasecmp(request->method, global_http_api_handlers[i].method))
             continue;
@@ -1853,7 +1847,7 @@ static int tp_rest_handler(tor_http_api_request_t *request)
             request->release = tor_free_;
         return global_http_api_handlers[i].request_fn(global_http_api_handlers[i].url, request);
     }
-    return -2; // wrong url
+    return TOR_HTTP_RESULT_WRONG_URL;
 }
 
 static void tp_timer_callback(periodic_timer_t *timer, void *data)

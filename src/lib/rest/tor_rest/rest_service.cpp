@@ -78,10 +78,10 @@ bool tor_rest_service::handle(rest_request& req)
 			int rc =  m_handler(&request);
 			switch (rc){
 			case TOR_HTTP_RESULT_OK:
-				if (request.answer_body) {
+				if (request.answer_body)
 					return req.respond(request.answer_plain_text ? "text/plain": "application/json", request.answer_body);
-				} else
-				return req.respond("application/json", "{}");
+				else
+					return req.respond_201("application/json", "");
 			case TOR_HTTP_RESULT_WRONG_METHOD:
 				return req.respond("application/json", "{\"result\":\"wrong method\"}");
 			case TOR_HTTP_RESULT_WRONG_URL:
