@@ -437,7 +437,6 @@ static error_t circuit_payment_send_command_to_origin(circuit_t *circ, uint8_t r
     return ret;
 }
 
-
 static OR_OP_request_t* circuit_payment_handle_payment_negotiate(const cell_t *cell)
 {
     OR_OP_request_t *negotiate;
@@ -770,11 +769,11 @@ void remove_from_session_context(payment_session_context_t* element)
     tor_free_(element);
 }
 
-static void tp_get_sessions(smartlist_t *remove_list, uint64_t channel_global_id, circid_t circ_id)
+static void tp_get_sessions(smartlist_t *output_list, uint64_t channel_global_id, circid_t circ_id)
 {
     SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
         if (element->circuit_id == circ_id && element->channel_global_id == channel_global_id) {
-            smartlist_add(remove_list, element);
+            smartlist_add(output_list, element);
         }
     } SMARTLIST_FOREACH_END(element);
 }
@@ -840,7 +839,8 @@ static void tp_update_circ_counters(or_circuit_t *or_circut)
 }
 
 typedef struct send_payment_request_to_client_st {
-    circuit_t *circ;
+    circid_t circuit_id;
+    uint64_t channel_global_id;
     char *response;
     struct json_object *json;
     char *session;
@@ -851,7 +851,6 @@ static void free_send_payment_request_to_client_job(send_payment_request_to_clie
     if (job) {
         tor_free(job->response);
         tor_free(job->session);
-        job->circ = NULL;
         if (job->json) {
             json_object_put(job->json);
             job->json = NULL;
@@ -894,6 +893,23 @@ static workqueue_reply_t send_payment_request_to_client_threadfn(void *state_, v
     return WQ_RPL_REPLY;
 }
 
+static circuit_t *tp_find_or_circuit(uint64_t global_identifier, circid_t circ_id)
+{
+    smartlist_t *circuits = circuit_get_global_list();
+    SMARTLIST_FOREACH_BEGIN(circuits, circuit_t *, element) {
+        if(CIRCUIT_IS_ORIGIN(element))
+            continue;
+        tor_assert(CIRCUIT_IS_ORCIRC(element));
+        or_circuit_t *or_circ = TO_OR_CIRCUIT(element);
+        if (or_circ->p_chan->global_identifier != global_identifier)
+            continue;
+        if (or_circ->p_circ_id == circ_id) {
+            return element;
+        }
+    } SMARTLIST_FOREACH_END(element);
+    return NULL;
+}
+
 static void send_payment_request_to_client_replyfn(void * work_)
 {
     send_payment_request_to_client_t *job = work_;
@@ -903,6 +919,13 @@ static void send_payment_request_to_client_replyfn(void * work_)
         free_send_payment_request_to_client_job(job);
         return;
     }
+    circuit_t *circ = tp_find_or_circuit(job->channel_global_id, job->circuit_id);
+    
+    if(!circ) {
+        free_send_payment_request_to_client_job(job);
+        return;
+    }
+
     OR_OP_request_t input;
     input.version = 0;
     input.message_type = 1;
@@ -929,7 +952,7 @@ static void send_payment_request_to_client_replyfn(void * work_)
         input.message[chunck_real_size] = 0;
         input.messageLength = chunck_real_size;
         input.is_last = (g < part_size) ? 0 : 1;
-        circuit_payment_send_OR(job->circ, &input);
+        circuit_payment_send_OR(circ, &input);
     }
     free_send_payment_request_to_client_job(job);
 }
@@ -940,11 +963,13 @@ void tp_send_payment_request_to_client_async(circuit_t *circ, int message_number
     circ->total_package_received = 0;
     circ->total_package_sent = 0;
 
-    tp_update_circ_counters(TO_OR_CIRCUIT(circ));
+    or_circuit_t * or_circ = TO_OR_CIRCUIT(circ);
+    tp_update_circ_counters(or_circ);
 
     send_payment_request_to_client_t *job = tor_calloc(1, sizeof(send_payment_request_to_client_t));
     tor_assert(NULL != job);
-    job->circ = circ;
+    job->channel_global_id = or_circ->p_chan->global_identifier;
+    job->circuit_id = or_circ->p_circ_id;
     workqueue_entry_t *work = 
         cpuworker_queue_work(WQ_PRI_LOW, send_payment_request_to_client_threadfn, send_payment_request_to_client_replyfn, job);
 
@@ -973,8 +998,7 @@ static void tp_circuitmux_reset_limits(circuit_t * circ)
 typedef struct process_payment_cell_st {
     OR_OP_request_t *payload;
     payment_chunks_t* chunk;
-    circuit_t *circ;
-} process_payment_cell_t;
+}  process_payment_cell_t;
 
 static workqueue_reply_t process_payment_cell_threadfn(void *state_, void *work_)
 {
@@ -1015,14 +1039,14 @@ int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ)
     smartlist_remove(global_chunks_list, origin);
 
     if(payment_request_payload->message_type != 100) {
+        or_circuit_t * or_circ = TO_OR_CIRCUIT(circ);
         tp_store_session_context(payment_request_payload->session_id,
             payment_request_payload->nickname,
-            TO_OR_CIRCUIT(circ)->p_chan->global_identifier,
-            TO_OR_CIRCUIT(circ)->p_circ_id);
+            or_circ->p_chan->global_identifier,
+            or_circ->p_circ_id);
 
         process_payment_cell_t *job = tor_calloc(1, sizeof(process_payment_cell_t));
         job->chunk = origin;
-        job->circ = circ;
         job->payload = payment_request_payload;
     
         workqueue_entry_t *work = 
