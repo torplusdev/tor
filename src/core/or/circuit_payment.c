@@ -146,13 +146,8 @@ static int tp_send_http_api_request(payment_message_for_http_t *request)
     return request->result;
 }
 
-typedef struct rest_node_t {
-    char node_id[MAX_HEX_NICKNAME_LEN + 1];
-    char address[STELLAR_ADDRESS_LEN + 1];
-} rest_node_t;
-
 typedef struct tor_route {
-    rest_node_t* nodes;
+    routing_node_t* nodes;
     size_t nodes_len;
     char sessionId[SESSION_ID_LEN + 1];
     char exclude_node_id[MAX_HEX_NICKNAME_LEN + 1];
@@ -1066,7 +1061,6 @@ int tp_process_payment_cell_async(const cell_t *cell, circuit_t *circ)
 typedef struct process_payment_command_cell_to_node_st {
     OR_OP_request_t *request;
     payment_chunks_t* chunk;
-    circuit_t *circ;
     routing_node_t *nodes;
     size_t hop_num;
 } process_payment_command_cell_to_node_t;
@@ -1140,7 +1134,6 @@ int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t 
     process_payment_command_cell_to_node_t *job = tor_calloc(1, sizeof(process_payment_command_cell_to_node_t));
     job->chunk = origin;
     job->request = request;
-    job->circ = circ;
     switch(job->request->message_type){
     case 1: // Payment creation request method
         {
@@ -1154,8 +1147,8 @@ int tp_process_payment_command_cell_to_node_async(const cell_t *cell, circuit_t 
             job->nodes = tor_calloc(sizeof(routing_node_t), job->hop_num);
             crypt_path_t * next = origin_circuit->cpath;
             for (size_t i = 0; i < job->hop_num - 1; ++i) {
-                job->nodes[i].node_id = next->extend_info->nickname;
-                job->nodes[i].address = next->extend_info->stellar_address;
+                strlcpy(job->nodes[i].node_id, next->extend_info->nickname, sizeof(job->nodes[i].node_id));
+                strlcpy(job->nodes[i].address, next->extend_info->stellar_address, sizeof(job->nodes[i].address));
                 next = next->next;
             }
             tp_store_session_context(job->request->session_id, job->request->nickname, circ->n_chan->global_identifier, circ->n_circ_id);
@@ -1297,7 +1290,7 @@ static int tp_process_payment_message_for_paymentRoute(payment_message_for_http_
 
         crypt_path_t *next = origin_circuit->cpath;
         route->nodes_len = circuit_get_length(origin_circuit);
-        route->nodes = (rest_node_t *) tor_malloc_(route->nodes_len * sizeof(rest_node_t));
+        route->nodes = (routing_node_t *) tor_malloc_(route->nodes_len * sizeof(routing_node_t));
         for (size_t i = 0; i < route->nodes_len; ++i) {
             int skip = 0;
             if (route->exclude_address && strcmp(route->exclude_address, next->extend_info->stellar_address) == 0) {

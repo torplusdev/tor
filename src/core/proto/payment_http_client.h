@@ -7,8 +7,8 @@
 #include <src/core/or/origin_circuit_st.h>
 
 typedef struct  routing_node {
-    char* node_id;
-    char* address;
+    char node_id[MAX_NICKNAME_LEN + 1];
+    char address[STELLAR_ADDRESS_LEN + 1];
 } routing_node_t;
 
 typedef struct create_payment_info {
