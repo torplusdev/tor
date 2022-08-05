@@ -36,6 +36,7 @@ typedef enum router_crn_flags_t {
   CRN_INITIATE_IPV6_EXTEND = 1<<7,
   /* Try to choose nodes from home zone, TorPlus flag*/
   CRN_HOME_ZONE_PREFERRED = 1<<8,
+  CRN_ONEHOP_MODE = 1<<9
 } router_crn_flags_t;
 
 /** Possible ways to weight routers when choosing one randomly.  See

@@ -561,8 +561,18 @@ router_can_choose_node(const node_t *node, int flags)
   const bool rendezvous_v3 = (flags & CRN_RENDEZVOUS_V3) != 0;
   const bool initiate_ipv6_extend = (flags & CRN_INITIATE_IPV6_EXTEND) != 0;
   const bool home_zone_only = (flags & CRN_HOME_ZONE_PREFERRED) != 0;
+  const bool one_hop_mode = (flags & CRN_ONEHOP_MODE) != 0;
 
   const or_options_t *options = get_options();
+  if (one_hop_mode && options->OneHopExit) {
+    tor_addr_t exit_addr, node_addr;
+    node_get_addr(node, &node_addr);
+    node_get_addr(options->OneHopExit, &exit_addr);
+    if (!router_addrs_is_same(&exit_addr, &node_addr)) {
+      log_info(LD_CIRC, "Cant choose node for OneHop with address different from choden exit: %s", node_get_nickname(node));
+      return false;
+    }
+  }
   if (options->OneHopNodes){
     if (!routerset_contains_node(options->OneHopNodes, node)) {
       log_info(LD_CIRC, "Cant choose node for OneHop: %s", node_get_nickname(node));

@@ -129,6 +129,7 @@ int router_exit_policy_all_nodes_reject(const tor_addr_t *addr, uint16_t port,
 void router_set_status(const char *digest, int up);
 int router_addrs_in_same_network(const tor_addr_t *a1,
                                  const tor_addr_t *a2);
+int router_addrs_is_same(const tor_addr_t *a1, const tor_addr_t *a2);
 
 /** router_have_minimum_dir_info tests to see if we have enough
  * descriptor information to create circuits.

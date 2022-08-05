@@ -113,6 +113,7 @@ struct or_options_t {
   smartlist_t *HomeZoneNodesSets;           // Tor+
   struct config_line_t *HomeZoneNodesLines; // Tor+
   struct routerset_t *OneHopNodes;          // Tor+
+  const node_t *OneHopExit;                 // Tor+
 
   struct routerset_t *MiddleNodes; /**< Structure containing nicknames,
                              * digests, country codes and IP address patterns

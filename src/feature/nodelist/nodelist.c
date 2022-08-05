@@ -2107,6 +2107,26 @@ router_addrs_in_same_network(const tor_addr_t *a1,
   }
 }
 
+/** Return true iff router1 and router2 have similar addresses
+ * that we should treat them as being in the same onehop server node */
+int
+router_addrs_is_same(const tor_addr_t *a1,
+                             const tor_addr_t *a2)
+{
+  if (tor_addr_is_null(a1) || tor_addr_is_null(a2))
+    return 0;
+
+  switch (tor_addr_family(a1)) {
+    case AF_INET:
+      return 0 == tor_addr_compare_masked(a1, a2, 32, CMP_SEMANTIC);
+    case AF_INET6:
+      return 0 == tor_addr_compare_masked(a1, a2, 128, CMP_SEMANTIC);
+    default:
+      /* If not IPv4 or IPv6, return 0. */
+      return 0;
+  }
+}
+
 /** Return true if <b>node</b>'s nickname matches <b>nickname</b>
  * (case-insensitive), or if <b>node's</b> identity key digest
  * matches a hexadecimal value stored in <b>nickname</b>.  Return
@@ -2254,7 +2274,7 @@ nodelist_add_node_and_family(smartlist_t *sl, const node_t *node)
   }
 
   /* First, add any nodes with similar network addresses. */
-  if (options->EnforceDistinctSubnets) {
+  if (!options->OneHopNodes &&  options->EnforceDistinctSubnets) {
     tor_addr_t node_addr;
     tor_addr_port_t node_ap6;
     node_get_addr(node, &node_addr);
