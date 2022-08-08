@@ -57,6 +57,8 @@
 #include "feature/relay/router.h"
 #include "feature/relay/routermode.h"
 #include "feature/nodelist/dirlist.h"
+#include "feature/nodelist/nodelist.h"
+#include "src/lib/net/address.h"
 #include "core/or/scheduler.h"
 #include "feature/nodelist/torcert.h"
 #include "feature/nodelist/networkstatus.h"
@@ -203,6 +205,18 @@ channel_tls_connect(const tor_addr_t *addr, uint16_t port,
             tlschan,
             (chan->global_identifier));
 
+  tor_addr_t last_suggested;
+  tor_addr_t localhost;
+  memset(&last_suggested, 0, sizeof(last_suggested));
+  resolved_addr_get_last(addr->family, &last_suggested);
+  if (tor_addr_is_valid(&last_suggested, 1)) {
+    if (router_addrs_is_same(&last_suggested, addr)) {
+      memset(&localhost, 0, sizeof(localhost));
+      tor_addr_parse(&localhost, "127.0.0.1"); // TODO: "127.0.0.1" -> get_options()->OneHopLoopbackInterface
+      addr = &localhost;
+    }
+  }
+  
   if (is_local_to_resolve_addr(addr)) {
     log_debug(LD_CHANNEL,
               "Marking new outgoing channel %"PRIu64 " at %p as local",
