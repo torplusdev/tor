@@ -29,6 +29,9 @@ if [[ "${no_conf}" != "1" ]]; then
    export self_host="$(ip addr | grep 'state UP' -A2 | tail -n1 | awk '{print $2}' | cut -f1  -d'/')"
   fi
   mkdir -p /usr/local/etc/tor/ && cat /opt/torplus/configs/${role}_torrc.tmpl | envsubst > /usr/local/etc/tor/torrc
+  if [[ "${singlehop_hs}" = "1" ]]; then
+    echo -e "\nHiddenServiceSingleHopMode 1\nHiddenServiceNonAnonymousMode 1\n" >> /usr/local/etc/tor/torrc
+  fi
 fi
 function mark {
   match=$1
