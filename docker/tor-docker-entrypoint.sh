@@ -30,7 +30,7 @@ if [[ "${no_conf}" != "1" ]]; then
   fi
   mkdir -p /usr/local/etc/tor/ && cat /opt/torplus/configs/${role}_torrc.tmpl | envsubst > /usr/local/etc/tor/torrc
   if [[ "${singlehop_hs}" = "1" ]]; then
-    echo "\nHiddenServiceSingleHopMode 1\nHiddenServiceNonAnonymousMode 1\n" >> /usr/local/etc/tor/torrc
+    echo -e "\nHiddenServiceSingleHopMode 1\nHiddenServiceNonAnonymousMode 1\n" >> /usr/local/etc/tor/torrc
   fi
 fi
 function mark {
