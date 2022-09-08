@@ -71,7 +71,6 @@ static void scale_single_cell_ewma(cell_ewma_t *ewma, unsigned cur_tick);
 static void scale_active_circuits(ewma_policy_data_t *pol,
                                   unsigned cur_tick);
 static void pause_cell_ewma(ewma_policy_data_t *pol, cell_ewma_t *ewma);
-static void resume_cell_ewma(ewma_policy_data_t *pol, cell_ewma_t *ewma);
 
 /*** Circuitmux policy methods ***/
 
@@ -801,19 +800,6 @@ static void pause_cell_ewma(ewma_policy_data_t *pol, cell_ewma_t *ewma)
   if(!pol->paused_circuits)
     pol->paused_circuits = smartlist_new();
   smartlist_add(pol->paused_circuits, ewma);
-}
-
-/**  */
-static void resume_cell_ewma(ewma_policy_data_t *pol, cell_ewma_t *ewma)
-{
-  tor_assert(pol);
-  tor_assert(ewma);
-  tor_assert(ewma->heap_index == -1);
-
-  if (!pol->paused_circuits) {
-    smartlist_remove(pol->paused_circuits, ewma);
-  }
-  add_cell_ewma(pol, ewma);
 }
 
 /** Remove <b>ewma</b> from <b>pol</b>'s priority queue of active circuits */
