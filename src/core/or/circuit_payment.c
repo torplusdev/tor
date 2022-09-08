@@ -1418,6 +1418,7 @@ static int tp_process_payment_message_for_circuits(payment_message_for_http_t *m
             json_object_array_add(circuit_path, node_json);
         }
         json_object_object_add(circuit_json, "path", circuit_path);
+        json_object_object_add(circuit_json, "streams", json_object_new_string(origin_circuit->p_streams ? "1" : "0"));
         json_object_object_add(circuit_json, "gid", json_object_new_int64(circ->n_chan->global_identifier));
         json_object_object_add(circuit_json, "cid", json_object_new_int64(circ->n_circ_id));
         json_object_object_add(circuit_json, "state", json_object_new_string(circuit_state_to_string(circ->state)));
