@@ -1267,10 +1267,10 @@ static void tp_process_payment_message_for_routing(payment_message_for_routing_t
         route->nodes = (rest_node_t *) tor_malloc_(route->nodes_len * sizeof(rest_node_t));
         for (size_t i = 0; i < route->nodes_len; ++i) {
             int skip = 0;
-            if (route->exclude_address && strcmp(route->exclude_address, next->extend_info->stellar_address) == 0) {
+            if (strcmp(route->exclude_address, next->extend_info->stellar_address) == 0) {
                 log_notice(LD_HTTP, "tp_get_route: exclude nodes with address: %s, hop: %zu", route->exclude_address, i);
                 skip = 1;
-            } else if (route->exclude_node_id && strcmp(route->exclude_node_id, next->extend_info->nickname) == 0) {
+            } else if (strcmp(route->exclude_node_id, next->extend_info->nickname) == 0) {
                 log_notice(LD_HTTP, "tp_get_route: exclude nodes with nickname: %s, hop: %zu", route->exclude_node_id, i);
                 skip = 1;
             } else if (is_invalid_stellar_address(next->extend_info->stellar_address)) {

@@ -50,10 +50,10 @@ char* tp_create_payment_info(char *url, create_payment_info_t* body)
     return response;
 }
 
-void tp_http_payment(char *url, process_payment_request_t* body, int hop_num) {
+void tp_http_payment(char *url, process_payment_request_t* body, size_t hop_num) {
     json_object*  json_request = json_object_new_object();
     json_object *jarray = json_object_new_array();
-    for (int i = 0; i < hop_num - 1; ++i) {
+    for (size_t i = 0; i < hop_num - 1; ++i) {
         json_object* obj = json_object_new_object();
         json_object_object_add(obj, "NodeId", json_object_new_string(body->routing_node[i].node_id));
         json_object_object_add(obj, "Address", json_object_new_string(body->routing_node[i].address));
