@@ -15,11 +15,13 @@ case "$PP_ENV" in
  *) sleep 1 && echo "PP_ENV not valid $PP_ENV" && exit 1 ;;
 esac
 
-case "$PP_SINGLEHOP_HS" in
- 0) echo SINGLEHOP HS OFF ;;
- 1) echo SINGLEHOP HS ON;;
- *) sleep 1 && echo "PP_SINGLEHOP_HS not valid $PP_SINGLEHOP_HS" && exit 1 ;;
-esac
+if [[ "${PP_SINGLEHOP_HS}" != "" ]]; then
+  case "$PP_SINGLEHOP_HS" in
+  0) echo SINGLEHOP HS OFF ;;
+  1) echo SINGLEHOP HS ON;;
+  *) sleep 1 && echo "PP_SINGLEHOP_HS not valid $PP_SINGLEHOP_HS" && exit 1 ;;
+  esac
+fi
 
 #export data_directory="/Users/tumarsal/tor"
 if [[ "${no_conf}" != "1" ]]; then
