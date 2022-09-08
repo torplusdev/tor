@@ -14,6 +14,7 @@ image_last:
 	rm -rf ../.dockerignore
 	docker build --build-arg TOR_VERSION=$(VERSION) \
                 --build-arg PP_ENV=$(PP_ENV) \
+                --build-arg PP_SINGLEHOP_HS=$(PP_SINGLEHOP_HS) \
                 --build-arg TOR_BUILD_HASH=$(COMMIT_HASH) \
                 --build-arg TOR_BUILD_DATE=$(BUILD_DATE) \
                 -t torplus \
@@ -25,6 +26,7 @@ az_pipeline_image:
 	rm -rf ../.dockerignore
 	docker build --build-arg TOR_VERSION=$(VERSION) \
 		--build-arg PP_ENV=$(PP_ENV) \
+        --build-arg PP_SINGLEHOP_HS=$(PP_SINGLEHOP_HS) \
 		-t torplus \
 		-t torplusserviceregistry.azurecr.io/private/tor:$(VERSION) \
 		-t torplusserviceregistry.azurecr.io/private/tor:latest \

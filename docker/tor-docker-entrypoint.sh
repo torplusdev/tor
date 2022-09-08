@@ -12,8 +12,15 @@ esac
 case "$PP_ENV" in
  stage) echo STAGE ;;
  prod) echo PROD ;;
- *) sleep 1 && echo "PP_ENV not valid $role" && exit 1 ;;
+ *) sleep 1 && echo "PP_ENV not valid $PP_ENV" && exit 1 ;;
 esac
+
+case "$PP_SINGLEHOP_HS" in
+ 0) echo SINGLEHOP HS OFF ;;
+ 1) echo SINGLEHOP HS ON;;
+ *) sleep 1 && echo "PP_SINGLEHOP_HS not valid $PP_SINGLEHOP_HS" && exit 1 ;;
+esac
+
 #export data_directory="/Users/tumarsal/tor"
 if [[ "${no_conf}" != "1" ]]; then
   source /opt/torplus/tor.${PP_ENV}.cfg
@@ -29,7 +36,7 @@ if [[ "${no_conf}" != "1" ]]; then
    export self_host="$(ip addr | grep 'state UP' -A2 | tail -n1 | awk '{print $2}' | cut -f1  -d'/')"
   fi
   mkdir -p /usr/local/etc/tor/ && cat /opt/torplus/configs/${role}_torrc.tmpl | envsubst > /usr/local/etc/tor/torrc
-  if [[ "${singlehop_hs}" = "1" ]]; then
+  if [[ "${PP_SINGLEHOP_HS}" = "1" ]]; then
     echo -e "\nHiddenServiceSingleHopMode 1\nHiddenServiceNonAnonymousMode 1\n" >> /usr/local/etc/tor/torrc
   fi
 fi
