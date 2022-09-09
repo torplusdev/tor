@@ -4,7 +4,7 @@
 # https://docs.microsoft.com/azure/devops/pipelines/apps/c-cpp/gcc
 
 trigger:
-- tor_plus_merge_v0.4.6-dev-home_zones
+- tor_plus_merge_v0.4.6-dev-onehop_vpn
 
 variables:
    major: 1
