@@ -1318,6 +1318,7 @@ void circuitmux_circ_reset_limited(circuitmux_t *cmux, circuit_t *circ, cell_dir
 
 int circuitmux_circ_check_limit(circuitmux_t *cmux, circuit_t *circ, unsigned int n_cells)
 {
+  (void)cmux;
   circ->cell_limit -= n_cells;
 
   if (circ->cell_limit <= 0) {

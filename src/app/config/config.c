@@ -759,6 +759,7 @@ static const config_var_t option_vars_[] = {
   V(StellarAddress,            STRING,  ""),
   V(PPResolvDomains,           CSV,     ""),
   V(PPResolvRequired,          BOOL,    "0"),
+  V(HiddenServiceNonAnonymousModeClient, BOOL, "0"),
   V(EnablePaymentLog,          BOOL,    "1"),
   V(EnforceReachability,       BOOL,    "0"),
   V(PPEnableSlowing,           BOOL,    "0"),
@@ -3232,10 +3233,12 @@ options_validate_single_onion(or_options_t *options, char **msg)
                                options->NATDPort_set ||
                                options->DNSPort_set ||
                                options->HTTPTunnelPort_set);
-  if (hs_service_non_anonymous_mode_enabled(options) && client_port_set) {
-    REJECT("HiddenServiceNonAnonymousMode is incompatible with using Tor as "
-           "an anonymous client. Please set Socks/Trans/NATD/DNSPort to 0, or "
-           "revert HiddenServiceNonAnonymousMode to 0.");
+  if (!options->HiddenServiceNonAnonymousModeClient) {
+    if (hs_service_non_anonymous_mode_enabled(options) && client_port_set) {
+      REJECT("HiddenServiceNonAnonymousMode is incompatible with using Tor as "
+            "an anonymous client. Please set Socks/Trans/NATD/DNSPort to 0, or "
+            "revert HiddenServiceNonAnonymousMode to 0.");
+    }
   }
 
   if (hs_service_allow_non_anonymous_connection(options)

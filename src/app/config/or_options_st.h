@@ -1081,6 +1081,8 @@ struct or_options_t {
   struct smartlist_t * PPResolvDomains;//Tor+
   int PPResolvRequired; //Tor+
 
+  int HiddenServiceNonAnonymousModeClient; //Tor+
+
   /**
    * Configuration objects for individual modules.
    *

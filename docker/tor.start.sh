@@ -1,5 +1,9 @@
 export PP_ENV=prod
 export role=hs_client
+if [[ "${PP_SINGLEHOP_HS}" = "" ]]; then
+  export PP_SINGLEHOP_HS=0
+fi
+
 sh update.config.sh
 source tor.${PP_ENV}.cfg
 export dirauth=$dirauth
