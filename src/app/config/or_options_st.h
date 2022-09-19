@@ -300,6 +300,13 @@ struct or_options_t {
    * disabled. */
   int CircuitPadding;
 
+  /** Boolean: if true, then this client will discard cached bridge
+   * descriptors on a setconf or other config change that impacts guards
+   * or bridges (see options_transition_affects_guards() for exactly which
+   * config changes trigger it). Useful for tools that test bridge
+   * reachability by fetching fresh descriptors. */
+  int ReconfigDropsBridgeDescs;
+
   /** Boolean: if true, then this client will only use circuit padding
    * algorithms that are known to use a low amount of overhead. If false,
    * we will use all available circuit padding algorithms.
@@ -499,6 +506,9 @@ struct or_options_t {
   struct smartlist_t *NodeFamilySets;
   struct config_line_t *AuthDirBadExit; /**< Address policy for descriptors to
                                   * mark as bad exits. */
+  /** Address policy for descriptors to mark as only suitable for the
+   * middle position in circuits. */
+  struct config_line_t *AuthDirMiddleOnly;
   struct config_line_t *AuthDirReject; /**< Address policy for descriptors to
                                  * reject. */
   struct config_line_t *AuthDirInvalid; /**< Address policy for descriptors to
@@ -512,6 +522,7 @@ struct or_options_t {
    */
   struct smartlist_t *AuthDirBadExitCCs;
   struct smartlist_t *AuthDirInvalidCCs;
+  struct smartlist_t *AuthDirMiddleOnlyCCs;
   struct smartlist_t *AuthDirRejectCCs;
   /**@}*/
 
@@ -593,6 +604,15 @@ struct or_options_t {
   int NumDirectoryGuards; /**< How many dir guards do we try to establish?
                            * If 0, use value from NumEntryGuards. */
   int NumPrimaryGuards; /**< How many primary guards do we want? */
+
+  /** Boolean: Switch to toggle the vanguards-lite subsystem */
+  int VanguardsLiteEnabled;
+
+  /** Boolean: Switch to override consensus to enable congestion control */
+  int AlwaysCongestionControl;
+
+  /** Boolean: Switch to specify this is an sbws measurement exit */
+  int SbwsExit;
 
   int RephistTrackTime; /**< How many seconds do we keep rephist info? */
   /** Should we always fetch our dir info on the mirror schedule (which
@@ -1066,6 +1086,10 @@ struct or_options_t {
 
   /** List of policy allowed to query the Metrics port. */
   struct config_line_t *MetricsPortPolicy;
+
+  /** How far must we be into the current bandwidth-measurement period to
+   * report bandwidth observations from this period? */
+  int TestingMinTimeToReportBandwidth;
 
   int PPChannelPort;  //Tor+
 

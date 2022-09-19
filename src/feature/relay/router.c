@@ -565,8 +565,8 @@ log_new_relay_greeting(void)
   tor_log(LOG_NOTICE, LD_GENERAL, "You are running a new relay. "
          "Thanks for helping the Tor network! If you wish to know "
          "what will happen in the upcoming weeks regarding its usage, "
-         "have a look at https://blog.torproject.org/blog/lifecycle-of"
-         "-a-new-relay");
+         "have a look at https://blog.torproject.org/lifecycle-of-a"
+         "-new-relay");
 
   already_logged = 1;
 }
@@ -2622,7 +2622,10 @@ check_descriptor_bandwidth_changed(time_t now)
   if ((prev != cur && (!prev || !cur)) ||
       cur > (prev * BANDWIDTH_CHANGE_FACTOR) ||
       cur < (prev / BANDWIDTH_CHANGE_FACTOR) ) {
-    if (last_changed+MAX_BANDWIDTH_CHANGE_FREQ < now || !prev) {
+    const bool change_recent_enough =
+      last_changed+MAX_BANDWIDTH_CHANGE_FREQ < now;
+    const bool testing_network = get_options()->TestingTorNetwork;
+    if (change_recent_enough || testing_network || !prev) {
       log_info(LD_GENERAL,
                "Measured bandwidth has changed; rebuilding descriptor.");
       mark_my_descriptor_dirty("bandwidth has changed");

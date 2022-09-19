@@ -53,7 +53,7 @@
 #define MIN_SUPPORTED_CONSENSUS_METHOD 28
 
 /** The highest consensus method that we currently support. */
-#define MAX_SUPPORTED_CONSENSUS_METHOD 31
+#define MAX_SUPPORTED_CONSENSUS_METHOD 32
 
 /**
  * Lowest consensus method where microdescriptor lines are put in canonical
@@ -69,6 +69,10 @@
  * extracting the bwweightscale= and maxunmeasuredbw= parameters. See #19011.
  */
 #define MIN_METHOD_FOR_CORRECT_BWWEIGHTSCALE 31
+
+/** Lowest consensus method for which we handle the MiddleOnly flag specially.
+ */
+#define MIN_METHOD_FOR_MIDDLEONLY 32
 
 /** Default bandwidth to clip unmeasured bandwidths to using method >=
  * MIN_METHOD_TO_CLIP_UNMEASURED_BW.  (This is not a consensus method; do not
@@ -267,64 +271,6 @@ STATIC microdesc_t *dirvote_create_microdescriptor(const routerinfo_t *ri,
 STATIC int64_t extract_param_buggy(const char *params,
                                    const char *param_name,
                                    int64_t default_value);
-
-/** The recommended relay protocols for this authority's votes.
- * Recommending a new protocol causes old tor versions to log a warning.
- */
-#define DIRVOTE_RECOMMEND_RELAY_PROTO           \
-  "Cons=2 "                                     \
-  "Desc=2 "                                     \
-  "DirCache=2 "                                 \
-  "HSDir=2 "                                    \
-  "HSIntro=4 "                                  \
-  "HSRend=2 "                                   \
-  "Link=4-5 "                                   \
-  "LinkAuth=3 "                                 \
-  "Microdesc=2 "                                \
-  "Relay=2"
-
-/** The recommended client protocols for this authority's votes.
- * Recommending a new protocol causes old tor versions to log a warning.
- */
-#define DIRVOTE_RECOMMEND_CLIENT_PROTO          \
-  "Cons=2 "                                     \
-  "Desc=2 "                                     \
-  "DirCache=2 "                                 \
-  "HSDir=2 "                                    \
-  "HSIntro=4 "                                  \
-  "HSRend=2 "                                   \
-  "Link=4-5 "                                   \
-  "Microdesc=2 "                                \
-  "Relay=2"
-
-/** The required relay protocols for this authority's votes.
- * WARNING: Requiring a new protocol causes old tor versions to shut down.
- *          Requiring the wrong protocols can break the tor network.
- * See Proposal 303: When and how to remove support for protocol versions.
- */
-#define DIRVOTE_REQUIRE_RELAY_PROTO             \
-  "Cons=2 "                                     \
-  "Desc=2 "                                     \
-  "DirCache=2 "                                 \
-  "HSDir=2 "                                    \
-  "HSIntro=4 "                                  \
-  "HSRend=2 "                                   \
-  "Link=4-5 "                                   \
-  "LinkAuth=3 "                                 \
-  "Microdesc=2 "                                \
-  "Relay=2"
-
-/** The required relay protocols for this authority's votes.
- * WARNING: Requiring a new protocol causes old tor versions to shut down.
- *          Requiring the wrong protocols can break the tor network.
- * See Proposal 303: When and how to remove support for protocol versions.
- */
-#define DIRVOTE_REQUIRE_CLIENT_PROTO            \
-  "Cons=2 "                                     \
-  "Desc=2 "                                     \
-  "Link=4 "                                     \
-  "Microdesc=2 "                                \
-  "Relay=2"
 
 #endif /* defined(DIRVOTE_PRIVATE) */
 

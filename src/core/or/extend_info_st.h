@@ -38,6 +38,13 @@ struct extend_info_t {
   crypto_pk_t *onion_key;
   /** Ntor onion key for this hop. */
   curve25519_public_key_t curve25519_onion_key;
+  /** True if this hop is to be used as an _exit_,
+   * and it also supports supports NtorV3 _and_ negotiation
+   * of congestion control parameters */
+  bool exit_supports_congestion_control;
+  /** 
+   * Tor+
+   */
   char stellar_address[STELLAR_ADDRESS_LEN];
 };
 
