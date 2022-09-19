@@ -50,7 +50,8 @@ jobs:
       ExeExt: ''
 
 - job: Tor_Plus_For_Windows
-
+  timeoutInMinutes: 90
+  
   pool:
     name: Windows_Pool
 
