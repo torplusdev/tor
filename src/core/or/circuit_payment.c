@@ -336,7 +336,7 @@ void tp_init(void)
     snprintf(s_url_api_gw_processResponse, PAYMENT_URL_LEN, "http://localhost:%d/api/gateway/processResponse", ppc_port);
 
     tp_init_lists();
-    cpu_init();
+    //cpu_init();
 
     const int ppcb_port = get_options()->PPChannelCallbackPort;
     if ( ppcb_port != -1 ) {

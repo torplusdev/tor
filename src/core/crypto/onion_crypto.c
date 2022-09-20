@@ -66,7 +66,11 @@ server_onion_keys_new(void)
 {
   server_onion_keys_t *keys = tor_malloc_zero(sizeof(server_onion_keys_t));
   memcpy(keys->my_identity, router_get_my_id_digest(), DIGEST_LEN);
-  ed25519_pubkey_copy(&keys->my_ed_identity, get_master_identity_key());
+  const ed25519_public_key_t *master_identity_key = get_master_identity_key();
+  if (master_identity_key) 
+    ed25519_pubkey_copy(&keys->my_ed_identity, master_identity_key);
+  else
+    memset(&keys->my_ed_identity, 0, sizeof(keys->my_ed_identity));
   dup_onion_keys(&keys->onion_key, &keys->last_onion_key);
   keys->curve25519_key_map = construct_ntor_key_map();
   keys->junk_keypair = tor_malloc_zero(sizeof(curve25519_keypair_t));
