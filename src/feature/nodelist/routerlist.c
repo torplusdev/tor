@@ -569,7 +569,7 @@ router_can_choose_node(const node_t *node, int flags)
     node_get_addr(node, &node_addr);
     node_get_addr(options->OneHopExit, &exit_addr);
     if (!router_addrs_is_same(&exit_addr, &node_addr)) {
-      log_info(LD_CIRC, "Cant choose node for OneHop with address different from choden exit: %s", node_get_nickname(node));
+      log_info(LD_CIRC, "Cant choose node for OneHop with address different from chosen exit: %s", node_get_nickname(node));
       return false;
     }
   }
