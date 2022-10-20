@@ -659,7 +659,6 @@ sendme_note_circuit_data_packaged(circuit_t *circ, crypt_path_t *layer_hint)
       /* Client side. */
       tor_assert(layer_hint);
       --layer_hint->package_window;
-    ++circ->total_package_sent;
       package_window = layer_hint->package_window;
     } else {
       /* Exit side. */

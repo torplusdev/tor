@@ -248,12 +248,10 @@ circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
 
   if (CIRCUIT_IS_ORIGIN(circ)) {
       tor_assert(layer_hint);
-      if (cell_direction == CELL_DIRECTION_IN) ++circ->total_package_received;
-      else ++circ->total_package_sent;
-  } else {
-//      tor_assert(!layer_hint);
-//      if (cell_direction == CELL_DIRECTION_IN) ;
-//      else ++circ->total_package_sent;
+      if (cell_direction == CELL_DIRECTION_IN)
+        ++circ->total_package_received;
+      else
+        ++circ->total_package_sent;
   }
 
   if (recognized) {
