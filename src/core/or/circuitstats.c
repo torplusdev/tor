@@ -717,7 +717,7 @@ circuit_build_times_handle_completed_hop(origin_circuit_t *circ)
 
   /* If the circuit is built to exactly the DEFAULT_ROUTE_LEN,
    * add it to our buildtimes. */
-  if (circuit_get_cpath_opened_len(circ) == DEFAULT_ROUTE_LEN) {
+  if (circuit_get_cpath_opened_len(circ) == get_options()->CircuitLength/*DEFAULT_ROUTE_LEN*/) {
     /* If the circuit build time is much greater than we would have cut
      * it off at, we probably had a suspend event along this codepath,
      * and we should discard the value.

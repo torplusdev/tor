@@ -824,9 +824,10 @@ should_use_create_fast_for_circuit(origin_circuit_t *circ)
 int
 circuit_timeout_want_to_count_circ(const origin_circuit_t *circ)
 {
+  int circuit_length = get_options()->CircuitLength;
   return !circ->has_opened
-          && circ->build_state->desired_path_len >= DEFAULT_ROUTE_LEN
-          && circuit_get_cpath_opened_len(circ) <= DEFAULT_ROUTE_LEN;
+          && circ->build_state->desired_path_len >= circuit_length //DEFAULT_ROUTE_LEN
+          && circuit_get_cpath_opened_len(circ) <= circuit_length; //DEFAULT_ROUTE_LEN;
 }
 
 /** Decide whether to use a TAP or ntor handshake for connecting to <b>ei</b>
@@ -1405,7 +1406,7 @@ circuit_truncated(origin_circuit_t *circ, int reason)
 int
 route_len_for_purpose(uint8_t purpose, extend_info_t *exit_ei)
 {
-  int routelen = DEFAULT_ROUTE_LEN;
+  int routelen = get_options()->CircuitLength;//DEFAULT_ROUTE_LEN;
   int known_purpose = 0;
 
   /* If we're using L3 vanguards, we need longer paths for onion services */
@@ -2277,7 +2278,7 @@ build_vanguard_middle_exclude_list(uint8_t purpose,
    * because we also want to allow HS_VANGUARDS pre-build circuits
    * to use the guard for that last hop.
    */
-  if (cur_len == DEFAULT_ROUTE_LEN+1) {
+  if (cur_len == get_options()->CircuitLength + 1 /*DEFAULT_ROUTE_LEN+1*/ ) {
     /* Skip the first hop for the exclude list below */
     head = head->next;
     cur_len--;

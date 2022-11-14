@@ -1107,6 +1107,8 @@ struct or_options_t {
 
   int HiddenServiceNonAnonymousModeClient; //Tor+
 
+  int CircuitLength;  //Tor+
+
   /**
    * Configuration objects for individual modules.
    *
