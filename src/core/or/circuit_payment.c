@@ -267,6 +267,11 @@ typedef struct tor_api_onehop_st {
     int reset;
 } tor_api_onehop_t;
 
+typedef struct tor_api_circuit_length_st {
+    tor_http_api_request_t *request;
+    int circuit_length;
+} tor_api_circuit_length_t;
+
 static int tp_rest_api_onehop(const char *url_part, tor_http_api_request_t *request)
 {
     if (!request->body)
@@ -307,6 +312,45 @@ static int tp_rest_api_onehop(const char *url_part, tor_http_api_request_t *requ
             routerset_free(exit_rs);
             rc = TOR_HTTP_RESULT_WRONG_PARAMETER;
         }
+    } while(false);
+    if (json)
+        json_object_put(json);
+    return rc;
+}
+
+static int tp_rest_api_circuit_length(const char *url_part, tor_http_api_request_t *request)
+{
+    if (!request->body)
+        return TOR_HTTP_RESULT_WRONG_BODY;
+    int rc = TOR_HTTP_RESULT_UNKNOWN;
+    log_notice(LD_HTTP, "%s request: %s", url_part, request->body);
+    struct json_object *json = NULL;
+    do {
+        enum json_tokener_error jerr = json_tokener_success;
+        json = json_tokener_parse_verbose(request->body, &jerr);
+        if (jerr != json_tokener_success) {
+            log_err(LD_HTTP, "Can't parse json object (reason:%s) from: %s", json_tokener_error_desc(jerr), request->body);
+            rc = TOR_HTTP_RESULT_WRONG_JSON;
+            break;
+        }
+        struct json_object *Obj = NULL;
+        if (!json_object_object_get_ex(json, "length", &Obj)){
+            rc = TOR_HTTP_RESULT_WRONG_JSON;
+            break;
+        }
+        const int length = json_object_get_int(Obj);
+        if (length < 2) {
+            rc = TOR_HTTP_RESULT_WRONG_PARAMETER;
+            break;
+        }
+            tor_api_circuit_length_t msg;
+            tp_zero_mem(&msg, sizeof(msg));
+            msg.circuit_length = length;
+            payment_message_for_http_t request;
+            tp_zero_mem(&request, sizeof(request));
+            request.url_part = url_part;
+            request.msg = &msg;
+            rc = tp_send_http_api_request(&request);
     } while(false);
     if (json)
         json_object_put(json);
@@ -1355,6 +1399,26 @@ static int tp_process_payment_message_for_onehop(payment_message_for_http_t *mes
     return TOR_HTTP_RESULT_OK;
 }
 
+static int tp_process_payment_message_for_circuit_length(payment_message_for_http_t *message)
+{
+    if (!message)
+        return TOR_HTTP_RESULT_UNKNOWN;
+
+    tor_api_circuit_length_t *msg = (tor_api_circuit_length_t *)message->msg;
+    or_options_t *options = get_options_mutable();
+    if (msg->circuit_length >= 2) {
+        options->CircuitLength = msg->circuit_length;
+        log_notice(LD_HTTP, "Invalidate all circuits due to CircuitLength option change");
+        circuit_mark_all_unused_circs();
+        circuit_mark_all_dirty_circs_as_unusable();
+    }
+    else {
+        log_notice(LD_HTTP, "Invalid CircuitLength option");
+    }
+    message->done = 1;
+    return TOR_HTTP_RESULT_OK;
+}
+
 static int tp_process_payment_message_for_versionex(payment_message_for_http_t *message)
 {
     if (!message)
@@ -1824,6 +1888,9 @@ static const payment_message_for_http_handler_t global_http_api_handlers[] = {
     { "POST", "/api/onehop",
         tp_process_payment_message_for_onehop,
         tp_rest_api_onehop },
+    { "POST", "/api/circuit_length",
+        tp_process_payment_message_for_circuit_length,
+        tp_rest_api_circuit_length },
     { "GET", "/api/version",
         tp_process_payment_message_for_versionex,
         tp_rest_api_direct },
