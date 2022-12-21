@@ -235,6 +235,30 @@ void tp_init_lists(void)
     global_chunks_list = smartlist_new();
 }
 
+void tp_scan_sessions(void)
+{
+    time_t now = time(NULL);
+    time_t life_time = get_options()->PPSessionLifetime;
+    smartlist_t *outdated = NULL;
+    SMARTLIST_FOREACH_BEGIN(global_payment_session_list, payment_session_context_t *, element) {
+        if ((now - element->timestamp_created) > life_time) {
+            if (!outdated) {
+                outdated = smartlist_new();
+                tor_assert(outdated != NULL);
+            }
+            smartlist_add(outdated, element);
+        }
+    } SMARTLIST_FOREACH_END(element);
+    if (outdated) {
+        log_err(LD_CIRC, "Cleaning %i outdated payment sessions", smartlist_len(outdated));
+        SMARTLIST_FOREACH_BEGIN(outdated, payment_session_context_t *, element) {
+            smartlist_remove(global_payment_session_list, element);
+            tor_free_(element);
+        } SMARTLIST_FOREACH_END(element);
+        smartlist_free(outdated);
+    }
+}
+
 static periodic_timer_t *s_limit_refresh_timer = NULL;
 
 static void tp_timer_callback(periodic_timer_t *timer, void *data);
@@ -770,6 +794,7 @@ void tp_store_session_context(const char* session, const char* nickname, uint64_
         strcpy(ent->nickname, nickname);
         ent->channel_global_id = channel_global_id;
         ent->circuit_id = circuit_id;
+        ent->timestamp_created = time(NULL);
         smartlist_add(global_payment_session_list, ent);
     } else {
         strcpy(origin->session_id, session);
@@ -1960,4 +1985,6 @@ static void tp_timer_callback(periodic_timer_t *timer, void *data)
 
     if (done)
         tor_cond_signal_all(&global_payment_cond);
+
+    tp_scan_sessions();// TODO: move into slower timer callback
 }

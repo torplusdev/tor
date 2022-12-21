@@ -772,6 +772,7 @@ static const config_var_t option_vars_[] = {
   V(EnforceReachability,       BOOL,    "0"),
   V(PPEnableSlowing,           BOOL,    "0"),
   V(CircuitLength,             INT,     "3"),
+  V(PPSessionLifetime,    INTERVAL, "10 minutes"),
   END_OF_CONFIG_VARS
 };
 

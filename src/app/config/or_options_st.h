@@ -1095,6 +1095,8 @@ struct or_options_t {
 
   int PPChannelCallbackPort; //Tor+
 
+  int PPSessionLifetime; //Tor+
+
   char *StellarAddress;//Tor+
 
   int EnablePaymentLog;//Tor+

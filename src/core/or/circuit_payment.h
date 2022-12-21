@@ -68,6 +68,7 @@ typedef struct payment_session_context_st {
     char nickname[USER_NAME_LEN];
     uint32_t circuit_id;
     uint64_t channel_global_id;
+    time_t timestamp_created;
 } payment_session_context_t;
 
 typedef struct payment_chunk_st {
@@ -88,6 +89,7 @@ typedef struct chunk_payment_st {
 
 // public API
 void tp_init_lists(void);
+void tp_scan_sessions(void);
 void tp_init(void);
 void tp_deinit(void);
 void tp_fill_stellar_address(char *dst);
