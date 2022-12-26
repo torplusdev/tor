@@ -1503,6 +1503,9 @@ static int tp_process_payment_message_for_circuits(payment_message_for_http_t *m
                 json_object_object_add(node_json, "stellaraddress", json_object_new_string(cpath->extend_info->stellar_address));
                 json_object_object_add(node_json, "digest", json_object_new_string(hex_str(cpath->extend_info->identity_digest, DIGEST_LEN)));
                 json_object_object_add(node_json, "ed", json_object_new_string(ed25519_fmt(&cpath->extend_info->ed_identity)));
+                char *addr_str = tor_addr_to_str_dup(&cpath->extend_info->orports->addr);
+                json_object_object_add(node_json, "address", json_object_new_string(addr_str));
+                tor_free(addr_str);
             }
             json_object_array_add(circuit_path, node_json);
         }

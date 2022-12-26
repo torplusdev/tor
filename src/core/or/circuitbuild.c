@@ -2454,10 +2454,14 @@ choose_good_middle_server(uint8_t purpose,
       log_fn(LOG_NOTICE, LD_CIRC, "Restricted middle not available");
     }
   } else {
-    if (options->OneHopNodes) {
-      or_options_t *opt = get_options_mutable();
-      opt->OneHopExit = node_get_by_id(state->chosen_exit->identity_digest);
-      flags |= CRN_ONEHOP_MODE;
+    switch (purpose) {
+      case CIRCUIT_PURPOSE_C_GENERAL:
+      if (options->OneHopNodes && state->chosen_exit) {
+        or_options_t *opt = get_options_mutable();
+        opt->OneHopExit = node_get_by_id(state->chosen_exit->identity_digest);
+        flags |= CRN_ONEHOP_MODE;
+      }
+      break;
     }
     choice = router_choose_random_node(excluded, options->ExcludeNodes, flags);
   }
@@ -2513,10 +2517,14 @@ choose_good_entry_server(uint8_t purpose, cpath_build_state_t *state,
   if (state) {
     flags |= cpath_build_state_to_crn_flags(state);
   }
-  if (options->OneHopNodes && state->chosen_exit) {
-    or_options_t *opt = get_options_mutable();
-    opt->OneHopExit = node_get_by_id(state->chosen_exit->identity_digest);
-    flags |= CRN_ONEHOP_MODE;
+  switch (purpose) {
+    case CIRCUIT_PURPOSE_C_GENERAL:
+    if (options->OneHopNodes && state->chosen_exit) {
+      or_options_t *opt = get_options_mutable();
+      opt->OneHopExit = node_get_by_id(state->chosen_exit->identity_digest);
+      flags |= CRN_ONEHOP_MODE;
+    }
+    break;
   }
   choice = router_choose_random_node(excluded, options->ExcludeNodes, flags);
   smartlist_free(excluded);
